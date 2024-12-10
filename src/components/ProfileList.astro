@@ -1,0 +1,72 @@
+---
+import type { SoundProfileWithSounds } from '../types/sound';
+
+interface Props {
+  profiles: SoundProfileWithSounds[];
+}
+
+const { profiles } = Astro.props;
+---
+
+<div class="space-y-6">
+  {profiles.map(profile => (
+    <div class="bg-white rounded-lg shadow-lg p-6">
+      <div class="flex justify-between items-start mb-4">
+        <div>
+          <h3 class="text-2xl font-editorial">{profile.title}</h3>
+          <p class="text-gray-600">{profile.description}</p>
+        </div>
+        <div class="flex space-x-2">
+          <a
+            href={`/sounds/profiles/${profile.id}/edit`}
+            class="bg-blue-400 text-white px-4 py-2 rounded-lg hover:bg-blue-500 transition-colors"
+          >
+            Edit
+          </a>
+          <button
+            class="delete-profile bg-red-400 text-white px-4 py-2 rounded-lg hover:bg-red-500 transition-colors"
+            data-profile-id={profile.id}
+            data-sound-count={profile.sounds.length}
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+      
+      <div class="text-sm text-gray-500">
+        {profile.sounds.length} sound{profile.sounds.length !== 1 ? 's' : ''} in this profile
+      </div>
+    </div>
+  ))}
+</div>
+
+<script>
+  document.querySelectorAll('.delete-profile').forEach(button => {
+    button.addEventListener('click', async () => {
+      const profileId = button.getAttribute('data-profile-id');
+      const soundCount = parseInt(button.getAttribute('data-sound-count') || '0');
+
+      const message = soundCount > 0
+        ? `This will delete the profile and ${soundCount} associated sound${soundCount !== 1 ? 's' : ''}. Are you sure?`
+        : 'Are you sure you want to delete this profile?';
+
+      if (!confirm(message)) return;
+
+      try {
+        const response = await fetch(`/api/sound-profiles/${profileId}`, {
+          method: 'DELETE',
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to delete profile');
+        }
+
+        // Refresh the page to show updated profiles
+        window.location.reload();
+      } catch (error) {
+        console.error('Profile deletion error:', error);
+        alert(error instanceof Error ? error.message : 'Failed to delete profile');
+      }
+    });
+  });
+</script>

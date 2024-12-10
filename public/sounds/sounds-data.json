@@ -1,0 +1,79 @@
+[
+  {
+    "id": "ad73dc43-879c-4251-b74c-e9ce65311ca2",
+    "name": "Dog Barking",
+    "description": "Sounds of a dog barking",
+    "file": "/sounds/animal-noises/dog-barking.mp3",
+    "profileId": "2aa68e76-f50e-4330-ac11-a7f303423f09"
+  },
+  {
+    "id": "a64f2b26-df4f-40f1-a50f-5628a99056f1",
+    "name": "Alligator",
+    "description": "Alligator Sound",
+    "file": "/sounds/animal-noises/alligator.mp3",
+    "profileId": "2aa68e76-f50e-4330-ac11-a7f303423f09"
+  },
+  {
+    "id": "44ad7136-16a0-4864-9c2b-68f7b287e39a",
+    "name": "Gorilla",
+    "description": "Gorilla Sound",
+    "file": "/sounds/animal-noises/gorilla.mp3",
+    "profileId": "2aa68e76-f50e-4330-ac11-a7f303423f09"
+  },
+  {
+    "id": "e50a5196-15a2-4191-849e-3eeb5e25ce19",
+    "name": "Random Drop Play House",
+    "description": "File Size Test 1",
+    "file": "/sounds/music/random-drop-play-house.mp3",
+    "profileId": "3e7a58b9-a97b-4e57-ac58-f52cec48886d"
+  },
+  {
+    "id": "47584e9f-3289-4f2c-82ff-48287c73762c",
+    "name": "Dog Barking",
+    "description": "Dog Barking Sound",
+    "file": "/sounds/animal-noises/dog-barking.mp3",
+    "profileId": "033ac37c-a176-43d7-9b1a-679ea927100f"
+  },
+  {
+    "id": "c1e238bf-23d8-444f-b0c0-efb6646e1de5",
+    "name": "Tiger Sound",
+    "description": "Sound of a Tiger",
+    "file": "/sounds/animal-noises/tiger-sound.mp3",
+    "profileId": "033ac37c-a176-43d7-9b1a-679ea927100f"
+  },
+  {
+    "id": "c9cb5030-cb38-4669-aedd-e0d2e1222979",
+    "name": "Puma Sound",
+    "description": "Noise from a Puma",
+    "file": "/sounds/animal-noises/puma-sound.mp3",
+    "profileId": "033ac37c-a176-43d7-9b1a-679ea927100f"
+  },
+  {
+    "id": "53573c2a-dfd1-4aa8-afea-9dd13b067f39",
+    "name": "House Drop",
+    "description": "Royalty Free House Music Track - Generic. About 4mb",
+    "file": "/sounds/music/house-drop.mp3",
+    "profileId": "2be40a2a-51a0-4cbb-b502-5b765cb69cc1"
+  },
+  {
+    "id": "c867040e-74b6-4b0e-887e-6de3207985d0",
+    "name": "Random Acoustic Guitar",
+    "description": "About 1.5 MB",
+    "file": "/sounds/copyright-free-music/random-acoustic-guitar.mp3",
+    "profileId": "c4e6445e-4e73-4ab1-9f8d-67fd5b83bd96"
+  },
+  {
+    "id": "0711b699-45a4-4317-ae72-36165606fb33",
+    "name": "Random Drop Play House",
+    "description": "about 4.5 mb",
+    "file": "/sounds/copyright-free-music/random-drop-play-house.mp3",
+    "profileId": "c4e6445e-4e73-4ab1-9f8d-67fd5b83bd96"
+  },
+  {
+    "id": "c2489037-3078-4bcd-b651-a4f5f8552a6a",
+    "name": "Unlocked Hacker Mode",
+    "description": "Time to Hack",
+    "file": "/sounds/copyright-free-music/unlocked-hacker-mode.mp3",
+    "profileId": "c4e6445e-4e73-4ab1-9f8d-67fd5b83bd96"
+  }
+]

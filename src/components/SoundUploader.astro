@@ -1,0 +1,198 @@
+---
+import { getSoundProfiles } from '../utils/profileUtils';
+
+const profiles = await getSoundProfiles();
+---
+
+<div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+  <h3 class="text-2xl font-editorial mb-4">Upload New Sound</h3>
+  
+  <form id="upload-form" class="space-y-4">
+    <div>
+      <label for="profileId" class="block text-lg mb-2">Sound Profile</label>
+      <select 
+        id="profileId" 
+        name="profileId" 
+        required 
+        class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400"
+      >
+        <option value="">Select a profile</option>
+        {profiles.map(profile => (
+          <option value={profile.id} data-slug={profile.slug}>
+            {profile.title}
+          </option>
+        ))}
+      </select>
+      <p class="text-sm text-gray-600 mt-1">Choose which profile this sound belongs to</p>
+    </div>
+
+    <div>
+      <label for="name" class="block text-lg mb-2">Sound Name</label>
+      <input 
+        type="text" 
+        id="name" 
+        name="name" 
+        required 
+        minlength="2"
+        maxlength="50"
+        pattern="[A-Za-z0-9\s\-]+"
+        class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400"
+        placeholder="e.g., Bubble Pop"
+      />
+      <p class="text-sm text-gray-600 mt-1">2-50 characters, letters, numbers, spaces, and hyphens only</p>
+    </div>
+
+    <div>
+      <label for="description" class="block text-lg mb-2">Description</label>
+      <textarea 
+        id="description" 
+        name="description" 
+        required 
+        minlength="10"
+        maxlength="200"
+        class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400"
+        placeholder="Brief description of the sound (10-200 characters)"
+      ></textarea>
+      <p class="text-sm text-gray-600 mt-1">10-200 characters</p>
+    </div>
+
+    <div>
+      <label for="sound" class="block text-lg mb-2">Sound File</label>
+      <input 
+        type="file" 
+        id="sound" 
+        name="sound" 
+        accept=".mp3,audio/mpeg" 
+        required 
+        class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400"
+      />
+      <p class="text-sm text-gray-600 mt-1">MP3 format only, max 5MB</p>
+    </div>
+
+    <button 
+      type="submit" 
+      class="bg-green-400 text-white px-8 py-3 rounded-lg text-lg hover:bg-green-500 transition-colors"
+    >
+      Upload Sound
+    </button>
+
+    <div id="upload-status" class="hidden p-4 rounded-lg">
+      <p class="success hidden text-green-600 bg-green-50 p-3 rounded-lg">Sound uploaded successfully!</p>
+      <p class="error hidden text-red-600 bg-red-50 p-3 rounded-lg"></p>
+    </div>
+  </form>
+</div>
+
+<script>
+  const form = document.getElementById('upload-form') as HTMLFormElement;
+  const status = document.getElementById('upload-status');
+  const successMessage = status?.querySelector('.success');
+  const errorMessage = status?.querySelector('.error');
+  const profileSelect = form?.querySelector('#profileId') as HTMLSelectElement;
+
+  const validateFile = (file: File): string | null => {
+    if (!file) {
+      return 'Please select a sound file to upload';
+    }
+
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    if (file.type !== 'audio/mpeg') {
+      return `Invalid file type: ${file.type}. Please upload an MP3 file only (audio/mpeg).`;
+    }
+    if (file.size > maxSize) {
+      const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
+      return `File size (${sizeMB}MB) exceeds the 5MB limit. Please compress your audio file or choose a smaller one.`;
+    }
+    return null;
+  };
+
+  const validateForm = (formData: FormData): string | null => {
+    const name = formData.get('name') as string;
+    const description = formData.get('description') as string;
+    const profileId = formData.get('profileId') as string;
+
+    if (!profileId) {
+      return 'Please select a sound profile for this sound';
+    }
+
+    if (!name || name.length < 2) {
+      return 'Sound name must be at least 2 characters long';
+    }
+
+    if (!/^[A-Za-z0-9\s\-]+$/.test(name)) {
+      return 'Sound name can only contain letters, numbers, spaces, and hyphens';
+    }
+
+    if (!description || description.length < 10) {
+      return 'Description must be at least 10 characters long';
+    }
+
+    return null;
+  };
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    // Reset status messages
+    status?.classList.remove('hidden');
+    successMessage?.classList.add('hidden');
+    errorMessage?.classList.add('hidden');
+
+    const formData = new FormData(form);
+    const file = formData.get('sound') as File;
+    const selectedOption = profileSelect.selectedOptions[0];
+    const profileSlug = selectedOption?.getAttribute('data-slug');
+
+    // Validate form data
+    const formError = validateForm(formData);
+    if (formError) {
+      errorMessage?.classList.remove('hidden');
+      if (errorMessage) errorMessage.textContent = formError;
+      return;
+    }
+
+    // Validate file
+    const fileError = validateFile(file);
+    if (fileError) {
+      errorMessage?.classList.remove('hidden');
+      if (errorMessage) errorMessage.textContent = fileError;
+      return;
+    }
+
+    if (!profileSlug) {
+      errorMessage?.classList.remove('hidden');
+      if (errorMessage) errorMessage.textContent = 'Invalid profile selection. Please try again.';
+      return;
+    }
+
+    formData.append('profileSlug', profileSlug);
+
+    try {
+      const response = await fetch('/api/sounds/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Upload failed: Server returned an error');
+      }
+
+      successMessage?.classList.remove('hidden');
+      form.reset();
+      
+      // Reload to show new sound
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+    } catch (error) {
+      errorMessage?.classList.remove('hidden');
+      if (error instanceof Error) {
+        if (errorMessage) {
+          errorMessage.textContent = `Upload failed: ${error.message}. Please try again or contact support if the problem persists.`;
+        }
+      }
+    }
+  });
+</script>

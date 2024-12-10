@@ -1,0 +1,79 @@
+---
+import type { SoundProfile } from '../types/sound';
+
+interface Props {
+  profile?: SoundProfile;
+  mode: 'create' | 'edit';
+}
+
+const { profile, mode } = Astro.props;
+---
+
+<form id="profile-form" class="space-y-4">
+  <input type="hidden" name="id" value={profile?.id || ''} />
+  
+  <div>
+    <label for="title" class="block text-lg mb-2">Profile Title</label>
+    <input
+      type="text"
+      id="title"
+      name="title"
+      value={profile?.title || ''}
+      required
+      minlength="2"
+      maxlength="50"
+      class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400"
+      placeholder="e.g., Professional & Clean"
+    />
+  </div>
+
+  <div>
+    <label for="description" class="block text-lg mb-2">Description</label>
+    <textarea
+      id="description"
+      name="description"
+      required
+      minlength="10"
+      maxlength="200"
+      class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400"
+      placeholder="Brief description of this sound profile"
+    >{profile?.description || ''}</textarea>
+  </div>
+
+  <button
+    type="submit"
+    class="bg-green-400 text-white px-8 py-3 rounded-lg text-lg hover:bg-green-500 transition-colors"
+  >
+    {mode === 'create' ? 'Create Profile' : 'Update Profile'}
+  </button>
+</form>
+
+<script>
+  const form = document.getElementById('profile-form') as HTMLFormElement;
+  
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const formData = new FormData(form);
+    const data = Object.fromEntries(formData);
+    
+    try {
+      const response = await fetch('/api/sound-profiles', {
+        method: data.id ? 'PUT' : 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save profile');
+      }
+
+      window.location.href = '/sounds';
+    } catch (error) {
+      console.error('Profile save error:', error);
+      alert(error instanceof Error ? error.message : 'Failed to save profile');
+    }
+  });
+</script>
