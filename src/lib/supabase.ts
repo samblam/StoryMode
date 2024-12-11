@@ -8,19 +8,10 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables. Please check your .env file.');
 }
 
-// Remove any trailing slashes from the URL
-const cleanSupabaseUrl = supabaseUrl.replace(/\/$/, '');
-
-export const supabase = createClient<Database>(cleanSupabaseUrl, supabaseAnonKey, {
+export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: false,
     autoRefreshToken: false,
     detectSessionInUrl: false
-  },
-  global: {
-    headers: {
-      'X-Client-Info': 'supabase-js/2.39.3',
-      'X-Client-Name': 'storymode-website',
-    },
-  },
+  }
 });
