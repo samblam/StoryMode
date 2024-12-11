@@ -69,25 +69,25 @@ const profiles = await getSoundProfiles();
       <p class="text-sm text-gray-600 mt-1">MP3 format only, max 5MB</p>
     </div>
 
-    <button 
-      type="submit" 
-      class="bg-green-400 text-white px-8 py-3 rounded-lg text-lg hover:bg-green-500 transition-colors"
-    >
-      Upload Sound
-    </button>
-
-    <div id="upload-status" class="hidden p-4 rounded-lg">
-      <p class="success hidden text-green-600 bg-green-50 p-3 rounded-lg">Sound uploaded successfully!</p>
-      <p class="error hidden text-red-600 bg-red-50 p-3 rounded-lg"></p>
+    <div class="flex space-x-4">
+      <button 
+        type="submit" 
+        class="bg-green-400 text-white px-8 py-3 rounded-lg text-lg hover:bg-green-500 transition-colors"
+      >
+        Upload Sound
+      </button>
+      <a 
+        href="/sounds" 
+        class="bg-gray-400 text-white px-8 py-3 rounded-lg text-lg hover:bg-gray-500 transition-colors"
+      >
+        Cancel
+      </a>
     </div>
   </form>
 </div>
 
 <script>
   const form = document.getElementById('upload-form') as HTMLFormElement;
-  const status = document.getElementById('upload-status');
-  const successMessage = status?.querySelector('.success');
-  const errorMessage = status?.querySelector('.error');
   const profileSelect = form?.querySelector('#profileId') as HTMLSelectElement;
 
   const validateFile = (file: File): string | null => {
@@ -133,48 +133,36 @@ const profiles = await getSoundProfiles();
   form?.addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    // Reset status messages
-    status?.classList.remove('hidden');
-    successMessage?.classList.add('hidden');
-    errorMessage?.classList.add('hidden');
-
-    // Get form data
-    const formData = new FormData(form);
-    const file = formData.get('sound') as File;
-    const selectedOption = profileSelect.selectedOptions[0];
-    const profileSlug = selectedOption?.getAttribute('data-slug');
-
-    // Add the profile slug to the form data
-    formData.append('profileSlug', profileSlug || '');
-
-    // Validate form data
-    const formError = validateForm(formData);
-    if (formError) {
-      errorMessage?.classList.remove('hidden');
-      if (errorMessage) errorMessage.textContent = formError;
-      return;
-    }
-
-    // Validate file
-    const fileError = validateFile(file);
-    if (fileError) {
-      errorMessage?.classList.remove('hidden');
-      if (errorMessage) errorMessage.textContent = fileError;
-      return;
-    }
-
-    if (!profileSlug) {
-      errorMessage?.classList.remove('hidden');
-      if (errorMessage) errorMessage.textContent = 'Invalid profile selection. Please try again.';
-      return;
-    }
-
-    // Disable submit button and show loading state
-    const submitButton = form.querySelector('button[type="submit"]') as HTMLButtonElement;
-    submitButton.disabled = true;
-    submitButton.textContent = 'Uploading...';
-
     try {
+      const formData = new FormData(form);
+      const file = formData.get('sound') as File;
+      const selectedOption = profileSelect.selectedOptions[0];
+      const profileSlug = selectedOption?.getAttribute('data-slug');
+
+      // Add the profile slug to the form data
+      formData.append('profileSlug', profileSlug || '');
+
+      // Validate form data
+      const formError = validateForm(formData);
+      if (formError) {
+        throw new Error(formError);
+      }
+
+      // Validate file
+      const fileError = validateFile(file);
+      if (fileError) {
+        throw new Error(fileError);
+      }
+
+      if (!profileSlug) {
+        throw new Error('Invalid profile selection. Please try again.');
+      }
+
+      // Disable submit button and show loading state
+      const submitButton = form.querySelector('button[type="submit"]') as HTMLButtonElement;
+      submitButton.disabled = true;
+      submitButton.textContent = 'Uploading...';
+
       const response = await fetch('/api/sounds/upload', {
         method: 'POST',
         body: formData,
@@ -186,26 +174,12 @@ const profiles = await getSoundProfiles();
         throw new Error(result.error || 'Upload failed');
       }
 
-      // Show success message
-      successMessage?.classList.remove('hidden');
-      form.reset();
-      
-      // Reload to show new sound
-      setTimeout(() => {
-        window.location.reload();
-      }, 1500);
+      // Redirect with success message
+      window.location.href = `/sounds?success=${encodeURIComponent('Sound uploaded successfully!')}`;
     } catch (error) {
-      // Show error message
-      errorMessage?.classList.remove('hidden');
-      if (error instanceof Error) {
-        if (errorMessage) {
-          errorMessage.textContent = `Upload failed: ${error.message}. Please try again.`;
-        }
-      }
-    } finally {
-      // Reset submit button
-      submitButton.disabled = false;
-      submitButton.textContent = 'Upload Sound';
+      // Redirect with error message
+      const errorMessage = error instanceof Error ? error.message : 'Upload failed';
+      window.location.href = `/sounds?error=${encodeURIComponent(errorMessage)}`;
     }
   });
 
