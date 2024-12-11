@@ -1,54 +1,65 @@
 import type { APIRoute } from 'astro';
 import fs from 'fs/promises';
 import path from 'path';
-import { getSoundProfiles, saveSoundProfiles } from '../../../utils/profileUtils';
+import { supabase } from '../../../lib/supabase';
 
 export const DELETE: APIRoute = async ({ params }) => {
   try {
     const { id } = params;
     if (!id) {
-      return new Response(
-        JSON.stringify({ error: 'Profile ID is required' }),
-        { status: 400 }
-      );
+      return new Response(JSON.stringify({ error: 'Profile ID is required' }), {
+        status: 400,
+      });
     }
 
-    // Get current profiles
-    const profiles = await getSoundProfiles();
-    const profileIndex = profiles.findIndex(p => p.id === id);
-    
-    if (profileIndex === -1) {
-      return new Response(
-        JSON.stringify({ error: 'Profile not found' }),
-        { status: 404 }
-      );
+    // First, get the profile to get its slug
+    const { data: profile, error: profileError } = await supabase
+      .from('sound_profiles')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (profileError || !profile) {
+      throw new Error('Profile not found');
     }
 
-    const profile = profiles[profileIndex];
-    
+    // Delete associated sounds from database
+    const { error: soundsError } = await supabase
+      .from('sounds')
+      .delete()
+      .eq('profile_id', id);
+
+    if (soundsError) {
+      throw soundsError;
+    }
+
+    // Delete the profile from database
+    const { error: deleteError } = await supabase
+      .from('sound_profiles')
+      .delete()
+      .eq('id', id);
+
+    if (deleteError) {
+      throw deleteError;
+    }
+
     // Delete associated sound files
-    const publicDir = path.join(process.cwd(), 'public');
-    const profileDir = path.join(publicDir, 'sounds', profile.slug);
-    
     try {
+      const publicDir = path.join(process.cwd(), 'public');
+      const profileDir = path.join(publicDir, 'sounds', profile.slug);
       await fs.rm(profileDir, { recursive: true, force: true });
-    } catch (error) {
-      console.error('Error deleting sound files:', error);
+    } catch (fsError) {
+      console.error('Error deleting sound files:', fsError);
+      // Continue even if file deletion fails
     }
 
-    // Remove profile from list
-    profiles.splice(profileIndex, 1);
-    await saveSoundProfiles(profiles);
-
-    return new Response(
-      JSON.stringify({ success: true }),
-      { status: 200 }
-    );
+    return new Response(JSON.stringify({ success: true }), { status: 200 });
   } catch (error) {
     console.error('Profile deletion error:', error);
     return new Response(
-      JSON.stringify({ 
-        error: error instanceof Error ? error.message : 'Failed to delete profile' 
+      JSON.stringify({
+        error:
+          error instanceof Error ? error.message : 'Failed to delete profile',
       }),
       { status: 500 }
     );
