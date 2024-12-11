@@ -1,26 +1,20 @@
+// src/pages/sounds/profiles/index.astro
 ---
 import Layout from '../../../layouts/Layout.astro';
-import ProfileList from '../../../components/ProfileList.astro';
-import { getSoundProfiles } from '../../../utils/profileUtils';
-import { getSounds } from '../../../utils/soundUtils';
+import ProfileCard from '../../../components/ProfileCard.astro';
+import { getSoundProfilesWithSounds } from '../../../utils/profileUtils';
 
-const profiles = await getSoundProfiles();
-const sounds = await getSounds();
-
-// Get sounds for each profile
-const profilesWithSounds = profiles.map(profile => ({
-  ...profile,
-  sounds: sounds.filter(sound => sound.profileId === profile.id)
-}));
+// Get profiles with their sounds directly from Supabase
+const profiles = await getSoundProfilesWithSounds();
 
 const isAdmin = true; // In production, this should be determined by authentication
 ---
 
-<Layout title="Sound Profiles | Story Mode">
+<Layout title="Sound Library | Story Mode">
   <main class="min-h-screen bg-gray-100 py-12">
     <div class="max-w-6xl mx-auto px-4">
       <div class="flex justify-between items-center mb-12">
-        <h1 class="text-6xl font-editorial">Sound Profiles</h1>
+        <h1 class="text-6xl font-editorial">Sound Library</h1>
         {isAdmin && (
           <a
             href="/sounds/profiles/new"
@@ -31,7 +25,27 @@ const isAdmin = true; // In production, this should be determined by authenticat
         )}
       </div>
 
-      <ProfileList profiles={profilesWithSounds} />
+      {profiles.length > 0 ? (
+        <div class="space-y-8">
+          {profiles.map(profile => (
+            <ProfileCard profile={profile} isAdmin={isAdmin} />
+          ))}
+        </div>
+      ) : (
+        <div class="text-center py-12">
+          <p class="text-xl text-gray-600">No sound profiles found.</p>
+          {isAdmin && (
+            <p class="mt-4">
+              <a
+                href="/sounds/profiles/new"
+                class="text-blue-600 hover:underline"
+              >
+                Create your first sound profile
+              </a>
+            </p>
+          )}
+        </div>
+      )}
     </div>
   </main>
 </Layout>
