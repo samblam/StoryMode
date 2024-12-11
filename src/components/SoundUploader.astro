@@ -144,6 +144,9 @@ const profiles = await getSoundProfiles();
     const selectedOption = profileSelect.selectedOptions[0];
     const profileSlug = selectedOption?.getAttribute('data-slug');
 
+    // Add the profile slug to the form data
+    formData.append('profileSlug', profileSlug || '');
+
     // Validate form data
     const formError = validateForm(formData);
     if (formError) {
