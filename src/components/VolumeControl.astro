@@ -1,0 +1,91 @@
+---
+interface Props {
+  initialVolume?: number;
+}
+
+const { initialVolume = 1.0 } = Astro.props;
+---
+
+<div class="flex items-center space-x-2">
+  <button
+    id="volume-mute"
+    class="text-gray-600 hover:text-gray-800 p-2"
+    aria-label="Toggle mute"
+  >
+    <svg
+      class="w-5 h-5"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        id="volume-icon"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        d="M15.536 8.464a5 5 0 010 7.072M18.364 5.636a9 9 0 010 12.728M12 6L7.5 9H4v6h3.5L12 18V6z"
+      />
+    </svg>
+  </button>
+  
+  <input
+    type="range"
+    id="volume-slider"
+    min="0"
+    max="100"
+    value={initialVolume * 100}
+    class="w-24 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+    aria-label="Volume control"
+  />
+  
+  <span id="volume-percentage" class="text-sm text-gray-600 min-w-[3ch]">
+    {Math.round(initialVolume * 100)}%
+  </span>
+</div>
+
+<script>
+  import { audioManager } from '../utils/audioManager';
+
+  const volumeSlider = document.getElementById('volume-slider') as HTMLInputElement;
+  const volumePercentage = document.getElementById('volume-percentage');
+  const volumeMute = document.getElementById('volume-mute');
+  const volumeIcon = document.getElementById('volume-icon');
+  
+  let previousVolume = audioManager.getVolume();
+
+  const updateVolumeIcon = (volume: number) => {
+    if (!volumeIcon) return;
+    
+    if (volume === 0) {
+      volumeIcon.setAttribute('d', 'M4 9h3.5L12 6v12l-4.5-3H4V9z');
+    } else if (volume < 0.5) {
+      volumeIcon.setAttribute('d', 'M15.536 8.464a5 5 0 010 7.072M12 6L7.5 9H4v6h3.5L12 18V6z');
+    } else {
+      volumeIcon.setAttribute('d', 'M15.536 8.464a5 5 0 010 7.072M18.364 5.636a9 9 0 010 12.728M12 6L7.5 9H4v6h3.5L12 18V6z');
+    }
+  };
+
+  volumeSlider?.addEventListener('input', (e) => {
+    const volume = parseInt((e.target as HTMLInputElement).value) / 100;
+    audioManager.setVolume(volume);
+    if (volumePercentage) {
+      volumePercentage.textContent = `${Math.round(volume * 100)}%`;
+    }
+    updateVolumeIcon(volume);
+  });
+
+  volumeMute?.addEventListener('click', () => {
+    const currentVolume = audioManager.getVolume();
+    if (currentVolume > 0) {
+      previousVolume = currentVolume;
+      audioManager.setVolume(0);
+      if (volumeSlider) volumeSlider.value = '0';
+      if (volumePercentage) volumePercentage.textContent = '0%';
+    } else {
+      audioManager.setVolume(previousVolume);
+      if (volumeSlider) volumeSlider.value = String(previousVolume * 100);
+      if (volumePercentage) volumePercentage.textContent = `${Math.round(previousVolume * 100)}%`;
+    }
+    updateVolumeIcon(currentVolume > 0 ? 0 : previousVolume);
+  });
+</script>
