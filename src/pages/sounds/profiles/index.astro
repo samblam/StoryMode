@@ -1,13 +1,10 @@
-// src/pages/sounds/profiles/index.astro
 ---
 import Layout from '../../../layouts/Layout.astro';
 import ProfileCard from '../../../components/ProfileCard.astro';
 import { getSoundProfilesWithSounds } from '../../../utils/profileUtils';
 
-// Get profiles with their sounds directly from Supabase
 const profiles = await getSoundProfilesWithSounds();
-
-const isAdmin = true; // In production, this should be determined by authentication
+const isAdmin = true;
 ---
 
 <Layout title="Sound Library | Story Mode">
@@ -16,10 +13,7 @@ const isAdmin = true; // In production, this should be determined by authenticat
       <div class="flex justify-between items-center mb-12">
         <h1 class="text-6xl font-editorial">Sound Library</h1>
         {isAdmin && (
-          <a
-            href="/sounds/profiles/new"
-            class="bg-green-400 text-white px-6 py-3 rounded-lg text-lg hover:bg-green-500 transition-colors"
-          >
+          <a href="/sounds/profiles/new" class="bg-green-400 text-white px-6 py-3 rounded-lg text-lg hover:bg-green-500 transition-colors">
             New Profile
           </a>
         )}
@@ -36,10 +30,7 @@ const isAdmin = true; // In production, this should be determined by authenticat
           <p class="text-xl text-gray-600">No sound profiles found.</p>
           {isAdmin && (
             <p class="mt-4">
-              <a
-                href="/sounds/profiles/new"
-                class="text-blue-600 hover:underline"
-              >
+              <a href="/sounds/profiles/new" class="text-blue-600 hover:underline">
                 Create your first sound profile
               </a>
             </p>
@@ -49,3 +40,4 @@ const isAdmin = true; // In production, this should be determined by authenticat
     </div>
   </main>
 </Layout>
+```
