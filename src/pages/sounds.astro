@@ -1,13 +1,17 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import ProfileCard from '../components/ProfileCard.astro';
 import SoundProfile from '../components/SoundProfile.astro';
-import SoundUploader from '../components/SoundUploader.astro';
 import { getSoundProfiles } from '../utils/profileUtils';
 import { getSounds } from '../utils/soundUtils';
 
-// Get profiles and sounds from JSON files
+// Get profiles and sounds
 const profiles = await getSoundProfiles();
 const sounds = await getSounds();
+
+// Get message parameters from URL if they exist
+const success = Astro.url.searchParams.get('success');
+const error = Astro.url.searchParams.get('error');
 
 // Get sounds for each profile
 const profilesWithSounds = profiles.map(profile => ({
@@ -21,29 +25,140 @@ const isAdmin = true; // In production, this should be determined by authenticat
 <Layout title="Sound Library | Story Mode">
   <main class="min-h-screen bg-gray-100 py-12">
     <div class="max-w-6xl mx-auto px-4">
-      <div class="flex justify-between items-center mb-12">
+      <div class="flex justify-between items-center mb-8">
         <h1 class="text-6xl font-editorial">Sound Library</h1>
         {isAdmin && (
-          <a
-            href="/sounds/profiles/new"
-            class="bg-green-400 text-white px-6 py-3 rounded-lg text-lg hover:bg-green-500 transition-colors"
-          >
-            New Profile
-          </a>
+          <div class="flex space-x-4">
+            <a
+              href="/sounds/upload"
+              class="bg-blue-400 text-white px-6 py-3 rounded-lg text-lg hover:bg-blue-500 transition-colors"
+            >
+              Upload Sound
+            </a>
+            <a
+              href="/sounds/profiles/new"
+              class="bg-green-400 text-white px-6 py-3 rounded-lg text-lg hover:bg-green-500 transition-colors"
+            >
+              New Profile
+            </a>
+          </div>
         )}
       </div>
-      
-      {isAdmin && <SoundUploader />}
-      
-      <div class="space-y-12">
-        {profilesWithSounds.map(profile => (
-          <SoundProfile 
-            title={profile.title}
-            description={profile.description}
-            sounds={profile.sounds}
-          />
-        ))}
+
+      <!-- Status Messages -->
+      {success && (
+        <div class="mb-8 p-4 bg-green-50 text-green-600 rounded-lg">
+          {decodeURIComponent(success)}
+        </div>
+      )}
+      {error && (
+        <div class="mb-8 p-4 bg-red-50 text-red-600 rounded-lg">
+          {decodeURIComponent(error)}
+        </div>
+      )}
+
+      <!-- Tab Navigation -->
+      <div class="flex space-x-4 mb-8 border-b border-gray-200">
+        <button
+          class="tab-button px-6 py-3 text-lg font-medium rounded-t-lg focus:outline-none active"
+          data-tab="library"
+        >
+          Sound Library
+        </button>
+        <button
+          class="tab-button px-6 py-3 text-lg font-medium rounded-t-lg focus:outline-none"
+          data-tab="profiles"
+        >
+          Sound Profiles
+        </button>
+      </div>
+
+      <!-- Tab Content -->
+      <div class="tab-content" data-content="library">
+        <div class="space-y-8">
+          {profilesWithSounds.map(profile => (
+            <SoundProfile 
+              title={profile.title}
+              description={profile.description}
+              sounds={profile.sounds}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div class="tab-content hidden" data-content="profiles">
+        <div class="space-y-8">
+          {profilesWithSounds.map(profile => (
+            <ProfileCard 
+              profile={profile} 
+              isAdmin={isAdmin}
+            />
+          ))}
+        </div>
       </div>
     </div>
   </main>
 </Layout>
+
+<style>
+  .tab-button {
+    @apply text-gray-500 hover:text-gray-700 hover:bg-gray-50 transition-colors;
+  }
+
+  .tab-button.active {
+    @apply text-green-500 border-b-2 border-green-500 bg-white;
+  }
+</style>
+
+<script>
+  // Tab switching functionality
+  const tabButtons = document.querySelectorAll('.tab-button');
+  const tabContents = document.querySelectorAll('.tab-content');
+
+  tabButtons.forEach(button => {
+    button.addEventListener('click', () => {
+      // Update active state of buttons
+      tabButtons.forEach(btn => {
+        btn.classList.remove('active');
+      });
+      button.classList.add('active');
+
+      // Show selected content
+      const tabName = button.getAttribute('data-tab');
+      tabContents.forEach(content => {
+        if (content.getAttribute('data-content') === tabName) {
+          content.classList.remove('hidden');
+        } else {
+          content.classList.add('hidden');
+        }
+      });
+
+      // Update URL without page reload
+      const url = new URL(window.location);
+      url.searchParams.set('tab', tabName || '');
+      window.history.pushState({}, '', url);
+    });
+  });
+
+  // Handle initial tab state from URL
+  document.addEventListener('DOMContentLoaded', () => {
+    const params = new URLSearchParams(window.location.search);
+    const initialTab = params.get('tab') || 'library';
+    
+    const targetButton = document.querySelector(`[data-tab="${initialTab}"]`);
+    if (targetButton) {
+      targetButton.click();
+    }
+  });
+
+  // Handle browser back/forward
+  window.addEventListener('popstate', () => {
+    const params = new URLSearchParams(window.location.search);
+    const currentTab = params.get('tab') || 'library';
+    
+    const targetButton = document.querySelector(`[data-tab="${currentTab}"]`);
+    if (targetButton) {
+      targetButton.click();
+    }
+  });
+</script>
