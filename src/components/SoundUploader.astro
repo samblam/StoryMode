@@ -62,7 +62,7 @@ const profiles = await getSoundProfiles();
         type="file" 
         id="sound" 
         name="sound" 
-        accept=".mp3,audio/mpeg" 
+        accept="audio/mpeg" 
         required 
         class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400"
       />
@@ -101,7 +101,7 @@ const profiles = await getSoundProfiles();
     }
     if (file.size > maxSize) {
       const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
-      return `File size (${sizeMB}MB) exceeds the 5MB limit. Please compress your audio file or choose a smaller one.`;
+      return `File size (${sizeMB}MB) exceeds the 5MB limit. Please compress your audio file.`;
     }
     return null;
   };
@@ -138,6 +138,7 @@ const profiles = await getSoundProfiles();
     successMessage?.classList.add('hidden');
     errorMessage?.classList.add('hidden');
 
+    // Get form data
     const formData = new FormData(form);
     const file = formData.get('sound') as File;
     const selectedOption = profileSelect.selectedOptions[0];
@@ -165,7 +166,10 @@ const profiles = await getSoundProfiles();
       return;
     }
 
-    formData.append('profileSlug', profileSlug);
+    // Disable submit button and show loading state
+    const submitButton = form.querySelector('button[type="submit"]') as HTMLButtonElement;
+    submitButton.disabled = true;
+    submitButton.textContent = 'Uploading...';
 
     try {
       const response = await fetch('/api/sounds/upload', {
@@ -176,9 +180,10 @@ const profiles = await getSoundProfiles();
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || 'Upload failed: Server returned an error');
+        throw new Error(result.error || 'Upload failed');
       }
 
+      // Show success message
       successMessage?.classList.remove('hidden');
       form.reset();
       
@@ -187,12 +192,35 @@ const profiles = await getSoundProfiles();
         window.location.reload();
       }, 1500);
     } catch (error) {
+      // Show error message
       errorMessage?.classList.remove('hidden');
       if (error instanceof Error) {
         if (errorMessage) {
-          errorMessage.textContent = `Upload failed: ${error.message}. Please try again or contact support if the problem persists.`;
+          errorMessage.textContent = `Upload failed: ${error.message}. Please try again.`;
         }
       }
+    } finally {
+      // Reset submit button
+      submitButton.disabled = false;
+      submitButton.textContent = 'Upload Sound';
+    }
+  });
+
+  // Optional: Add live validation feedback
+  const nameInput = form?.querySelector('#name') as HTMLInputElement;
+  const descriptionInput = form?.querySelector('#description') as HTMLTextAreaElement;
+
+  nameInput?.addEventListener('input', () => {
+    const isValid = /^[A-Za-z0-9\s\-]+$/.test(nameInput.value);
+    nameInput.setCustomValidity(isValid ? '' : 'Only letters, numbers, spaces, and hyphens allowed');
+  });
+
+  descriptionInput?.addEventListener('input', () => {
+    const length = descriptionInput.value.length;
+    if (length < 10) {
+      descriptionInput.setCustomValidity(`Description needs ${10 - length} more characters`);
+    } else {
+      descriptionInput.setCustomValidity('');
     }
   });
 </script>
