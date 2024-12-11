@@ -12,19 +12,20 @@ export const POST: APIRoute = async ({ request }) => {
     const name = formData.get('name') as string;
     const description = formData.get('description') as string;
 
-    // Validation checks...
-    if (!file || !profileId || !name || !description) {
+    // Validation checks
+    if (!file || !profileId || !profileSlug || !name || !description) {
       return new Response(
         JSON.stringify({ error: 'All fields are required' }),
         { status: 400 }
       );
     }
 
-    // File validation and saving logic remains the same...
+    // Create the directory path
     const publicDir = path.join(process.cwd(), 'public');
     const soundsDir = path.join(publicDir, 'sounds', profileSlug);
     await fs.mkdir(soundsDir, { recursive: true });
 
+    // Create safe filename
     const safeName = name.toLowerCase().replace(/[^a-z0-9]/g, '-');
     const filename = `${safeName}.mp3`;
     const filepath = path.join(soundsDir, filename);
