@@ -1,0 +1,110 @@
+---
+interface Props {
+  soundId: string;
+}
+
+const { soundId } = Astro.props;
+---
+
+<div class="flex flex-col w-full space-y-2" data-sound-id={soundId}>
+  <div class="flex items-center space-x-4">
+    <span class="current-time text-sm text-gray-600 w-12">0:00</span>
+    <div class="relative flex-grow h-2 bg-gray-200 rounded cursor-pointer progress-bar">
+      <div class="absolute h-full bg-green-400 rounded progress-fill" style="width: 0%"></div>
+    </div>
+    <span class="duration text-sm text-gray-600 w-12">0:00</span>
+  </div>
+</div>
+
+<script>
+  import { audioManager } from '../utils/audioManager';
+
+  class AudioProgress {
+    private element: HTMLElement;
+    private progressBar: HTMLElement;
+    private progressFill: HTMLElement;
+    private currentTime: HTMLElement;
+    private duration: HTMLElement;
+    private soundId: string;
+    private isDragging = false;
+
+    constructor(element: HTMLElement) {
+      this.element = element;
+      this.soundId = element.dataset.soundId || '';
+      this.progressBar = element.querySelector('.progress-bar')!;
+      this.progressFill = element.querySelector('.progress-fill')!;
+      this.currentTime = element.querySelector('.current-time')!;
+      this.duration = element.querySelector('.duration')!;
+
+      this.initializeEventListeners();
+      this.startProgressUpdates();
+    }
+
+    private formatTime(seconds: number): string {
+      const minutes = Math.floor(seconds / 60);
+      const remainingSeconds = Math.floor(seconds % 60);
+      return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+    }
+
+    private initializeEventListeners(): void {
+      this.progressBar.addEventListener('mousedown', (e) => this.handleProgressBarClick(e));
+      document.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+      document.addEventListener('mouseup', () => this.handleMouseUp());
+    }
+
+    private handleProgressBarClick(e: MouseEvent): void {
+      this.isDragging = true;
+      this.updateProgressFromEvent(e);
+    }
+
+    private handleMouseMove(e: MouseEvent): void {
+      if (this.isDragging) {
+        this.updateProgressFromEvent(e);
+      }
+    }
+
+    private handleMouseUp(): void {
+      this.isDragging = false;
+    }
+
+    private updateProgressFromEvent(e: MouseEvent): void {
+      const rect = this.progressBar.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const percentage = Math.max(0, Math.min(1, x / rect.width));
+      
+      const sound = audioManager.getSound(this.soundId);
+      if (sound) {
+        const duration = sound.duration();
+        sound.seek(duration * percentage);
+      }
+    }
+
+    private startProgressUpdates(): void {
+      const updateProgress = () => {
+        const sound = audioManager.getSound(this.soundId);
+        if (sound) {
+          const seek = sound.seek() as number;
+          const duration = sound.duration();
+          
+          if (duration > 0) {
+            const percentage = (seek / duration) * 100;
+            this.progressFill.style.width = `${percentage}%`;
+            this.currentTime.textContent = this.formatTime(seek);
+            this.duration.textContent = this.formatTime(duration);
+          }
+        }
+        
+        requestAnimationFrame(updateProgress);
+      };
+
+      updateProgress();
+    }
+  }
+
+  // Initialize progress bars
+  document.querySelectorAll('[data-sound-id]').forEach(element => {
+    if (element instanceof HTMLElement) {
+      new AudioProgress(element);
+    }
+  });
+</script>
