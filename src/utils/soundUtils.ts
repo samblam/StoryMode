@@ -1,36 +1,129 @@
-import fs from 'fs/promises';
-import path from 'path';
+// src/utils/soundUtils.ts
+import { supabase } from '../lib/supabase';
 import type { Sound } from '../types/sound';
 
-const SOUNDS_DATA_FILE = path.join(process.cwd(), 'public', 'sounds', 'sounds-data.json');
-
 export async function getSounds(): Promise<Sound[]> {
-  try {
-    const data = await fs.readFile(SOUNDS_DATA_FILE, 'utf-8');
-    return JSON.parse(data);
-  } catch (error) {
-    return [];
+  const { data, error } = await supabase
+    .from('sounds')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching sounds:', error);
+    throw error;
+  }
+
+  return (
+    data?.map((sound) => ({
+      id: sound.id,
+      name: sound.name,
+      description: sound.description,
+      file: sound.file_path,
+      profileId: sound.profile_id,
+    })) || []
+  );
+}
+
+export async function getSoundsByProfileId(
+  profileId: string
+): Promise<Sound[]> {
+  const { data, error } = await supabase
+    .from('sounds')
+    .select('*')
+    .eq('profile_id', profileId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching sounds for profile:', error);
+    throw error;
+  }
+
+  return (
+    data?.map((sound) => ({
+      id: sound.id,
+      name: sound.name,
+      description: sound.description,
+      file: sound.file_path,
+      profileId: sound.profile_id,
+    })) || []
+  );
+}
+
+export async function createSound(sound: {
+  name: string;
+  description: string;
+  file_path: string;
+  profile_id: string;
+}): Promise<Sound> {
+  const { data, error } = await supabase
+    .from('sounds')
+    .insert(sound)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error creating sound:', error);
+    throw error;
+  }
+
+  return {
+    id: data.id,
+    name: data.name,
+    description: data.description,
+    file: data.file_path,
+    profileId: data.profile_id,
+  };
+}
+
+export async function updateSound(
+  id: string,
+  sound: Partial<{
+    name: string;
+    description: string;
+    file_path: string;
+    profile_id: string;
+  }>
+): Promise<Sound> {
+  const { data, error } = await supabase
+    .from('sounds')
+    .update(sound)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating sound:', error);
+    throw error;
+  }
+
+  return {
+    id: data.id,
+    name: data.name,
+    description: data.description,
+    file: data.file_path,
+    profileId: data.profile_id,
+  };
+}
+
+export async function deleteSound(id: string): Promise<void> {
+  const { error } = await supabase.from('sounds').delete().eq('id', id);
+
+  if (error) {
+    console.error('Error deleting sound:', error);
+    throw error;
   }
 }
 
-export async function saveSounds(sounds: Sound[]): Promise<void> {
-  const dir = path.dirname(SOUNDS_DATA_FILE);
-  await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(SOUNDS_DATA_FILE, JSON.stringify(sounds, null, 2));
-}
+export async function deleteSoundsByProfileId(
+  profileId: string
+): Promise<void> {
+  const { error } = await supabase
+    .from('sounds')
+    .delete()
+    .eq('profile_id', profileId);
 
-export async function deleteSound(soundFile: string): Promise<void> {
-  const publicDir = path.join(process.cwd(), 'public');
-  const filePath = path.join(publicDir, soundFile.replace(/^\//, ''));
-  
-  try {
-    await fs.unlink(filePath);
-  } catch (error) {
-    console.error('Error deleting sound file:', error);
-    throw new Error('Failed to delete sound file');
+  if (error) {
+    console.error('Error deleting sounds for profile:', error);
+    throw error;
   }
-
-  const sounds = await getSounds();
-  const updatedSounds = sounds.filter(sound => sound.file !== soundFile);
-  await saveSounds(updatedSounds);
 }
