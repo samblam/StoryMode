@@ -1,7 +1,7 @@
+// src/components/ProfileCard.astro
 ---
 import type { SoundProfileWithSounds } from '../types/sound';
 import SoundList from './SoundList.astro';
-import SoundUploader from './SoundUploader.astro';
 
 interface Props {
   profile: SoundProfileWithSounds;
@@ -46,9 +46,11 @@ const { profile, isAdmin } = Astro.props;
     </div>
   </div>
 
-  {isAdmin && <SoundUploader profileId={profile.id} profileSlug={profile.slug} />}
-  
-  <SoundList sounds={profile.sounds} profileId={profile.id} />
+  {profile.sounds.length > 0 ? (
+    <SoundList sounds={profile.sounds} profileId={profile.id} />
+  ) : (
+    <p class="text-gray-600 italic">No sounds added to this profile yet.</p>
+  )}
 </div>
 
 <script>
@@ -81,7 +83,7 @@ const { profile, isAdmin } = Astro.props;
     });
   });
 
-  // Handle downloading all sounds in a profile
+  // Handle downloading all sounds
   document.querySelectorAll('.download-all-button').forEach(button => {
     button.addEventListener('click', async () => {
       const sounds = JSON.parse(button.getAttribute('data-sounds') || '[]');
@@ -93,31 +95,37 @@ const { profile, isAdmin } = Astro.props;
       }
 
       try {
-        // Download each sound
-        for (const sound of sounds) {
+        const originalText = button.textContent;
+        button.disabled = true;
+
+        for (let i = 0; i < sounds.length; i++) {
+          const sound = sounds[i];
+          button.textContent = `Downloading ${i + 1}/${sounds.length}`;
+
           const response = await fetch(sound.file);
           if (!response.ok) throw new Error(`Failed to download ${sound.name}`);
 
           const blob = await response.blob();
-          const audioBlob = new Blob([blob], { type: 'audio/mpeg' });
-          const safeFilename = `${sound.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}.mp3`;
-
-          const url = window.URL.createObjectURL(audioBlob);
+          const url = window.URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.style.display = 'none';
           a.href = url;
-          a.download = safeFilename;
+          a.download = `${sound.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}.mp3`;
           document.body.appendChild(a);
           a.click();
           window.URL.revokeObjectURL(url);
           document.body.removeChild(a);
 
-          // Small delay between downloads to prevent browser issues
-          await new Promise(resolve => setTimeout(resolve, 500));
+          await new Promise(resolve => setTimeout(resolve, 1000));
         }
+
+        button.textContent = originalText;
+        button.disabled = false;
       } catch (error) {
         console.error('Download error:', error);
-        alert('Failed to download some sounds');
+        alert('Failed to download some sounds. Please try again.');
+        button.textContent = 'Download All';
+        button.disabled = false;
       }
     });
   });
