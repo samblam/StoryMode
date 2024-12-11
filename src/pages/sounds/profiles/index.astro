@@ -1,43 +1,7 @@
 ---
-import Layout from '../../../layouts/Layout.astro';
-import ProfileCard from '../../../components/ProfileCard.astro';
-import { getSoundProfilesWithSounds } from '../../../utils/profileUtils';
-
-const profiles = await getSoundProfilesWithSounds();
-const isAdmin = true;
+export const prerender = false;
 ---
-
-<Layout title="Sound Library | Story Mode">
-  <main class="min-h-screen bg-gray-100 py-12">
-    <div class="max-w-6xl mx-auto px-4">
-      <div class="flex justify-between items-center mb-12">
-        <h1 class="text-6xl font-editorial">Sound Library</h1>
-        {isAdmin && (
-          <a href="/sounds/profiles/new" class="bg-green-400 text-white px-6 py-3 rounded-lg text-lg hover:bg-green-500 transition-colors">
-            New Profile
-          </a>
-        )}
-      </div>
-
-      {profiles.length > 0 ? (
-        <div class="space-y-8">
-          {profiles.map(profile => (
-            <ProfileCard profile={profile} isAdmin={isAdmin} />
-          ))}
-        </div>
-      ) : (
-        <div class="text-center py-12">
-          <p class="text-xl text-gray-600">No sound profiles found.</p>
-          {isAdmin && (
-            <p class="mt-4">
-              <a href="/sounds/profiles/new" class="text-blue-600 hover:underline">
-                Create your first sound profile
-              </a>
-            </p>
-          )}
-        </div>
-      )}
-    </div>
-  </main>
-</Layout>
-```
+<meta http-equiv="refresh" content="0;url=/sounds?tab=profiles">
+<script>
+  window.location.href = "/sounds?tab=profiles";
+</script>
