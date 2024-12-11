@@ -3,10 +3,10 @@ import type { Sound } from '../types/sound';
 
 interface Props {
   sounds: Sound[];
-  profileSlug: string;
+  profileId: string;
 }
 
-const { sounds, profileSlug } = Astro.props;
+const { sounds, profileId } = Astro.props;
 ---
 
 <div class="space-y-4">
@@ -34,6 +34,7 @@ const { sounds, profileSlug } = Astro.props;
           <button
             class="delete-button bg-red-400 text-white px-4 py-2 rounded-lg hover:bg-red-500 transition-colors"
             data-sound={sound.file}
+            data-sound-id={sound.id}
           >
             Delete
           </button>
@@ -119,7 +120,9 @@ const { sounds, profileSlug } = Astro.props;
   document.querySelectorAll('.delete-button').forEach((button) => {
     button.addEventListener('click', async () => {
       const soundFile = button.getAttribute('data-sound');
-      if (!soundFile) return;
+      const soundId = button.getAttribute('data-sound-id');
+      
+      if (!soundFile || !soundId) return;
 
       if (!confirm('Are you sure you want to delete this sound? This action cannot be undone.')) {
         return;
@@ -131,7 +134,10 @@ const { sounds, profileSlug } = Astro.props;
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ soundFile }),
+          body: JSON.stringify({ 
+            id: soundId,
+            filePath: soundFile 
+          }),
         });
 
         if (!response.ok) {
@@ -149,7 +155,7 @@ const { sounds, profileSlug } = Astro.props;
         soundElement?.remove();
       } catch (error) {
         console.error('Delete error:', error);
-        alert('Failed to delete sound');
+        alert('Failed to delete sound. Please try again.');
       }
     });
   });
