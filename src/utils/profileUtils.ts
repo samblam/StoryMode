@@ -131,3 +131,21 @@ export async function deleteSoundProfile(id: string): Promise<void> {
     throw error;
   }
 }
+// Add the new function here, right before the final closing brace
+export async function saveSoundProfiles(
+  profiles: SoundProfile[]
+): Promise<void> {
+  const { error } = await supabase.from('sound_profiles').upsert(
+    profiles.map((profile) => ({
+      id: profile.id,
+      title: profile.title,
+      description: profile.description,
+      slug: profile.slug,
+    }))
+  );
+
+  if (error) {
+    console.error('Error saving sound profiles:', error);
+    throw error;
+  }
+}
