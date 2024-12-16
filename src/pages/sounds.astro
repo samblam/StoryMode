@@ -9,9 +9,10 @@ import { getSounds } from '../utils/soundUtils';
 const profiles = await getSoundProfiles();
 const sounds = await getSounds();
 
-// Get message parameters from URL if they exist
+// Get URL parameters
 const success = Astro.url.searchParams.get('success');
 const error = Astro.url.searchParams.get('error');
+const currentTab = Astro.url.searchParams.get('tab') || 'library';
 
 // Get sounds for each profile
 const profilesWithSounds = profiles.map(profile => ({
@@ -25,6 +26,7 @@ const isAdmin = true; // In production, this should be determined by authenticat
 <Layout title="Sound Library | Story Mode">
   <main class="min-h-screen bg-gray-100 py-12">
     <div class="max-w-6xl mx-auto px-4">
+      <!-- Header -->
       <div class="flex justify-between items-center mb-8">
         <h1 class="text-6xl font-editorial">Sound Library</h1>
         {isAdmin && (
@@ -47,12 +49,12 @@ const isAdmin = true; // In production, this should be determined by authenticat
 
       <!-- Status Messages -->
       {success && (
-        <div class="mb-8 p-4 bg-green-50 text-green-600 rounded-lg">
+        <div class="mb-8 p-4 bg-green-50 text-green-600 rounded-lg" id="success-message">
           {decodeURIComponent(success)}
         </div>
       )}
       {error && (
-        <div class="mb-8 p-4 bg-red-50 text-red-600 rounded-lg">
+        <div class="mb-8 p-4 bg-red-50 text-red-600 rounded-lg" id="error-message">
           {decodeURIComponent(error)}
         </div>
       )}
@@ -60,7 +62,7 @@ const isAdmin = true; // In production, this should be determined by authenticat
       <!-- Tab Navigation -->
       <div class="flex space-x-4 mb-8 border-b border-gray-200">
         <button
-          class="tab-button px-6 py-3 text-lg font-medium rounded-t-lg focus:outline-none active"
+          class="tab-button px-6 py-3 text-lg font-medium rounded-t-lg focus:outline-none"
           data-tab="library"
         >
           Sound Library
@@ -75,25 +77,36 @@ const isAdmin = true; // In production, this should be determined by authenticat
 
       <!-- Tab Content -->
       <div class="tab-content" data-content="library">
-        <div class="space-y-8">
+        <div class="space-y-8" id="library-content">
           {profilesWithSounds.map(profile => (
             <SoundProfile 
               title={profile.title}
               description={profile.description}
               sounds={profile.sounds}
+              profileId={profile.id}
             />
           ))}
+          {profilesWithSounds.length === 0 && (
+            <p class="text-gray-600 italic text-center py-8">
+              No sound profiles found. Create a new profile to get started.
+            </p>
+          )}
         </div>
       </div>
 
       <div class="tab-content hidden" data-content="profiles">
-        <div class="space-y-8">
+        <div class="space-y-8" id="profiles-content">
           {profilesWithSounds.map(profile => (
             <ProfileCard 
               profile={profile} 
               isAdmin={isAdmin}
             />
           ))}
+          {profilesWithSounds.length === 0 && (
+            <p class="text-gray-600 italic text-center py-8">
+              No sound profiles found. Create a new profile to get started.
+            </p>
+          )}
         </div>
       </div>
     </div>
@@ -108,57 +121,50 @@ const isAdmin = true; // In production, this should be determined by authenticat
   .tab-button.active {
     @apply text-green-500 border-b-2 border-green-500 bg-white;
   }
+
+  .tab-content {
+    @apply transition-opacity duration-200;
+  }
+
+  .tab-content.hidden {
+    @apply opacity-0;
+  }
+
+  .tab-content:not(.hidden) {
+    @apply opacity-100;
+  }
 </style>
 
 <script>
-  // Tab switching functionality
-  const tabButtons = document.querySelectorAll('.tab-button');
-  const tabContents = document.querySelectorAll('.tab-content');
+  import { handleProfileDelete } from '../utils/profileUtils';
+  import { handleSoundDownload } from '../utils/soundUtils';
+  import { setupTabs, setupStatusMessages } from '../utils/uiUtils';
 
-  tabButtons.forEach(button => {
-    button.addEventListener('click', () => {
-      // Update active state of buttons
-      tabButtons.forEach(btn => {
-        btn.classList.remove('active');
-      });
-      button.classList.add('active');
+  // Event delegation for all sound-related actions
+  document.addEventListener('click', async (e) => {
+    const target = e.target as HTMLElement;
+    if (!target) return;
 
-      // Show selected content
-      const tabName = button.getAttribute('data-tab');
-      tabContents.forEach(content => {
-        if (content.getAttribute('data-content') === tabName) {
-          content.classList.remove('hidden');
-        } else {
-          content.classList.add('hidden');
-        }
-      });
+    // Handle delete button clicks
+    if (target.closest('.delete-profile')) {
+      e.preventDefault();
+      const button = target.closest('.delete-profile') as HTMLElement;
+      if (button) await handleProfileDelete(button);
+    }
 
-      // Update URL without page reload
-      const url = new URL(window.location);
-      url.searchParams.set('tab', tabName || '');
-      window.history.pushState({}, '', url);
-    });
+    // Handle download button clicks
+    if (target.closest('.download-all-button')) {
+      e.preventDefault();
+      const button = target.closest('.download-all-button') as HTMLElement;
+      if (button) await handleSoundDownload(button);
+    }
   });
 
-  // Handle initial tab state from URL
+  // Set initial active tab from URL
   document.addEventListener('DOMContentLoaded', () => {
     const params = new URLSearchParams(window.location.search);
     const initialTab = params.get('tab') || 'library';
-    
-    const targetButton = document.querySelector(`[data-tab="${initialTab}"]`);
-    if (targetButton) {
-      targetButton.click();
-    }
-  });
-
-  // Handle browser back/forward
-  window.addEventListener('popstate', () => {
-    const params = new URLSearchParams(window.location.search);
-    const currentTab = params.get('tab') || 'library';
-    
-    const targetButton = document.querySelector(`[data-tab="${currentTab}"]`);
-    if (targetButton) {
-      targetButton.click();
-    }
+    setupTabs();
+    setupStatusMessages();
   });
 </script>
