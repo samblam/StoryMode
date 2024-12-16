@@ -27,21 +27,21 @@ const { sounds, profileId } = Astro.props;
           <div class="flex space-x-2">
             <button
               class="play-button bg-green-400 text-white px-4 py-2 rounded-lg hover:bg-green-500 transition-colors"
-              data-sound={sound.file}
+              data-sound={sound.file}  {/* This should match what's in the database */}
               data-sound-id={sound.id}
             >
               Play
             </button>
             <button
               class="download-button bg-blue-400 text-white px-4 py-2 rounded-lg hover:bg-blue-500 transition-colors"
-              data-sound={sound.file}
+              data-sound={sound.file}  {/* This should match what's in the database */}
               data-filename={sound.name}
             >
               Download
             </button>
             <button
               class="delete-button bg-red-400 text-white px-4 py-2 rounded-lg hover:bg-red-500 transition-colors"
-              data-sound={sound.file}
+              data-sound={sound.file}  {/* This should match what's in the database */}
               data-sound-id={sound.id}
             >
               Delete
@@ -94,13 +94,13 @@ const { sounds, profileId } = Astro.props;
   // Handle downloads
   document.querySelectorAll('.download-button').forEach((button) => {
     button.addEventListener('click', async () => {
-      const soundFile = button.getAttribute('data-sound');
+      const soundUrl = button.getAttribute('data-sound');
       const filename = button.getAttribute('data-filename')?.toLowerCase().replace(/[^a-z0-9]/g, '-') || 'sound';
       
-      if (!soundFile) return;
+      if (!soundUrl) return;
 
       try {
-        const response = await fetch(soundFile);
+        const response = await fetch(soundUrl);
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
         const blob = await response.blob();
