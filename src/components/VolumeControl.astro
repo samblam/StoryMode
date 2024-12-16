@@ -9,7 +9,7 @@ const { initialVolume = 1.0 } = Astro.props;
 <div class="flex items-center space-x-2">
   <button
     id="volume-mute"
-    class="text-gray-600 hover:text-gray-800 p-2"
+    class="text-gray-600 hover:text-gray-800 p-2 focus:outline-none focus:ring-2 focus:ring-green-400 rounded-lg"
     aria-label="Toggle mute"
   >
     <svg
@@ -34,7 +34,7 @@ const { initialVolume = 1.0 } = Astro.props;
     min="0"
     max="100"
     value={initialVolume * 100}
-    class="w-24 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+    class="w-24 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-green-400"
     aria-label="Volume control"
   />
   
@@ -46,46 +46,94 @@ const { initialVolume = 1.0 } = Astro.props;
 <script>
   import { audioManager } from '../utils/audioManager';
 
-  const volumeSlider = document.getElementById('volume-slider') as HTMLInputElement;
-  const volumePercentage = document.getElementById('volume-percentage');
-  const volumeMute = document.getElementById('volume-mute');
-  const volumeIcon = document.getElementById('volume-icon');
-  
-  let previousVolume = audioManager.getVolume();
+  class VolumeController {
+    private volumeSlider: HTMLInputElement;
+    private volumePercentage: HTMLElement;
+    private volumeMute: HTMLElement;
+    private volumeIcon: SVGPathElement;
+    private previousVolume: number;
 
-  const updateVolumeIcon = (volume: number) => {
-    if (!volumeIcon) return;
-    
-    if (volume === 0) {
-      volumeIcon.setAttribute('d', 'M4 9h3.5L12 6v12l-4.5-3H4V9z');
-    } else if (volume < 0.5) {
-      volumeIcon.setAttribute('d', 'M15.536 8.464a5 5 0 010 7.072M12 6L7.5 9H4v6h3.5L12 18V6z');
-    } else {
-      volumeIcon.setAttribute('d', 'M15.536 8.464a5 5 0 010 7.072M18.364 5.636a9 9 0 010 12.728M12 6L7.5 9H4v6h3.5L12 18V6z');
-    }
-  };
+    constructor() {
+      this.volumeSlider = document.getElementById('volume-slider') as HTMLInputElement;
+      this.volumePercentage = document.getElementById('volume-percentage') as HTMLElement;
+      this.volumeMute = document.getElementById('volume-mute') as HTMLElement;
+      this.volumeIcon = document.getElementById('volume-icon') as SVGPathElement;
+      this.previousVolume = audioManager.getVolume();
 
-  volumeSlider?.addEventListener('input', (e) => {
-    const volume = parseInt((e.target as HTMLInputElement).value) / 100;
-    audioManager.setVolume(volume);
-    if (volumePercentage) {
-      volumePercentage.textContent = `${Math.round(volume * 100)}%`;
-    }
-    updateVolumeIcon(volume);
-  });
+      if (!this.validateElements()) {
+        throw new Error('Required volume control elements not found');
+      }
 
-  volumeMute?.addEventListener('click', () => {
-    const currentVolume = audioManager.getVolume();
-    if (currentVolume > 0) {
-      previousVolume = currentVolume;
-      audioManager.setVolume(0);
-      if (volumeSlider) volumeSlider.value = '0';
-      if (volumePercentage) volumePercentage.textContent = '0%';
-    } else {
-      audioManager.setVolume(previousVolume);
-      if (volumeSlider) volumeSlider.value = String(previousVolume * 100);
-      if (volumePercentage) volumePercentage.textContent = `${Math.round(previousVolume * 100)}%`;
+      this.initializeEventListeners();
+      this.updateVolumeIcon(this.previousVolume);
     }
-    updateVolumeIcon(currentVolume > 0 ? 0 : previousVolume);
+
+    private validateElements(): boolean {
+      return !!(this.volumeSlider && this.volumePercentage && this.volumeMute && this.volumeIcon);
+    }
+
+    private updateVolumeIcon(volume: number): void {
+      if (volume === 0) {
+        this.volumeIcon.setAttribute('d', 'M4 9h3.5L12 6v12l-4.5-3H4V9z');
+      } else if (volume < 0.5) {
+        this.volumeIcon.setAttribute('d', 'M15.536 8.464a5 5 0 010 7.072M12 6L7.5 9H4v6h3.5L12 18V6z');
+      } else {
+        this.volumeIcon.setAttribute('d', 'M15.536 8.464a5 5 0 010 7.072M18.364 5.636a9 9 0 010 12.728M12 6L7.5 9H4v6h3.5L12 18V6z');
+      }
+    }
+
+    private handleVolumeChange = (volume: number): void => {
+      try {
+        audioManager.setVolume(volume);
+        this.volumePercentage.textContent = `${Math.round(volume * 100)}%`;
+        this.updateVolumeIcon(volume);
+      } catch (error) {
+        console.error('Error updating volume:', error);
+      }
+    };
+
+    private handleSliderInput = (e: Event): void => {
+      const volume = parseInt((e.target as HTMLInputElement).value) / 100;
+      this.handleVolumeChange(volume);
+    };
+
+    private handleMuteClick = (): void => {
+      try {
+        const currentVolume = audioManager.getVolume();
+        if (currentVolume > 0) {
+          this.previousVolume = currentVolume;
+          this.setVolume(0);
+        } else {
+          this.setVolume(this.previousVolume);
+        }
+      } catch (error) {
+        console.error('Error toggling mute:', error);
+      }
+    };
+
+    private setVolume(volume: number): void {
+      this.volumeSlider.value = String(volume * 100);
+      this.handleVolumeChange(volume);
+    }
+
+    private initializeEventListeners(): void {
+      this.volumeSlider.addEventListener('input', this.handleSliderInput);
+      this.volumeMute.addEventListener('click', this.handleMuteClick);
+
+      // Clean up on page unload
+      window.addEventListener('unload', () => {
+        this.volumeSlider.removeEventListener('input', this.handleSliderInput);
+        this.volumeMute.removeEventListener('click', this.handleMuteClick);
+      });
+    }
+  }
+
+  // Initialize volume controller when the DOM is ready
+  document.addEventListener('DOMContentLoaded', () => {
+    try {
+      new VolumeController();
+    } catch (error) {
+      console.error('Failed to initialize volume controller:', error);
+    }
   });
 </script>
