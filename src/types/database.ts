@@ -9,6 +9,55 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
+      clients: {
+        Row: {
+          id: string;
+          created_at: string;
+          name: string;
+          company: string | null;
+          email: string;
+          active: boolean;
+        };
+        Insert: {
+          id?: string;
+          created_at?: string;
+          name: string;
+          company?: string | null;
+          email: string;
+          active?: boolean;
+        };
+        Update: {
+          id?: string;
+          created_at?: string;
+          name?: string;
+          company?: string | null;
+          email?: string;
+          active?: boolean;
+        };
+      };
+      users: {
+        Row: {
+          id: string;
+          created_at: string;
+          role: 'admin' | 'client';
+          client_id: string | null;
+          email: string;
+        };
+        Insert: {
+          id: string;
+          created_at?: string;
+          role: 'admin' | 'client';
+          client_id?: string | null;
+          email: string;
+        };
+        Update: {
+          id?: string;
+          created_at?: string;
+          role?: 'admin' | 'client';
+          client_id?: string | null;
+          email?: string;
+        };
+      };
       sound_profiles: {
         Row: {
           id: string;
@@ -16,6 +65,8 @@ export interface Database {
           title: string;
           description: string;
           slug: string;
+          client_id: string | null;
+          is_template: boolean;
         };
         Insert: {
           id?: string;
@@ -23,6 +74,8 @@ export interface Database {
           title: string;
           description: string;
           slug: string;
+          client_id?: string | null;
+          is_template?: boolean;
         };
         Update: {
           id?: string;
@@ -30,6 +83,8 @@ export interface Database {
           title?: string;
           description?: string;
           slug?: string;
+          client_id?: string | null;
+          is_template?: boolean;
         };
       };
       sounds: {
@@ -39,7 +94,7 @@ export interface Database {
           name: string;
           description: string;
           file_path: string;
-          storage_path: string; // Added for Supabase storage path
+          storage_path: string;
           profile_id: string;
         };
         Insert: {
@@ -48,7 +103,7 @@ export interface Database {
           name: string;
           description: string;
           file_path: string;
-          storage_path: string; // Added for Supabase storage path
+          storage_path: string;
           profile_id: string;
         };
         Update: {
@@ -57,7 +112,7 @@ export interface Database {
           name?: string;
           description?: string;
           file_path?: string;
-          storage_path?: string; // Added for Supabase storage path
+          storage_path?: string;
           profile_id?: string;
         };
       };
@@ -69,7 +124,7 @@ export interface Database {
       [_ in never]: never;
     };
     Enums: {
-      [_ in never]: never;
+      user_role: 'admin' | 'client';
     };
   };
 }
