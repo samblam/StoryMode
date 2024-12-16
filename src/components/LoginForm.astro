@@ -1,111 +1,111 @@
 <form id="login-form" class="w-full max-w-md mx-auto space-y-6">
-    <div class="text-center">
-      <h2 class="text-3xl font-editorial">Welcome Back</h2>
-      <p class="text-gray-600 mt-2">Please sign in to continue</p>
-    </div>
-  
-    <div>
-      <label for="email" class="block text-lg mb-2">Email</label>
-      <input
-        type="email"
-        id="email"
-        name="email"
-        required
-        class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-400"
-        placeholder="you@example.com"
-      />
-    </div>
-  
-    <div>
-      <label for="password" class="block text-lg mb-2">Password</label>
-      <input
-        type="password"
-        id="password"
-        name="password"
-        required
-        minlength="8"
-        class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-400"
-        placeholder="••••••••"
-      />
-    </div>
-  
-    <div id="form-status" class="hidden">
-      <p class="error hidden text-red-600 bg-red-50 p-3 rounded-lg"></p>
-    </div>
-  
-    <button
-      type="submit"
-      class="w-full bg-green-400 text-white px-8 py-3 rounded-lg text-lg hover:bg-green-500 transition-colors"
-    >
-      Sign In
-    </button>
-  </form>
-  
-  <script>
-    interface LoginResponse {
-      user?: {
+  <div class="text-center">
+    <h2 class="text-3xl font-editorial">Welcome Back</h2>
+    <p class="text-gray-600 mt-2">Please sign in to continue</p>
+  </div>
+
+  <div>
+    <label for="email" class="block text-lg mb-2">Email</label>
+    <input
+      type="email"
+      id="email"
+      name="email"
+      required
+      class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-400"
+      placeholder="you@example.com"
+    />
+  </div>
+
+  <div>
+    <label for="password" class="block text-lg mb-2">Password</label>
+    <input
+      type="password"
+      id="password"
+      name="password"
+      required
+      minlength="8"
+      class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-400"
+      placeholder="••••••••"
+    />
+  </div>
+
+  <div id="form-status" class="hidden">
+    <p class="error hidden text-red-600 bg-red-50 p-3 rounded-lg"></p>
+  </div>
+
+  <button
+    type="submit"
+    class="w-full bg-green-400 text-white px-8 py-3 rounded-lg text-lg hover:bg-green-500 transition-colors"
+  >
+    Sign In
+  </button>
+</form>
+
+<script>
+  interface LoginResponse {
+    user?: {
+      id: string;
+      email: string;
+      role: 'admin' | 'client';
+      clientId?: string;
+      client?: {
         id: string;
-        email: string;
-        role: 'admin' | 'client';
-        clientId?: string;
-        client?: {
-          id: string;
-          name: string;
-          active: boolean;
-        };
+        name: string;
+        active: boolean;
       };
-      error?: string;
-    }
-  
-    const form = document.getElementById('login-form') as HTMLFormElement;
-    const formStatus = document.getElementById('form-status');
-    const errorMessage = formStatus?.querySelector('.error');
-  
-    form?.addEventListener('submit', async (e) => {
-      e.preventDefault();
-  
-      // Reset status messages
-      formStatus?.classList.add('hidden');
-      errorMessage?.classList.add('hidden');
-  
-      // Disable submit button while processing
-      const submitButton = form.querySelector('button[type="submit"]') as HTMLButtonElement;
-      submitButton.disabled = true;
-      submitButton.textContent = 'Signing in...';
-  
-      try {
-        const formData = new FormData(form);
-        const data = Object.fromEntries(formData);
-  
-        const response = await fetch('/api/auth/login', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(data),
-        });
-  
-        const result = await response.json() as LoginResponse;
-  
-        if (!response.ok) {
-          throw new Error(result.error || 'Login failed');
-        }
-  
-        // Redirect based on user role
-        if (result.user) {
-          window.location.href = result.user.role === 'admin' ? '/admin' : '/dashboard';
-        }
-      } catch (error) {
-        console.error('Login error:', error);
-        formStatus?.classList.remove('hidden');
-        errorMessage?.classList.remove('hidden');
-        if (errorMessage) {
-          errorMessage.textContent = error instanceof Error ? error.message : 'Login failed';
-        }
-      } finally {
-        // Re-enable submit button
-        submitButton.disabled = false;
-        submitButton.textContent = 'Sign In';
+    };
+    error?: string;
+  }
+
+  const form = document.getElementById('login-form') as HTMLFormElement;
+  const formStatus = document.getElementById('form-status');
+  const errorMessage = formStatus?.querySelector('.error');
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    // Reset status messages
+    formStatus?.classList.add('hidden');
+    errorMessage?.classList.add('hidden');
+
+    // Disable submit button while processing
+    const submitButton = form.querySelector('button[type="submit"]') as HTMLButtonElement;
+    submitButton.disabled = true;
+    submitButton.textContent = 'Signing in...';
+
+    try {
+      const formData = new FormData(form);
+      const data = Object.fromEntries(formData);
+
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      const result = await response.json() as LoginResponse;
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Login failed');
       }
-    });
-  </script>
+
+      // Redirect based on user role
+      if (result.user) {
+        window.location.href = '/sounds';  // Redirect all users to /sounds for now
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      formStatus?.classList.remove('hidden');
+      errorMessage?.classList.remove('hidden');
+      if (errorMessage) {
+        errorMessage.textContent = error instanceof Error ? error.message : 'Login failed';
+      }
+    } finally {
+      // Re-enable submit button
+      submitButton.disabled = false;
+      submitButton.textContent = 'Sign In';
+    }
+  });
+</script>

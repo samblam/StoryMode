@@ -49,7 +49,7 @@ const isAdmin = user?.role === 'admin';
           {!user && <a href="/login" class="hover:underline">Login</a>}
           {isAdmin && <a href="/create-user" class="hover:underline">Create User</a>}
           {user && (
-            <button class="hover:underline">Logout</button>
+            <button id="logout-button" class="hover:underline">Logout</button>
           )}
         </div>
       </nav>
@@ -67,3 +67,23 @@ const isAdmin = user?.role === 'admin';
     </footer>
   </body>
 </html>
+
+<script>
+  // Handle logout
+  document.getElementById('logout-button')?.addEventListener('click', async () => {
+    try {
+      const response = await fetch('/api/auth/logout', {
+        method: 'POST',
+      });
+
+      if (response.ok) {
+        // Clear any client-side state/storage if needed
+        window.location.href = '/login';
+      } else {
+        console.error('Logout failed');
+      }
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  });
+</script>
