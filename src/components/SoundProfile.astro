@@ -1,16 +1,15 @@
 ---
 import type { Sound } from '../types/sound';
-import VolumeControl from './VolumeControl.astro';
-import AudioProgress from './AudioProgress.astro';
+import SoundList from './SoundList.astro';
 
 interface Props {
   title: string;
   description: string;
   sounds: Sound[];
+  profileId: string;  // Add this prop
 }
 
-const { title, description, sounds } = Astro.props;
-const isAdmin = true;
+const { title, description, sounds, profileId } = Astro.props;
 ---
 
 <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
@@ -27,160 +26,122 @@ const isAdmin = true;
       >
         Download All Sounds
       </button>
+      <button
+        class="delete-profile bg-red-400 text-white px-4 py-2 rounded-lg hover:bg-red-500 transition-colors"
+        data-profile-id={profileId}
+        data-sound-count={sounds.length}
+      >
+        Delete Profile
+      </button>
     </div>
   </div>
 
-  <div class="flex justify-end mb-4">
-    <VolumeControl initialVolume={0.75} />
-  </div>
-  
-  <div class="space-y-4">
-    {sounds.map((sound) => (
-      <div class="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
-        <div class="flex flex-col space-y-4">
-          <div class="flex items-center justify-between">
-            <div>
-              <h4 class="text-lg font-semibold mb-1">{sound.name}</h4>
-              <p class="text-sm text-gray-500">{sound.description}</p>
-            </div>
-            <div class="flex space-x-2">
-              <button
-                class="play-button bg-green-400 text-white px-4 py-2 rounded-lg hover:bg-green-500 transition-colors"
-                data-sound={sound.file}
-                data-sound-id={sound.id}
-              >
-                Play
-              </button>
-              <button
-                class="download-button bg-blue-400 text-white px-4 py-2 rounded-lg hover:bg-blue-500 transition-colors"
-                data-sound={sound.file}
-                data-filename={sound.name}
-              >
-                Download
-              </button>
-              {isAdmin && (
-                <button
-                  class="delete-button bg-red-400 text-white px-4 py-2 rounded-lg hover:bg-red-500 transition-colors"
-                  data-sound={sound.file}
-                  data-sound-id={sound.id}
-                >
-                  Delete
-                </button>
-              )}
-            </div>
-          </div>
-          <AudioProgress soundId={sound.file} />
-        </div>
-      </div>
-    ))}
-  </div>
+  {sounds.length > 0 ? (
+    <SoundList sounds={sounds} profileId={profileId} />
+  ) : (
+    <p class="text-gray-600 italic">No sounds added to this profile yet.</p>
+  )}
 </div>
 
 <script>
-  import { audioManager } from '../utils/audioManager';
+  const downloadQueue = new Set();
 
-  // Handle playback
-  document.querySelectorAll('.play-button').forEach((button) => {
+  // Handle downloading all sounds
+  document.querySelectorAll('.download-all-button').forEach((button) => {
     if (!(button instanceof HTMLElement)) return;
-    const soundFile = button.dataset.sound;
-    if (!soundFile) return;
 
-    button.addEventListener('click', () => {
-      const sound = audioManager.getSound(soundFile);
-      
-      if (sound.playing()) {
-        sound.pause();
-        button.textContent = 'Play';
-        button.classList.remove('bg-yellow-400', 'hover:bg-yellow-500');
-        button.classList.add('bg-green-400', 'hover:bg-green-500');
-      } else {
-        // Stop all other sounds first
-        document.querySelectorAll('.play-button').forEach(btn => {
-          if (btn instanceof HTMLElement && btn !== button) {
-            const otherSoundFile = btn.dataset.sound;
-            if (otherSoundFile) {
-              const otherSound = audioManager.getSound(otherSoundFile);
-              if (otherSound.playing()) {
-                otherSound.pause();
-                btn.textContent = 'Play';
-                btn.classList.remove('bg-yellow-400', 'hover:bg-yellow-500');
-                btn.classList.add('bg-green-400', 'hover:bg-green-500');
-              }
-            }
-          }
-        });
-
-        sound.play();
-        button.textContent = 'Pause';
-        button.classList.remove('bg-green-400', 'hover:bg-green-500');
-        button.classList.add('bg-yellow-400', 'hover:bg-yellow-500');
-      }
-    });
-  });
-
-  // Handle downloads
-  document.querySelectorAll('.download-button').forEach((button) => {
-    if (!(button instanceof HTMLElement)) return;
-    
     button.addEventListener('click', async () => {
-      const soundFile = button.dataset.sound;
-      const filename = button.dataset.filename?.toLowerCase().replace(/[^a-z0-9]/g, '-') || 'sound';
-      
-      if (!soundFile) return;
+      if (button.hasAttribute('data-downloading')) return;
+
+      const sounds = JSON.parse(button.dataset.sounds || '[]');
+      const profileName = button.dataset.profileName?.toLowerCase().replace(/[^a-z0-9]/g, '-') || 'sounds';
+
+      if (sounds.length === 0) {
+        alert('No sounds available to download');
+        return;
+      }
 
       try {
-        const response = await fetch(soundFile);
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        button.setAttribute('data-downloading', 'true');
+        button.disabled = true;
+        const originalText = button.textContent || '';
 
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = url;
-        a.download = `${filename}.mp3`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
+        for (let i = 0; i < sounds.length; i++) {
+          const sound = sounds[i];
+          
+          if (downloadQueue.has(sound.file)) continue;
+          
+          try {
+            downloadQueue.add(sound.file);
+            button.textContent = `Downloading ${i + 1}/${sounds.length}`;
+
+            const response = await fetch(sound.file);
+            if (!response.ok) throw new Error(`Failed to download ${sound.name}`);
+
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = `${sound.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}.mp3`;
+            document.body.appendChild(a);
+            a.click();
+            
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+
+            if (i < sounds.length - 1) {
+              await new Promise(resolve => setTimeout(resolve, 500));
+            }
+          } catch (error) {
+            console.error(`Error downloading ${sound.name}:`, error);
+          } finally {
+            downloadQueue.delete(sound.file);
+          }
+        }
       } catch (error) {
         console.error('Download error:', error);
-        alert('Failed to download sound. Please try again.');
+        alert('Failed to download some sounds. Please try again.');
+      } finally {
+        button.removeAttribute('data-downloading');
+        button.disabled = false;
+        button.textContent = originalText;
+        downloadQueue.clear();
       }
     });
   });
 
-  // Handle deletion
-  document.querySelectorAll('.delete-button').forEach((button) => {
+  // Handle profile deletion
+  document.querySelectorAll('.delete-profile').forEach(button => {
     if (!(button instanceof HTMLElement)) return;
     
     button.addEventListener('click', async () => {
-      const soundId = button.dataset.soundId;
-      const soundFile = button.dataset.sound;
-      
-      if (!soundId || !soundFile) return;
-      
-      if (!confirm('Are you sure you want to delete this sound?')) return;
+      const profileId = button.dataset.profileId;
+      const soundCount = parseInt(button.dataset.soundCount || '0');
+
+      if (!profileId) return;
+
+      const message = soundCount > 0
+        ? `This will delete the profile and ${soundCount} associated sound${soundCount !== 1 ? 's' : ''}. Are you sure?`
+        : 'Are you sure you want to delete this profile?';
+
+      if (!confirm(message)) return;
 
       try {
-        const response = await fetch('/api/sounds/delete', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            id: soundId,
-            filePath: soundFile,
-          }),
+        const response = await fetch(`/api/sound-profiles/${profileId}`, {
+          method: 'DELETE',
         });
 
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        if (!response.ok) {
+          throw new Error('Failed to delete profile');
+        }
 
-        // Remove the sound element from the DOM
-        const soundElement = button.closest('.border');
-        soundElement?.remove();
+        // Refresh the page and maintain the current tab
+        const currentTab = new URLSearchParams(window.location.search).get('tab') || 'library';
+        window.location.href = `/sounds?tab=${currentTab}&success=Profile deleted successfully`;
       } catch (error) {
-        console.error('Delete error:', error);
-        alert('Failed to delete sound. Please try again.');
+        console.error('Profile deletion error:', error);
+        alert(error instanceof Error ? error.message : 'Failed to delete profile');
       }
     });
   });
