@@ -1,7 +1,6 @@
 import type { APIRoute } from 'astro';
-import fs from 'fs/promises';
-import path from 'path';
 import { supabase } from '../../../lib/supabase';
+import { deleteSound } from '../../../utils/storageUtils';
 
 export const POST: APIRoute = async ({ request }) => {
   try {
@@ -13,7 +12,7 @@ export const POST: APIRoute = async ({ request }) => {
       });
     }
 
-    // Delete from database
+    // Delete from database first
     const { error: dbError } = await supabase
       .from('sounds')
       .delete()
@@ -23,16 +22,9 @@ export const POST: APIRoute = async ({ request }) => {
       throw dbError;
     }
 
-    // Delete file from disk if path provided
+    // Then delete from storage if path provided
     if (filePath) {
-      try {
-        const publicDir = path.join(process.cwd(), 'public');
-        const fullPath = path.join(publicDir, filePath.replace(/^\//, ''));
-        await fs.unlink(fullPath);
-      } catch (fileError) {
-        console.error('File deletion error:', fileError);
-        // Continue even if file deletion fails
-      }
+      await deleteSound(filePath);
     }
 
     return new Response(JSON.stringify({ success: true }), { status: 200 });
