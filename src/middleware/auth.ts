@@ -3,78 +3,74 @@ import type { MiddlewareHandler } from 'astro';
 import { supabase } from '../lib/supabase';
 import type { User } from '../types/auth';
 
-interface LocalsWithUser {
-  user?: User;
-  [key: string]: any;
-}
-
 export const onRequest: MiddlewareHandler = async ({ request, cookies, url, locals }, next) => {
-  // Paths that don't require authentication
-  const publicPaths = ['/login', '/register', '/forgot-password'];
-  if (publicPaths.includes(url.pathname)) {
-    return next();
-  }
+  console.log('Middleware running, checking auth...');
+  
+  // Initialize user as undefined
+  locals.user = undefined;
 
-  // Get auth token from cookie
+  // Get token from cookie
   const token = cookies.get('sb-token')?.value;
-  if (!token) {
-    return Response.redirect(new URL('/login', request.url));
+  console.log('Token found:', !!token);
+
+  if (token) {
+    try {
+      // Verify token and get user
+      const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token);
+      
+      if (authError || !authUser) {
+        console.error('Auth error:', authError);
+        cookies.delete('sb-token', { path: '/' });
+        return Response.redirect(new URL('/login', url));
+      }
+
+      console.log('Auth user found:', authUser.id);
+
+      // Get user data from database
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('*, clients(*)')
+        .eq('id', authUser.id)
+        .single();
+
+      if (userError) {
+        console.error('User data error:', userError);
+        cookies.delete('sb-token', { path: '/' });
+        return Response.redirect(new URL('/login', url));
+      }
+
+      if (!userData) {
+        console.error('No user data found');
+        cookies.delete('sb-token', { path: '/' });
+        return Response.redirect(new URL('/login', url));
+      }
+
+      // Set user in locals
+      locals.user = {
+        id: userData.id,
+        email: userData.email,
+        role: userData.role,
+        clientId: userData.client_id,
+        client: userData.clients,
+        createdAt: userData.created_at
+      };
+
+      console.log('User set in locals:', locals.user);
+    } catch (error) {
+      console.error('Middleware error:', error);
+      cookies.delete('sb-token', { path: '/' });
+      if (!url.pathname.startsWith('/login')) {
+        return Response.redirect(new URL('/login', url));
+      }
+    }
+  } else if (!url.pathname.startsWith('/login')) {
+    return Response.redirect(new URL('/login', url));
   }
 
-  try {
-    // Verify token and get user
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-    if (error || !user) {
-      cookies.delete('sb-token', { path: '/' });
-      return Response.redirect(new URL('/login', request.url));
-    }
+  // Continue to the next middleware/route handler
+  const response = await next();
 
-    // Get user role and permissions
-    const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select(`
-        *,
-        clients!inner (
-          id,
-          name,
-          company,
-          active
-        )
-      `)
-      .eq('id', user.id)
-      .single();
-
-    if (userError || !userData) {
-      throw new Error('User data not found');
-    }
-
-    // Check if client is active (for client users)
-    if (userData.role === 'client' && !userData.clients.active) {
-      cookies.delete('sb-token', { path: '/' });
-      return Response.redirect(new URL('/login', request.url));
-    }
-
-    // Check admin-only routes
-    const adminPaths = ['/admin', '/clients'];
-    if (adminPaths.some(path => url.pathname.startsWith(path)) && userData.role !== 'admin') {
-      return Response.redirect(new URL('/', request.url));
-    }
-
-    // Add user info to locals for use in components
-    (locals as LocalsWithUser).user = {
-      id: userData.id,
-      email: userData.email,
-      role: userData.role,
-      clientId: userData.client_id,
-      client: userData.clients,
-      createdAt: userData.created_at
-    };
-
-    return next();
-
-  } catch (error) {
-    console.error('Auth middleware error:', error);
-    cookies.delete('sb-token', { path: '/' });
-    return Response.redirect(new URL('/login', request.url));
-  }
+  // Log final state
+  console.log('Final locals.user state:', locals.user);
+  return response;
 };

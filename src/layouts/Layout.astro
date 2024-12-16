@@ -6,8 +6,17 @@ interface Props {
 }
 
 const { title } = Astro.props;
+
+// Access user from locals and log it
 const user = Astro.locals.user;
+console.log('Layout - Current user state:', user);
+
+// Determine admin status
 const isAdmin = user?.role === 'admin';
+console.log('Layout - Is admin:', isAdmin);
+
+// Log the full locals object to debug
+console.log('Layout - Full locals:', Astro.locals);
 ---
 
 <!doctype html>
@@ -18,22 +27,7 @@ const isAdmin = user?.role === 'admin';
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
-    <meta name="description" content="Story Mode is a cutting edge audio branding and UX sound design studio in Montreal, Canada. We care about making interactive audio unforgettable." />
-    
-    <!-- Social Media Meta Tags -->
-    <meta property="og:title" content={title} />
-    <meta property="og:description" content="Story Mode is a cutting edge audio branding and UX sound design studio in Montreal, Canada. We care about making interactive audio unforgettable." />
-    <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://www.storymode.ca" />
-    <meta property="og:image" content="https://www.storymode.ca/social-preview.jpg" />
-    
-    <!-- Twitter Meta Tags -->
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content={title} />
-    <meta name="twitter:description" content="Story Mode is a cutting edge audio branding and UX sound design studio in Montreal, Canada." />
-    <meta name="twitter:image" content="https://www.storymode.ca/social-preview.jpg" />
-    
-    <!-- Fonts -->
+    <meta name="description" content="Story Mode is a cutting edge audio branding and UX sound design studio in Montreal, Canada." />
     <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700&display=swap" rel="stylesheet">
   </head>
   <body>
@@ -46,16 +40,28 @@ const isAdmin = user?.role === 'admin';
           <a href="/blog" class="hover:underline">Blog</a>
           <a href="/sounds" class="hover:underline">Sounds</a>
           <a href="/contact" class="hover:underline">Contact</a>
-          {!user && <a href="/login" class="hover:underline">Login</a>}
-          {isAdmin && <a href="/create-user" class="hover:underline">Create User</a>}
-          {user && (
-            <button id="logout-button" class="hover:underline">Logout</button>
+          
+          {/* Add debug comment */}
+          <!-- Auth Debug: User exists: {!!user}, Is admin: {isAdmin} -->
+          
+          {!user ? (
+            <a href="/login" class="hover:underline">Login</a>
+          ) : (
+            <>
+              {isAdmin && <a href="/create-user" class="hover:underline">Create User</a>}
+              <button 
+                id="logout-button" 
+                class="hover:underline text-white"
+                type="button"
+              >
+                Logout
+              </button>
+            </>
           )}
         </div>
       </nav>
     </header>
 
-    <!-- Add a spacer div to prevent content from being hidden under the fixed header -->
     <div class="h-20"></div>
 
     <slot />
@@ -65,25 +71,27 @@ const isAdmin = user?.role === 'admin';
         <p>&copy; {new Date().getFullYear()} Story Mode</p>
       </div>
     </footer>
+
+    <script>
+      // Always attach the event listener
+      document.getElementById('logout-button')?.addEventListener('click', async () => {
+        try {
+          const response = await fetch('/api/auth/logout', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          });
+
+          if (response.ok) {
+            window.location.href = '/login';
+          } else {
+            console.error('Logout failed');
+          }
+        } catch (error) {
+          console.error('Logout error:', error);
+        }
+      });
+    </script>
   </body>
 </html>
-
-<script>
-  // Handle logout
-  document.getElementById('logout-button')?.addEventListener('click', async () => {
-    try {
-      const response = await fetch('/api/auth/logout', {
-        method: 'POST',
-      });
-
-      if (response.ok) {
-        // Clear any client-side state/storage if needed
-        window.location.href = '/login';
-      } else {
-        console.error('Logout failed');
-      }
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
-  });
-</script>
