@@ -1,6 +1,8 @@
-// src/utils/profileUtils.ts
 import { supabase } from '../lib/supabase';
 import type { SoundProfile, SoundProfileWithSounds } from '../types/sound';
+import { deleteSoundsByProfileId } from './soundUtils';
+
+let isProcessingDelete = false;
 
 export async function getSoundProfiles(): Promise<SoundProfile[]> {
   const { data, error } = await supabase
@@ -131,21 +133,40 @@ export async function deleteSoundProfile(id: string): Promise<void> {
     throw error;
   }
 }
-// Add the new function here, right before the final closing brace
-export async function saveSoundProfiles(
-  profiles: SoundProfile[]
-): Promise<void> {
-  const { error } = await supabase.from('sound_profiles').upsert(
-    profiles.map((profile) => ({
-      id: profile.id,
-      title: profile.title,
-      description: profile.description,
-      slug: profile.slug,
-    }))
-  );
 
-  if (error) {
-    console.error('Error saving sound profiles:', error);
-    throw error;
+// Added new profile deletion handler
+export async function handleProfileDelete(button: HTMLElement): Promise<void> {
+  if (isProcessingDelete) return;
+
+  const profileId = button.dataset.profileId;
+  const soundCount = parseInt(button.dataset.soundCount || '0');
+
+  if (!profileId) return;
+
+  const message =
+    soundCount > 0
+      ? `This will delete the profile and ${soundCount} associated sound${
+          soundCount !== 1 ? 's' : ''
+        }. Are you sure?`
+      : 'Are you sure you want to delete this profile?';
+
+  if (!confirm(message)) return;
+
+  try {
+    isProcessingDelete = true;
+    button.disabled = true;
+
+    await deleteSoundsByProfileId(profileId);
+    await deleteSoundProfile(profileId);
+
+    const currentTab =
+      new URLSearchParams(window.location.search).get('tab') || 'library';
+    window.location.href = `/sounds?tab=${currentTab}&success=Profile deleted successfully`;
+  } catch (error) {
+    console.error('Profile deletion error:', error);
+    alert(error instanceof Error ? error.message : 'Failed to delete profile');
+    button.disabled = false;
+  } finally {
+    isProcessingDelete = false;
   }
 }
