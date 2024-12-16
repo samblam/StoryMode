@@ -1,7 +1,6 @@
 import type { APIRoute } from 'astro';
-import fs from 'fs/promises';
-import path from 'path';
 import { supabase } from '../../../lib/supabase';
+import { deleteSoundsByProfile } from '../../../utils/storageUtils';
 
 export const DELETE: APIRoute = async ({ params }) => {
   try {
@@ -33,7 +32,10 @@ export const DELETE: APIRoute = async ({ params }) => {
       throw soundsError;
     }
 
-    // Delete the profile from database
+    // Delete associated sound files from storage
+    await deleteSoundsByProfile(profile.slug);
+
+    // Finally, delete the profile itself
     const { error: deleteError } = await supabase
       .from('sound_profiles')
       .delete()
@@ -41,16 +43,6 @@ export const DELETE: APIRoute = async ({ params }) => {
 
     if (deleteError) {
       throw deleteError;
-    }
-
-    // Delete associated sound files
-    try {
-      const publicDir = path.join(process.cwd(), 'public');
-      const profileDir = path.join(publicDir, 'sounds', profile.slug);
-      await fs.rm(profileDir, { recursive: true, force: true });
-    } catch (fsError) {
-      console.error('Error deleting sound files:', fsError);
-      // Continue even if file deletion fails
     }
 
     return new Response(JSON.stringify({ success: true }), { status: 200 });
