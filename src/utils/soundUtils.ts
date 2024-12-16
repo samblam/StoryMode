@@ -1,4 +1,3 @@
-// src/utils/soundUtils.ts
 import { supabase } from '../lib/supabase';
 import type { Sound } from '../types/sound';
 
@@ -125,5 +124,65 @@ export async function deleteSoundsByProfileId(
   if (error) {
     console.error('Error deleting sounds for profile:', error);
     throw error;
+  }
+}
+
+// Added new download functionality
+const downloadQueue = new Set<string>();
+
+export async function handleSoundDownload(button: HTMLElement): Promise<void> {
+  if (button.hasAttribute('data-downloading')) return;
+
+  const sounds = JSON.parse(button.dataset.sounds || '[]');
+  if (sounds.length === 0) {
+    alert('No sounds available to download');
+    return;
+  }
+
+  try {
+    button.setAttribute('data-downloading', 'true');
+    button.disabled = true;
+    const originalText = button.textContent || '';
+
+    for (let i = 0; i < sounds.length; i++) {
+      const sound = sounds[i];
+      if (downloadQueue.has(sound.file)) continue;
+
+      try {
+        downloadQueue.add(sound.file);
+        button.textContent = `Downloading ${i + 1}/${sounds.length}`;
+
+        const response = await fetch(sound.file);
+        if (!response.ok) throw new Error(`Failed to download ${sound.name}`);
+
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = `${sound.name
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g, '-')}.mp3`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+
+        if (i < sounds.length - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+      } finally {
+        downloadQueue.delete(sound.file);
+      }
+    }
+
+    button.textContent = originalText;
+  } catch (error) {
+    console.error('Download error:', error);
+    alert('Failed to download some sounds. Please try again.');
+  } finally {
+    button.removeAttribute('data-downloading');
+    button.disabled = false;
+    downloadQueue.clear();
   }
 }
