@@ -1,7 +1,6 @@
-// src/pages/api/auth/login.ts
 import type { APIRoute } from 'astro';
-import { supabase } from '../../../lib/supabase';
 import { createClient } from '@supabase/supabase-js';
+import { supabase, supabaseAdmin } from '../../../lib/supabase';
 import type { Database } from '../../../types/database';
 
 export const POST: APIRoute = async ({ request, cookies }) => {

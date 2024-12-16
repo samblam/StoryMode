@@ -2,8 +2,11 @@
 import type { MiddlewareHandler } from 'astro';
 import { supabase } from '../lib/supabase';
 import type { User } from '../types/auth';
-// Import the types so they're included
-import '../types/astro';
+
+interface LocalsWithUser {
+  user?: User;
+  [key: string]: any;
+}
 
 export const onRequest: MiddlewareHandler = async ({ request, cookies, url, locals }, next) => {
   // Paths that don't require authentication
@@ -34,6 +37,7 @@ export const onRequest: MiddlewareHandler = async ({ request, cookies, url, loca
         clients!inner (
           id,
           name,
+          company,
           active
         )
       `)
@@ -57,12 +61,13 @@ export const onRequest: MiddlewareHandler = async ({ request, cookies, url, loca
     }
 
     // Add user info to locals for use in components
-    locals.user = {
+    (locals as LocalsWithUser).user = {
       id: userData.id,
       email: userData.email,
       role: userData.role,
       clientId: userData.client_id,
-      client: userData.clients
+      client: userData.clients,
+      createdAt: userData.created_at
     };
 
     return next();

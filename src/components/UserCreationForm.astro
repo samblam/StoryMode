@@ -1,0 +1,151 @@
+---
+// src/components/UserCreationForm.astro
+---
+
+<form id="user-creation-form" class="w-full max-w-md mx-auto space-y-6">
+    <div>
+      <label for="email" class="block text-sm font-medium mb-2">Email</label>
+      <input
+        type="email"
+        id="email"
+        name="email"
+        required
+        class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-400"
+        placeholder="user@example.com"
+      />
+    </div>
+  
+    <div>
+      <label for="password" class="block text-sm font-medium mb-2">Password</label>
+      <input
+        type="password"
+        id="password"
+        name="password"
+        required
+        minlength="8"
+        class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-400"
+        placeholder="Minimum 8 characters"
+      />
+    </div>
+  
+    <div>
+      <label for="role" class="block text-sm font-medium mb-2">Role</label>
+      <select
+        id="role"
+        name="role"
+        class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-400"
+      >
+        <option value="client">Client</option>
+        <option value="admin">Admin</option>
+      </select>
+    </div>
+  
+    <div class="client-fields hidden">
+      <div class="space-y-6">
+        <div>
+          <label for="name" class="block text-sm font-medium mb-2">Name</label>
+          <input
+            type="text"
+            id="name"
+            name="name"
+            class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-400"
+            placeholder="Client name"
+          />
+        </div>
+  
+        <div>
+          <label for="company" class="block text-sm font-medium mb-2">Company</label>
+          <input
+            type="text"
+            id="company"
+            name="company"
+            class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-400"
+            placeholder="Company name"
+          />
+        </div>
+      </div>
+    </div>
+  
+    <div id="form-status" class="hidden">
+      <p class="error hidden text-red-600 bg-red-50 p-3 rounded-lg"></p>
+      <p class="success hidden text-green-600 bg-green-50 p-3 rounded-lg"></p>
+    </div>
+  
+    <button
+      type="submit"
+      class="w-full bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+    >
+      Create User
+    </button>
+  </form>
+  
+  <script>
+    const form = document.getElementById('user-creation-form') as HTMLFormElement;
+    const roleSelect = document.getElementById('role') as HTMLSelectElement;
+    const clientFields = document.querySelector('.client-fields') as HTMLElement;
+    const formStatus = document.getElementById('form-status') as HTMLElement;
+    const errorMessage = formStatus?.querySelector('.error') as HTMLElement;
+    const successMessage = formStatus?.querySelector('.success') as HTMLElement;
+  
+    roleSelect?.addEventListener('change', () => {
+      if (roleSelect.value === 'client') {
+        clientFields.classList.remove('hidden');
+        document.getElementById('name')?.setAttribute('required', '');
+      } else {
+        clientFields.classList.add('hidden');
+        document.getElementById('name')?.removeAttribute('required');
+      }
+    });
+  
+    form?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      formStatus.classList.add('hidden');
+      errorMessage.classList.add('hidden');
+      successMessage.classList.add('hidden');
+  
+      const submitButton = form.querySelector('button[type="submit"]') as HTMLButtonElement;
+      submitButton.disabled = true;
+      submitButton.textContent = 'Creating...';
+  
+      try {
+        const formData = new FormData(form);
+        const data = Object.fromEntries(formData);
+  
+        if (data.role === 'admin') {
+          delete data.name;
+          delete data.company;
+        }
+  
+        const response = await fetch('/api/auth/create-user', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(data),
+        });
+  
+        const result = await response.json();
+  
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to create user');
+        }
+  
+        formStatus.classList.remove('hidden');
+        successMessage.classList.remove('hidden');
+        successMessage.textContent = 'User created successfully!';
+  
+        form.reset();
+        clientFields.classList.add('hidden');
+  
+      } catch (error) {
+        console.error('User creation error:', error);
+        formStatus.classList.remove('hidden');
+        errorMessage.classList.remove('hidden');
+        errorMessage.textContent = error instanceof Error ? error.message : 'Failed to create user';
+      } finally {
+        submitButton.disabled = false;
+        submitButton.textContent = 'Create User';
+      }
+    });
+  </script>

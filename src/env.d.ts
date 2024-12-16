@@ -1,6 +1,17 @@
-// src/env.d.ts
+/// <reference path="../.astro/types.d.ts" />
 /// <reference types="astro/client" />
-import type { User } from './types/auth';
+
+interface User {
+  id: string;
+  email: string;
+  role: 'admin' | 'client';
+  clientId?: string;
+  client?: {
+    id: string;
+    name: string;
+    active: boolean;
+  };
+}
 
 declare namespace App {
   interface Locals {
