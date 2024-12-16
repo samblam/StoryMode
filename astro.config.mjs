@@ -8,5 +8,9 @@ export default defineConfig({
   output: 'server',
   adapter: netlify({
     edgeMiddleware: true
-  })
+  }),
+  server: {
+    host: true, // Listen on all network interfaces
+    port: 4321
+  }
 });

@@ -33,10 +33,58 @@ import Layout from '../layouts/Layout.astro';
       </div>
 
       <div class="mt-24 text-center">
-        <h2 class="text-4xl font-editorial">
+        <h2 class="text-4xl font-editorial mb-8">
           don't be shy... <a href="/contact" class="underline hover:text-blue-600">say hi :)</a>
         </h2>
+        
+        <button
+          id="test-db"
+          class="bg-green-400 text-white px-6 py-3 rounded-lg text-lg hover:bg-green-500 transition-colors"
+        >
+          Test DB Connection
+        </button>
+        
+        <p id="db-status" class="mt-4 text-lg hidden"></p>
       </div>
     </div>
   </main>
 </Layout>
+
+<script>
+  const button = document.getElementById('test-db');
+  const status = document.getElementById('db-status');
+
+  button?.addEventListener('click', async () => {
+    if (!status) return;
+    
+    try {
+      button.disabled = true;
+      status.textContent = 'Testing connection...';
+      status.classList.remove('hidden', 'text-red-600', 'text-green-600');
+      status.classList.add('text-gray-600');
+
+      const response = await fetch('/api/test-connection');
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const result = await response.json();
+
+      if (result.success) {
+        status.textContent = 'Connection successful! Database is working.';
+        status.classList.remove('text-gray-600');
+        status.classList.add('text-green-600');
+      } else {
+        throw new Error(result.error || 'Connection failed');
+      }
+    } catch (error) {
+      console.error('Connection error:', error);
+      status.textContent = `Connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      status.classList.remove('text-gray-600');
+      status.classList.add('text-red-600');
+    } finally {
+      button.disabled = false;
+      status.classList.remove('hidden');
+    }
+  });
+</script>

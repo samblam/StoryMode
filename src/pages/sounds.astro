@@ -1,13 +1,18 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import ProfileCard from '../components/ProfileCard.astro';
 import SoundProfile from '../components/SoundProfile.astro';
-import SoundUploader from '../components/SoundUploader.astro';
 import { getSoundProfiles } from '../utils/profileUtils';
 import { getSounds } from '../utils/soundUtils';
 
-// Get profiles and sounds from JSON files
+// Get profiles and sounds
 const profiles = await getSoundProfiles();
 const sounds = await getSounds();
+
+// Get URL parameters
+const success = Astro.url.searchParams.get('success');
+const error = Astro.url.searchParams.get('error');
+const currentTab = Astro.url.searchParams.get('tab') || 'library';
 
 // Get sounds for each profile
 const profilesWithSounds = profiles.map(profile => ({
@@ -21,29 +26,145 @@ const isAdmin = true; // In production, this should be determined by authenticat
 <Layout title="Sound Library | Story Mode">
   <main class="min-h-screen bg-gray-100 py-12">
     <div class="max-w-6xl mx-auto px-4">
-      <div class="flex justify-between items-center mb-12">
+      <!-- Header -->
+      <div class="flex justify-between items-center mb-8">
         <h1 class="text-6xl font-editorial">Sound Library</h1>
         {isAdmin && (
-          <a
-            href="/sounds/profiles/new"
-            class="bg-green-400 text-white px-6 py-3 rounded-lg text-lg hover:bg-green-500 transition-colors"
-          >
-            New Profile
-          </a>
+          <div class="flex space-x-4">
+            <a
+              href="/sounds/upload"
+              class="bg-blue-400 text-white px-6 py-3 rounded-lg text-lg hover:bg-blue-500 transition-colors"
+            >
+              Upload Sound
+            </a>
+            <a
+              href="/sounds/profiles/new"
+              class="bg-green-400 text-white px-6 py-3 rounded-lg text-lg hover:bg-green-500 transition-colors"
+            >
+              New Profile
+            </a>
+          </div>
         )}
       </div>
-      
-      {isAdmin && <SoundUploader />}
-      
-      <div class="space-y-12">
-        {profilesWithSounds.map(profile => (
-          <SoundProfile 
-            title={profile.title}
-            description={profile.description}
-            sounds={profile.sounds}
-          />
-        ))}
+
+      <!-- Status Messages -->
+      {success && (
+        <div class="mb-8 p-4 bg-green-50 text-green-600 rounded-lg" id="success-message">
+          {decodeURIComponent(success)}
+        </div>
+      )}
+      {error && (
+        <div class="mb-8 p-4 bg-red-50 text-red-600 rounded-lg" id="error-message">
+          {decodeURIComponent(error)}
+        </div>
+      )}
+
+      <!-- Tab Navigation -->
+      <div class="flex space-x-4 mb-8 border-b border-gray-200">
+        <button
+          class="tab-button px-6 py-3 text-lg font-medium rounded-t-lg focus:outline-none"
+          data-tab="library"
+        >
+          Sound Library
+        </button>
+        <button
+          class="tab-button px-6 py-3 text-lg font-medium rounded-t-lg focus:outline-none"
+          data-tab="profiles"
+        >
+          Sound Profiles
+        </button>
+      </div>
+
+      <!-- Tab Content -->
+      <div class="tab-content" data-content="library">
+        <div class="space-y-8" id="library-content">
+          {profilesWithSounds.map(profile => (
+            <SoundProfile 
+              title={profile.title}
+              description={profile.description}
+              sounds={profile.sounds}
+              profileId={profile.id}
+            />
+          ))}
+          {profilesWithSounds.length === 0 && (
+            <p class="text-gray-600 italic text-center py-8">
+              No sound profiles found. Create a new profile to get started.
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div class="tab-content hidden" data-content="profiles">
+        <div class="space-y-8" id="profiles-content">
+          {profilesWithSounds.map(profile => (
+            <ProfileCard 
+              profile={profile} 
+              isAdmin={isAdmin}
+            />
+          ))}
+          {profilesWithSounds.length === 0 && (
+            <p class="text-gray-600 italic text-center py-8">
+              No sound profiles found. Create a new profile to get started.
+            </p>
+          )}
+        </div>
       </div>
     </div>
   </main>
 </Layout>
+
+<style>
+  .tab-button {
+    @apply text-gray-500 hover:text-gray-700 hover:bg-gray-50 transition-colors;
+  }
+
+  .tab-button.active {
+    @apply text-green-500 border-b-2 border-green-500 bg-white;
+  }
+
+  .tab-content {
+    @apply transition-opacity duration-200;
+  }
+
+  .tab-content.hidden {
+    @apply opacity-0;
+  }
+
+  .tab-content:not(.hidden) {
+    @apply opacity-100;
+  }
+</style>
+
+<script>
+  import { handleProfileDelete } from '../utils/profileUtils';
+  import { handleSoundDownload } from '../utils/soundUtils';
+  import { setupTabs, setupStatusMessages } from '../utils/uiUtils';
+
+  // Event delegation for all sound-related actions
+  document.addEventListener('click', async (e) => {
+    const target = e.target as HTMLElement;
+    if (!target) return;
+
+    // Handle delete button clicks
+    if (target.closest('.delete-profile')) {
+      e.preventDefault();
+      const button = target.closest('.delete-profile') as HTMLElement;
+      if (button) await handleProfileDelete(button);
+    }
+
+    // Handle download button clicks
+    if (target.closest('.download-all-button')) {
+      e.preventDefault();
+      const button = target.closest('.download-all-button') as HTMLElement;
+      if (button) await handleSoundDownload(button);
+    }
+  });
+
+  // Set initial active tab from URL
+  document.addEventListener('DOMContentLoaded', () => {
+    const params = new URLSearchParams(window.location.search);
+    const initialTab = params.get('tab') || 'library';
+    setupTabs();
+    setupStatusMessages();
+  });
+</script>
