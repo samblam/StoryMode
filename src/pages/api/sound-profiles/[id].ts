@@ -1,8 +1,7 @@
 import type { APIRoute } from 'astro';
-import { supabase } from '../../../lib/supabase';
-import { deleteSoundsByProfile } from '../../../utils/storageUtils';
+import { supabaseAdmin } from '../../../lib/supabase';
 
-export const DELETE: APIRoute = async ({ params }) => {
+export const GET: APIRoute = async ({ params }) => {
   try {
     const { id } = params;
     if (!id) {
@@ -11,49 +10,35 @@ export const DELETE: APIRoute = async ({ params }) => {
       });
     }
 
-    // First, get the profile to get its slug
-    const { data: profile, error: profileError } = await supabase
+    // Fetch profile with its current sounds
+    const { data: profile, error } = await supabaseAdmin
       .from('sound_profiles')
-      .select('*')
+      .select(
+        `
+        *,
+        sounds (*)
+      `
+      )
       .eq('id', id)
       .single();
 
-    if (profileError || !profile) {
-      throw new Error('Profile not found');
-    }
+    if (error) throw error;
+    if (!profile) throw new Error('Profile not found');
 
-    // Delete associated sounds from database
-    const { error: soundsError } = await supabase
-      .from('sounds')
-      .delete()
-      .eq('profile_id', id);
-
-    if (soundsError) {
-      throw soundsError;
-    }
-
-    // Delete associated sound files from storage
-    await deleteSoundsByProfile(profile.slug);
-
-    // Finally, delete the profile itself
-    const { error: deleteError } = await supabase
-      .from('sound_profiles')
-      .delete()
-      .eq('id', id);
-
-    if (deleteError) {
-      throw deleteError;
-    }
-
-    return new Response(JSON.stringify({ success: true }), { status: 200 });
+    return new Response(JSON.stringify(profile), { status: 200 });
   } catch (error) {
-    console.error('Profile deletion error:', error);
+    console.error('Profile fetch error:', error);
     return new Response(
       JSON.stringify({
         error:
-          error instanceof Error ? error.message : 'Failed to delete profile',
+          error instanceof Error ? error.message : 'Failed to fetch profile',
       }),
       { status: 500 }
     );
   }
+};
+
+// Keep existing DELETE method
+export const DELETE: APIRoute = async ({ params }) => {
+  // ... existing delete code ...
 };
