@@ -75,5 +75,19 @@
     "description": "Time to Hack",
     "file": "/sounds/copyright-free-music/unlocked-hacker-mode.mp3",
     "profileId": "c4e6445e-4e73-4ab1-9f8d-67fd5b83bd96"
+  },
+  {
+    "id": "e0269bf9-ec82-4b90-9178-870ce6a2673c",
+    "name": "Acoustic Guitar",
+    "description": "Sounds of Acoustic Guitar",
+    "file": "/sounds/copyright-free/acoustic-guitar.mp3",
+    "profileId": "fe82c5eb-5340-4f73-b7b5-82d6b5c4e61d"
+  },
+  {
+    "id": "408ad646-5583-45f8-a9ce-8ba92896f04a",
+    "name": "More royality free",
+    "description": "More of that",
+    "file": "/sounds/copyright-free/more-royality-free.mp3",
+    "profileId": "fe82c5eb-5340-4f73-b7b5-82d6b5c4e61d"
   }
 ]
