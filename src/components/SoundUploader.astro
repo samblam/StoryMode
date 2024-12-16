@@ -51,7 +51,7 @@ const profiles = await getSoundProfiles();
         minlength="10"
         maxlength="200"
         class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400"
-        placeholder="Brief description of the sound (10-200 characters)"
+        placeholder="Brief description of the sound"
       ></textarea>
       <p class="text-sm text-gray-600 mt-1">10-200 characters</p>
     </div>
@@ -62,11 +62,11 @@ const profiles = await getSoundProfiles();
         type="file" 
         id="sound" 
         name="sound" 
-        accept="audio/mpeg" 
+        accept="audio/mpeg,audio/wav,audio/ogg" 
         required 
         class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400"
       />
-      <p class="text-sm text-gray-600 mt-1">MP3 format only, max 5MB</p>
+      <p class="text-sm text-gray-600 mt-1">MP3, WAV, or OGG format only, max 50MB</p>
     </div>
 
     <div class="flex space-x-4">
@@ -84,49 +84,35 @@ const profiles = await getSoundProfiles();
       </a>
     </div>
   </form>
+
+  <div id="upload-progress" class="mt-4 hidden">
+    <div class="w-full bg-gray-200 rounded-full h-2.5">
+      <div class="bg-green-400 h-2.5 rounded-full" style="width: 0%"></div>
+    </div>
+    <p class="text-sm text-gray-600 mt-1">Uploading: <span>0%</span></p>
+  </div>
 </div>
 
 <script>
   const form = document.getElementById('upload-form') as HTMLFormElement;
   const profileSelect = form?.querySelector('#profileId') as HTMLSelectElement;
+  const progressBar = document.querySelector('#upload-progress div') as HTMLElement;
+  const progressText = document.querySelector('#upload-progress span') as HTMLElement;
+  const progressContainer = document.getElementById('upload-progress') as HTMLElement;
 
   const validateFile = (file: File): string | null => {
     if (!file) {
       return 'Please select a sound file to upload';
     }
 
-    const maxSize = 5 * 1024 * 1024; // 5MB
-    if (file.type !== 'audio/mpeg') {
-      return `Invalid file type: ${file.type}. Please upload an MP3 file only (audio/mpeg).`;
+    const maxSize = 50 * 1024 * 1024; // 50MB
+    if (!file.type.startsWith('audio/')) {
+      return `Invalid file type: ${file.type}. Please upload an audio file only.`;
     }
     if (file.size > maxSize) {
       const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
-      return `File size (${sizeMB}MB) exceeds the 5MB limit. Please compress your audio file.`;
+      return `File size (${sizeMB}MB) exceeds the 50MB limit.`;
     }
-    return null;
-  };
-
-  const validateForm = (formData: FormData): string | null => {
-    const name = formData.get('name') as string;
-    const description = formData.get('description') as string;
-    const profileId = formData.get('profileId') as string;
-
-    if (!profileId) {
-      return 'Please select a sound profile for this sound';
-    }
-
-    if (!name || name.length < 2) {
-      return 'Sound name must be at least 2 characters long';
-    }
-
-    if (!/^[A-Za-z0-9\s\-]+$/.test(name)) {
-      return 'Sound name can only contain letters, numbers, spaces, and hyphens';
-    }
-
-    if (!description || description.length < 10) {
-      return 'Description must be at least 10 characters long';
-    }
-
     return null;
   };
 
@@ -139,14 +125,17 @@ const profiles = await getSoundProfiles();
       const selectedOption = profileSelect.selectedOptions[0];
       const profileSlug = selectedOption?.getAttribute('data-slug');
 
-      // Add the profile slug to the form data
-      formData.append('profileSlug', profileSlug || '');
-
-      // Validate form data
-      const formError = validateForm(formData);
-      if (formError) {
-        throw new Error(formError);
+      if (!profileSlug) {
+        throw new Error('Please select a sound profile');
       }
+
+      // Add the profile slug to form data
+      formData.append('profileSlug', profileSlug);
+
+      // Show progress bar
+      progressContainer.classList.remove('hidden');
+      progressBar.style.width = '0%';
+      progressText.textContent = '0%';
 
       // Validate file
       const fileError = validateFile(file);
@@ -154,50 +143,47 @@ const profiles = await getSoundProfiles();
         throw new Error(fileError);
       }
 
-      if (!profileSlug) {
-        throw new Error('Invalid profile selection. Please try again.');
-      }
-
-      // Disable submit button and show loading state
+      // Disable submit button
       const submitButton = form.querySelector('button[type="submit"]') as HTMLButtonElement;
       submitButton.disabled = true;
       submitButton.textContent = 'Uploading...';
 
+      // Upload file
       const response = await fetch('/api/sounds/upload', {
         method: 'POST',
         body: formData,
       });
 
-      const result = await response.json();
-
       if (!response.ok) {
+        const result = await response.json();
         throw new Error(result.error || 'Upload failed');
       }
 
       // Redirect with success message
       window.location.href = `/sounds?success=${encodeURIComponent('Sound uploaded successfully!')}`;
     } catch (error) {
-      // Redirect with error message
+      progressContainer.classList.add('hidden');
       const errorMessage = error instanceof Error ? error.message : 'Upload failed';
-      window.location.href = `/sounds?error=${encodeURIComponent(errorMessage)}`;
+      alert(errorMessage);
+      console.error('Upload error:', error);
+
+      // Re-enable submit button
+      const submitButton = form.querySelector('button[type="submit"]') as HTMLButtonElement;
+      submitButton.disabled = false;
+      submitButton.textContent = 'Upload Sound';
     }
   });
 
-  // Optional: Add live validation feedback
-  const nameInput = form?.querySelector('#name') as HTMLInputElement;
-  const descriptionInput = form?.querySelector('#description') as HTMLTextAreaElement;
-
-  nameInput?.addEventListener('input', () => {
-    const isValid = /^[A-Za-z0-9\s\-]+$/.test(nameInput.value);
-    nameInput.setCustomValidity(isValid ? '' : 'Only letters, numbers, spaces, and hyphens allowed');
-  });
-
-  descriptionInput?.addEventListener('input', () => {
-    const length = descriptionInput.value.length;
-    if (length < 10) {
-      descriptionInput.setCustomValidity(`Description needs ${10 - length} more characters`);
-    } else {
-      descriptionInput.setCustomValidity('');
+  // Live file validation
+  const fileInput = form?.querySelector('#sound') as HTMLInputElement;
+  fileInput?.addEventListener('change', () => {
+    const file = fileInput.files?.[0];
+    if (file) {
+      const error = validateFile(file);
+      if (error) {
+        fileInput.value = '';
+        alert(error);
+      }
     }
   });
 </script>
