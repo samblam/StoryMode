@@ -1,11 +1,13 @@
 import type { APIRoute } from 'astro';
-import fs from 'fs/promises';
-import path from 'path';
-import { supabase } from '../../../lib/supabase';
+import { supabaseAdmin } from '../../../lib/supabase';
+import { uploadSound } from '../../../utils/storageUtils';
 
 export const POST: APIRoute = async ({ request }) => {
   try {
+    console.log('Received upload request');
     const formData = await request.formData();
+
+    // Get form fields
     const file = formData.get('sound') as File;
     const profileId = formData.get('profileId') as string;
     const profileSlug = formData.get('profileSlug') as string;
@@ -15,45 +17,48 @@ export const POST: APIRoute = async ({ request }) => {
     // Validation checks
     if (!file || !profileId || !profileSlug || !name || !description) {
       return new Response(
-        JSON.stringify({ error: 'All fields are required' }),
+        JSON.stringify({
+          error: 'All fields are required',
+          receivedFields: {
+            file: !!file,
+            profileId: !!profileId,
+            profileSlug: !!profileSlug,
+            name: !!name,
+            description: !!description,
+          },
+        }),
         { status: 400 }
       );
     }
 
-    // Create the directory path
-    const publicDir = path.join(process.cwd(), 'public');
-    const soundsDir = path.join(publicDir, 'sounds', profileSlug);
-    await fs.mkdir(soundsDir, { recursive: true });
+    // Upload to Supabase Storage
+    console.log('Uploading to storage...');
+    const { path: storagePath, signedUrl } = await uploadSound({
+      file,
+      profileSlug,
+    });
+    console.log('File uploaded, storage path:', storagePath);
 
-    // Create safe filename
-    const safeName = name.toLowerCase().replace(/[^a-z0-9]/g, '-');
-    const filename = `${safeName}.mp3`;
-    const filepath = path.join(soundsDir, filename);
-    const filePath = `/sounds/${profileSlug}/${filename}`;
-
-    // Save file to disk
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    await fs.writeFile(filepath, buffer);
-
-    // Create database entry
-    const { data: newSound, error } = await supabase
+    // Create database entry using admin client
+    console.log('Creating database entry...');
+    const { data: newSound, error } = await supabaseAdmin
       .from('sounds')
       .insert({
         name,
         description,
-        file_path: filePath,
+        file_path: signedUrl,
+        storage_path: storagePath,
         profile_id: profileId,
       })
       .select()
       .single();
 
     if (error) {
-      // Clean up file if database insert fails
-      await fs.unlink(filepath);
+      console.error('Database error:', error);
       throw error;
     }
 
+    console.log('Sound entry created successfully');
     return new Response(
       JSON.stringify({
         success: true,
