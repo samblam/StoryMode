@@ -6,6 +6,8 @@ interface Props {
 }
 
 const { title } = Astro.props;
+const user = Astro.locals.user;
+const isAdmin = user?.role === 'admin';
 ---
 
 <!doctype html>
@@ -44,6 +46,11 @@ const { title } = Astro.props;
           <a href="/blog" class="hover:underline">Blog</a>
           <a href="/sounds" class="hover:underline">Sounds</a>
           <a href="/contact" class="hover:underline">Contact</a>
+          {!user && <a href="/login" class="hover:underline">Login</a>}
+          {isAdmin && <a href="/create-user" class="hover:underline">Create User</a>}
+          {user && (
+            <button class="hover:underline">Logout</button>
+          )}
         </div>
       </nav>
     </header>
