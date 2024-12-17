@@ -89,7 +89,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       console.log('Found user with simple query:', user);
 
       // Set auth cookie
-      const session = authData.session;
+      const {session} = authData;
       cookies.set('sb-token', session.access_token, {
         path: '/',
         httpOnly: true,
