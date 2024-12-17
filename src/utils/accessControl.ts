@@ -39,7 +39,7 @@ export async function getAccessibleSoundProfiles(user: User | undefined): Promis
 }
 
 export async function getAccessibleSounds(user: User | undefined) {
-  if (!user) return [];
+  if (!user) {
 
   try {
     let query = supabaseAdmin
