@@ -12,9 +12,11 @@ const user = Astro.locals.user;
 const isAdmin = user?.role === 'admin';
 
 // Debug logging
-console.log('Layout - Current user state:', user);
-console.log('Layout - Is admin:', isAdmin);
-console.log('Layout - Full locals:', Astro.locals);
+console.log('Layout - Debug Info:', {
+  user,
+  isAdmin,
+  allLocals: Astro.locals
+});
 ---
 
 <!doctype html>
@@ -78,7 +80,6 @@ console.log('Layout - Full locals:', Astro.locals);
           });
 
           if (response.ok) {
-            // Force reload the page after logout to clear any cached state
             window.location.href = '/login';
           } else {
             console.error('Logout failed');
