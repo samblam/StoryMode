@@ -29,7 +29,7 @@ export async function getAccessibleSoundProfiles(user: User | undefined): Promis
 
     const { data, error } = await query;
 
-    if (error) throw error;
+    if (error) {
 
     return data || [];
   } catch (error) {
