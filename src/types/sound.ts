@@ -6,11 +6,13 @@ export interface Sound {
   profileId: string;
 }
 
+// src/types/sound.ts
 export interface SoundProfile {
   id: string;
   title: string;
   description: string;
   slug: string;
+  clientId?: string; // Add this line
 }
 
 export interface SoundProfileWithSounds extends SoundProfile {

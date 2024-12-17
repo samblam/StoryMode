@@ -2,25 +2,21 @@
 import Layout from '../layouts/Layout.astro';
 import ProfileCard from '../components/ProfileCard.astro';
 import SoundProfile from '../components/SoundProfile.astro';
-import { getSoundProfiles } from '../utils/profileUtils';
-import { getSounds } from '../utils/soundUtils';
+import type { User as AuthUser } from '../types/auth';
+import { getAccessibleSoundProfiles, organizeProfilesByClient } from '../utils/accessControl';
 
-// Get profiles and sounds
-const profiles = await getSoundProfiles();
-const sounds = await getSounds();
+// Get current user from locals
+const user = Astro.locals.user as AuthUser | undefined;
+const isAdmin = user?.role === 'admin';
+
+// Get profiles with access control
+const profiles = await getAccessibleSoundProfiles(user);
+const profilesByClient = organizeProfilesByClient(profiles);
 
 // Get URL parameters
 const success = Astro.url.searchParams.get('success');
 const error = Astro.url.searchParams.get('error');
 const currentTab = Astro.url.searchParams.get('tab') || 'library';
-
-// Get sounds for each profile
-const profilesWithSounds = profiles.map(profile => ({
-  ...profile,
-  sounds: sounds.filter(sound => sound.profileId === profile.id)
-}));
-
-const isAdmin = true; // In production, this should be determined by authentication
 ---
 
 <Layout title="Sound Library | Story Mode">
@@ -77,34 +73,67 @@ const isAdmin = true; // In production, this should be determined by authenticat
 
       <!-- Tab Content -->
       <div class="tab-content" data-content="library">
-        <div class="space-y-8" id="library-content">
-          {profilesWithSounds.map(profile => (
-            <SoundProfile 
-              title={profile.title}
-              description={profile.description}
-              sounds={profile.sounds}
-              profileId={profile.id}
-            />
+        <div class="space-y-12" id="library-content">
+          {Object.entries(profilesByClient).map(([clientName, clientProfiles]) => (
+            <div class="space-y-8">
+              {isAdmin && (
+                <h2 class="text-3xl font-editorial text-gray-700">{clientName}</h2>
+              )}
+              {clientProfiles.map(profile => (
+                <SoundProfile 
+                  title={profile.title}
+                  description={profile.description}
+                  sounds={profile.sounds.map(sound => ({
+                    id: sound.id,
+                    name: sound.name,
+                    description: sound.description,
+                    file: sound.file_path,
+                    profileId: sound.profile_id
+                  }))}
+                  profileId={profile.id}
+                  isAdmin={isAdmin}
+                />
+              ))}
+            </div>
           ))}
-          {profilesWithSounds.length === 0 && (
+          {Object.keys(profilesByClient).length === 0 && (
             <p class="text-gray-600 italic text-center py-8">
-              No sound profiles found. Create a new profile to get started.
+              No sound profiles found. {isAdmin ? 'Create a new profile to get started.' : 'Contact your administrator to get started.'}
             </p>
           )}
         </div>
       </div>
 
       <div class="tab-content hidden" data-content="profiles">
-        <div class="space-y-8" id="profiles-content">
-          {profilesWithSounds.map(profile => (
-            <ProfileCard 
-              profile={profile} 
-              isAdmin={isAdmin}
-            />
+        <div class="space-y-12" id="profiles-content">
+          {Object.entries(profilesByClient).map(([clientName, clientProfiles]) => (
+            <div class="space-y-8">
+              {isAdmin && (
+                <h2 class="text-3xl font-editorial text-gray-700">{clientName}</h2>
+              )}
+              {clientProfiles.map(profile => (
+                <ProfileCard 
+                  profile={{
+                    id: profile.id,
+                    title: profile.title,
+                    description: profile.description,
+                    slug: profile.slug,
+                    sounds: profile.sounds.map(sound => ({
+                      id: sound.id,
+                      name: sound.name,
+                      description: sound.description,
+                      file: sound.file_path,
+                      profileId: sound.profile_id
+                    }))
+                  }}
+                  isAdmin={isAdmin}
+                />
+              ))}
+            </div>
           ))}
-          {profilesWithSounds.length === 0 && (
+          {Object.keys(profilesByClient).length === 0 && (
             <p class="text-gray-600 italic text-center py-8">
-              No sound profiles found. Create a new profile to get started.
+              No sound profiles found. {isAdmin ? 'Create a new profile to get started.' : 'Contact your administrator to get started.'}
             </p>
           )}
         </div>
@@ -136,34 +165,9 @@ const isAdmin = true; // In production, this should be determined by authenticat
 </style>
 
 <script>
-  import { handleProfileDelete } from '../utils/profileUtils';
-  import { handleSoundDownload } from '../utils/soundUtils';
   import { setupTabs, setupStatusMessages } from '../utils/uiUtils';
 
-  // Event delegation for all sound-related actions
-  document.addEventListener('click', async (e) => {
-    const target = e.target as HTMLElement;
-    if (!target) return;
-
-    // Handle delete button clicks
-    if (target.closest('.delete-profile')) {
-      e.preventDefault();
-      const button = target.closest('.delete-profile') as HTMLElement;
-      if (button) await handleProfileDelete(button);
-    }
-
-    // Handle download button clicks
-    if (target.closest('.download-all-button')) {
-      e.preventDefault();
-      const button = target.closest('.download-all-button') as HTMLElement;
-      if (button) await handleSoundDownload(button);
-    }
-  });
-
-  // Set initial active tab from URL
   document.addEventListener('DOMContentLoaded', () => {
-    const params = new URLSearchParams(window.location.search);
-    const initialTab = params.get('tab') || 'library';
     setupTabs();
     setupStatusMessages();
   });

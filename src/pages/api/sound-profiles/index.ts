@@ -1,10 +1,19 @@
+// src/pages/api/sound-profiles/index.ts
 import type { APIRoute } from 'astro';
-import { supabase } from '../../../lib/supabase';
+import { supabaseAdmin } from '../../../lib/supabase';
 import type { SoundProfile } from '../../../types/sound';
 
-export const POST: APIRoute = async ({ request }) => {
+export const POST: APIRoute = async ({ request, locals }) => {
   try {
     const data = await request.json();
+    const {user} = locals;
+
+    if (!user) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401 }
+      );
+    }
 
     if (!data.title || !data.description) {
       return new Response(
@@ -13,13 +22,24 @@ export const POST: APIRoute = async ({ request }) => {
       );
     }
 
-    // Create new profile directly in Supabase
-    const { data: newProfile, error } = await supabase
+    // Set client_id based on user role
+    let clientId = null;
+    if (user.role === 'admin') {
+      // Admin can specify client_id
+      clientId = data.clientId || null;
+    } else if (user.role === 'client') {
+      // Client users can only create profiles for themselves
+      clientId = user.clientId;
+    }
+
+    // Create new profile in Supabase
+    const { data: newProfile, error } = await supabaseAdmin
       .from('sound_profiles')
       .insert({
         title: data.title,
         description: data.description,
         slug: data.title.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        client_id: clientId,
       })
       .select()
       .single();
@@ -33,17 +53,24 @@ export const POST: APIRoute = async ({ request }) => {
     console.error('Profile creation error:', error);
     return new Response(
       JSON.stringify({
-        error:
-          error instanceof Error ? error.message : 'Failed to create profile',
+        error: error instanceof Error ? error.message : 'Failed to create profile',
       }),
       { status: 500 }
     );
   }
 };
 
-export const PUT: APIRoute = async ({ request }) => {
+export const PUT: APIRoute = async ({ request, locals }) => {
   try {
     const data = await request.json();
+    const {user} = locals;
+
+    if (!user) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401 }
+      );
+    }
 
     if (!data.id || !data.title || !data.description) {
       return new Response(
@@ -52,13 +79,43 @@ export const PUT: APIRoute = async ({ request }) => {
       );
     }
 
-    const { data: updatedProfile, error } = await supabase
+    // Verify user has permission to edit this profile
+    const { data: existingProfile, error: fetchError } = await supabaseAdmin
       .from('sound_profiles')
-      .update({
-        title: data.title,
-        description: data.description,
-        slug: data.title.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-      })
+      .select('*')
+      .eq('id', data.id)
+      .single();
+
+    if (fetchError || !existingProfile) {
+      return new Response(
+        JSON.stringify({ error: 'Profile not found' }),
+        { status: 404 }
+      );
+    }
+
+    // Check permissions
+    if (user.role === 'client' && existingProfile.client_id !== user.clientId) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 403 }
+      );
+    }
+
+    // Prepare update data
+    const updateData: any = {
+      title: data.title,
+      description: data.description,
+      slug: data.title.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+    };
+
+    // Only allow admins to update client_id
+    if (user.role === 'admin' && 'clientId' in data) {
+      updateData.client_id = data.clientId || null;
+    }
+
+    const { data: updatedProfile, error } = await supabaseAdmin
+      .from('sound_profiles')
+      .update(updateData)
       .eq('id', data.id)
       .select()
       .single();
@@ -72,8 +129,7 @@ export const PUT: APIRoute = async ({ request }) => {
     console.error('Profile update error:', error);
     return new Response(
       JSON.stringify({
-        error:
-          error instanceof Error ? error.message : 'Failed to update profile',
+        error: error instanceof Error ? error.message : 'Failed to update profile',
       }),
       { status: 500 }
     );

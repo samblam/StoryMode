@@ -1,5 +1,5 @@
 import type { MiddlewareHandler } from 'astro';
-
+import type { User } from './types/auth';
 // Define proper types
 declare module 'astro' {
   interface Locals {
@@ -32,15 +32,16 @@ export const onRequest: MiddlewareHandler = async ({ request, locals, cookies },
           .eq('id', authUser.id)
           .single();
 
-        if (userData) {
-          locals.user = {
-            id: userData.id,
-            email: userData.email,
-            role: userData.role,
-            clientId: userData.client_id,
-            createdAt: userData.created_at
-          };
-        }
+          if (userData) {
+            locals.user = {
+              id: userData.id,
+              email: userData.email,
+              role: userData.role,
+              clientId: userData.client_id,
+              client: null, // Add this
+              createdAt: userData.created_at
+            };
+          }
       }
     } catch (error) {
       console.error('Auth error:', error);
