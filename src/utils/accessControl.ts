@@ -10,7 +10,7 @@ type SoundProfileWithClient = Database['public']['Tables']['sound_profiles']['Ro
 };
 
 export async function getAccessibleSoundProfiles(user: User | undefined): Promise<SoundProfileWithClient[]> {
-  if (!user) return [];
+  if (!user) {
 
   try {
     let query = supabaseAdmin
