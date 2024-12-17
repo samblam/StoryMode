@@ -1,25 +1,25 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import LoginForm from '../components/LoginForm.astro';
+import UserCreationForm from '../components/UserCreationForm.astro';
 
-// Redirect if already logged in
+// Redirect if not admin
 const user = Astro.locals.user;
-if (user) {
-  return Astro.redirect('/sounds');  // Redirect to sounds page instead of dashboard
+if (!user || user.role !== 'admin') {
+  return Astro.redirect('/');
 }
 ---
 
-<Layout title="Login | Story Mode">
+<Layout title="Create User | Story Mode">
   <main class="min-h-screen bg-gray-50 py-12">
     <div class="max-w-6xl mx-auto px-4">
       <div class="flex flex-col items-center justify-center min-h-[calc(100vh-16rem)]">
         <div class="mb-12 text-center">
-          <h1 class="text-5xl font-editorial mb-4">Story Mode</h1>
-          <p class="text-xl text-gray-600">Audio Branding & UX Sound Design</p>
+          <h1 class="text-5xl font-editorial mb-4">Create New User</h1>
+          <p class="text-xl text-gray-600">Add a new admin or client user</p>
         </div>
 
         <div class="w-full max-w-md bg-white rounded-lg shadow-lg p-8">
-          <LoginForm />
+          <UserCreationForm />
         </div>
       </div>
     </div>

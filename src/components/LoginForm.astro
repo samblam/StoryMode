@@ -85,16 +85,15 @@
         body: JSON.stringify(data),
       });
 
-      const result = await response.json() as LoginResponse;
+      const result = await response.json();
 
       if (!response.ok) {
         throw new Error(result.error || 'Login failed');
       }
 
-      // Redirect based on user role
-      if (result.user) {
-        window.location.href = '/';  // Redirect all users to front page for now
-      }
+      // Force a complete page reload to ensure middleware runs and state is fresh
+      window.location.replace('/sounds');
+
     } catch (error) {
       console.error('Login error:', error);
       formStatus?.classList.remove('hidden');

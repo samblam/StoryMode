@@ -39,81 +39,57 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     const userId = authData.user.id;
     console.log('Auth successful for user:', userId);
 
-    // Test database connection first
-    console.log('Testing database connection...');
-    const { data: testData, error: testError } = await supabase
-      .from('users')
-      .select('count')
-      .single();
+    // Debug: Log the query we're about to make
+    console.log('Attempting to fetch user data with query:', {
+      table: 'users',
+      id: userId,
+      query: 'select * from users where id = $1'
+    });
 
-    if (testError) {
-      console.error('Database connection test failed:', testError);
-      throw new Error('Database connection failed');
-    }
-    console.log('Database connection successful');
-
-    // Try to get user with both clients
-    console.log('Attempting to fetch user data with ID:', userId);
+    // Using supabaseAdmin instead of supabase for database queries
     const { data: userData, error: userError } = await supabaseAdmin
       .from('users')
-      .select(`
-        *,
-        clients(*)
-      `)
+      .select('*')
       .eq('id', userId);
 
-    console.log('Raw query response:', { data: userData, error: userError });
+    // Debug: Log the raw response
+    console.log('Database response:', {
+      data: userData,
+      error: userError
+    });
 
     if (userError) {
-      console.error('User query error:', userError);
-      throw new Error('Failed to fetch user data');
+      console.error('User data error:', userError);
+      throw new Error(`Failed to fetch user data: ${userError.message}`);
     }
 
-    // Let's try a simpler query if the join fails
     if (!userData || userData.length === 0) {
-      console.log('Attempting simple user query without joins...');
-      const { data: basicUserData, error: basicError } = await supabaseAdmin
+      // Debug: Double check if user exists with a count query using admin client
+      const { count, error: countError } = await supabaseAdmin
         .from('users')
-        .select('*')
+        .select('*', { count: 'exact', head: true })
         .eq('id', userId);
-
-      console.log('Simple query response:', { data: basicUserData, error: basicError });
-
-      if (basicError || !basicUserData || basicUserData.length === 0) {
-        console.error('Simple user query failed:', basicError);
-        throw new Error('User not found in database');
-      }
-
-      // We found the user with the simple query
-      const user = basicUserData[0];
-      console.log('Found user with simple query:', user);
-
-      // Set auth cookie
-      const {session} = authData;
-      cookies.set('sb-token', session.access_token, {
-        path: '/',
-        httpOnly: true,
-        secure: import.meta.env.PROD,
-        sameSite: 'lax',
-        maxAge: session.expires_in
-      });
-
-      return new Response(JSON.stringify({
-        user: {
-          id: user.id,
-          email: user.email,
-          role: user.role,
-          clientId: user.client_id,
-          client: null // No client data in simple query
-        }
-      }), { status: 200 });
+      
+      console.log('Count check result:', { count, error: countError });
+      
+      throw new Error(`User not found in database. Count result: ${count}`);
     }
 
-    // We got user data with the join query
     const user = userData[0];
-    console.log('Found user with join query:', user);
+    console.log('Found user data:', user);
 
-    // Set auth cookie
+    // Now get the client data if needed, using admin client
+    let clientData = null;
+    if (user.client_id) {
+      const { data: client } = await supabaseAdmin
+        .from('clients')
+        .select('*')
+        .eq('id', user.client_id)
+        .single();
+      clientData = client;
+    }
+
+    // Set the auth cookie
     const session = authData.session;
     cookies.set('sb-token', session.access_token, {
       path: '/',
@@ -129,7 +105,8 @@ export const POST: APIRoute = async ({ request, cookies }) => {
         email: user.email,
         role: user.role,
         clientId: user.client_id,
-        client: user.clients
+        client: clientData,
+        createdAt: user.created_at
       }
     }), { status: 200 });
 
@@ -138,7 +115,11 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     return new Response(
       JSON.stringify({
         error: error instanceof Error ? error.message : 'Authentication failed',
-        details: error instanceof Error ? error.cause : undefined
+        details: error instanceof Error ? {
+          name: error.name,
+          message: error.message,
+          stack: error.stack
+        } : undefined
       }),
       { status: 401 }
     );

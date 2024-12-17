@@ -7,16 +7,16 @@ interface Props {
 
 const { title } = Astro.props;
 
-// Access user from locals and log it
+// Access user from locals
 const user = Astro.locals.user;
-console.log('Layout - Current user state:', user);
-
-// Determine admin status
 const isAdmin = user?.role === 'admin';
-console.log('Layout - Is admin:', isAdmin);
 
-// Log the full locals object to debug
-console.log('Layout - Full locals:', Astro.locals);
+// Debug logging
+console.log('Layout - Debug Info:', {
+  user,
+  isAdmin,
+  allLocals: Astro.locals
+});
 ---
 
 <!doctype html>
@@ -38,25 +38,22 @@ console.log('Layout - Full locals:', Astro.locals);
           <a href="/works" class="hover:underline">Works</a>
           <a href="/about" class="hover:underline">About</a>
           <a href="/blog" class="hover:underline">Blog</a>
-          <a href="/sounds" class="hover:underline">Sounds</a>
           <a href="/contact" class="hover:underline">Contact</a>
           
-          {/* Add debug comment */}
-          <!-- Auth Debug: User exists: {!!user}, Is admin: {isAdmin} -->
-          
-          {!user ? (
-            <a href="/login" class="hover:underline">Login</a>
-          ) : (
+          {user ? (
             <>
+              <a href="/sounds" class="hover:underline">Sounds</a>
               {isAdmin && <a href="/create-user" class="hover:underline">Create User</a>}
               <button 
                 id="logout-button" 
-                class="hover:underline text-white"
+                class="hover:underline text-white bg-transparent border-none cursor-pointer font-inherit"
                 type="button"
               >
-                Logout
+                Logout ({user.email})
               </button>
             </>
+          ) : (
+            <a href="/login" class="hover:underline">Login</a>
           )}
         </div>
       </nav>
@@ -73,7 +70,6 @@ console.log('Layout - Full locals:', Astro.locals);
     </footer>
 
     <script>
-      // Always attach the event listener
       document.getElementById('logout-button')?.addEventListener('click', async () => {
         try {
           const response = await fetch('/api/auth/logout', {
