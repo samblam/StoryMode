@@ -6,7 +6,7 @@ export const POST: APIRoute = async ({ cookies }) => {
     // Sign out from Supabase
     const { error } = await supabase.auth.signOut();
     
-    if (error) {
+    if (error) throw error;
 
     // Clear the auth cookie
     cookies.delete('sb-token', {
