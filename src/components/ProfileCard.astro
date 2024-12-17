@@ -21,6 +21,7 @@ const { profile, isAdmin } = Astro.props;
         class="download-all-button bg-blue-400 text-white px-4 py-2 rounded-lg hover:bg-blue-500 transition-colors"
         data-profile-id={profile.id}
         data-profile-name={profile.title}
+        data-sounds={JSON.stringify(profile.sounds)}
       >
         Download All Sounds
       </button>
@@ -45,7 +46,7 @@ const { profile, isAdmin } = Astro.props;
   </div>
 
   {profile.sounds.length > 0 ? (
-    <SoundList sounds={profile.sounds} profileId={profile.id} />
+    <SoundList sounds={profile.sounds} profileId={profile.id} isAdmin={isAdmin} />
   ) : (
     <p class="text-gray-600 italic">No sounds added to this profile yet.</p>
   )}
@@ -55,8 +56,9 @@ const { profile, isAdmin } = Astro.props;
   // Handle profile deletion
   document.querySelectorAll('.delete-profile').forEach(button => {
     button.addEventListener('click', async () => {
-      const profileId = button.getAttribute('data-profile-id');
-      const soundCount = parseInt(button.getAttribute('data-sound-count') || '0');
+      const buttonEl = button as HTMLButtonElement;
+      const profileId = buttonEl.dataset.profileId;
+      const soundCount = parseInt(buttonEl.dataset.soundCount || '0');
 
       if (!profileId) return;
 
@@ -67,6 +69,7 @@ const { profile, isAdmin } = Astro.props;
       if (!confirm(message)) return;
 
       try {
+        buttonEl.disabled = true;
         const response = await fetch(`/api/sound-profiles/${profileId}`, {
           method: 'DELETE',
         });
@@ -76,11 +79,12 @@ const { profile, isAdmin } = Astro.props;
         }
 
         // Remove the profile card from the DOM
-        const profileCard = button.closest('.bg-white');
+        const profileCard = buttonEl.closest('.bg-white');
         profileCard?.remove();
       } catch (error) {
         console.error('Profile deletion error:', error);
         alert(error instanceof Error ? error.message : 'Failed to delete profile');
+        buttonEl.disabled = false;
       }
     });
   });
@@ -88,34 +92,22 @@ const { profile, isAdmin } = Astro.props;
   // Handle downloading all sounds
   document.querySelectorAll('.download-all-button').forEach(button => {
     button.addEventListener('click', async () => {
-      const profileId = button.getAttribute('data-profile-id');
-      const profileName = button.getAttribute('data-profile-name')?.toLowerCase().replace(/[^a-z0-9]/g, '-') || 'sounds';
+      const buttonEl = button as HTMLButtonElement;
+      const sounds = JSON.parse(buttonEl.dataset.sounds || '[]');
+      const profileName = buttonEl.dataset.profileName?.toLowerCase().replace(/[^a-z0-9]/g, '-') || 'sounds';
 
-      if (!profileId) {
-        alert('Profile ID not found');
+      if (sounds.length === 0) {
+        alert('No sounds available to download');
         return;
       }
 
       try {
-        const originalText = button.textContent;
-        button.disabled = true;
-        button.textContent = 'Fetching sounds...';
-
-        // Fetch current sounds from the database
-        const response = await fetch(`/api/sound-profiles/${profileId}`);
-        if (!response.ok) throw new Error('Failed to fetch sounds');
-        
-        const data = await response.json();
-        const sounds = data.sounds || [];
-
-        if (sounds.length === 0) {
-          alert('No sounds available to download');
-          return;
-        }
+        const originalText = buttonEl.textContent || '';
+        buttonEl.disabled = true;
 
         for (let i = 0; i < sounds.length; i++) {
           const sound = sounds[i];
-          button.textContent = `Downloading ${i + 1}/${sounds.length}`;
+          buttonEl.textContent = `Downloading ${i + 1}/${sounds.length}`;
 
           const response = await fetch(sound.file);
           if (!response.ok) throw new Error(`Failed to download ${sound.name}`);
@@ -135,13 +127,13 @@ const { profile, isAdmin } = Astro.props;
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
 
-        button.textContent = originalText;
+        buttonEl.textContent = originalText;
       } catch (error) {
         console.error('Download error:', error);
         alert('Failed to download some sounds. Please try again.');
-        button.textContent = 'Download All';
+        buttonEl.textContent = 'Download All';
       } finally {
-        button.disabled = false;
+        buttonEl.disabled = false;
       }
     });
   });

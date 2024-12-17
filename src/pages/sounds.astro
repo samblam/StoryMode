@@ -1,12 +1,12 @@
 ---
-// src/pages/sounds.astro
 import Layout from '../layouts/Layout.astro';
 import ProfileCard from '../components/ProfileCard.astro';
 import SoundProfile from '../components/SoundProfile.astro';
+import type { User as AuthUser } from '../types/auth';
 import { getAccessibleSoundProfiles, organizeProfilesByClient } from '../utils/accessControl';
 
 // Get current user from locals
-const user = Astro.locals.user;
+const user = Astro.locals.user as AuthUser | undefined;
 const isAdmin = user?.role === 'admin';
 
 // Get profiles with access control
@@ -91,6 +91,7 @@ const currentTab = Astro.url.searchParams.get('tab') || 'library';
                     profileId: sound.profile_id
                   }))}
                   profileId={profile.id}
+                  isAdmin={isAdmin}
                 />
               ))}
             </div>
