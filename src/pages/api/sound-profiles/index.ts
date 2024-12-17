@@ -6,7 +6,7 @@ import type { SoundProfile } from '../../../types/sound';
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
     const data = await request.json();
-    const user = locals.user;
+    const {user} = locals;
 
     if (!user) {
       return new Response(
