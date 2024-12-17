@@ -52,8 +52,8 @@ export const onRequest: MiddlewareHandler = async ({ request, cookies, url, loca
         role: userData.role,
         clientId: userData.client_id,
         client: userData.clients,
-        createdAt: userData.created_at
-      };
+        createdAt: userData.created_at,
+      }  as User;
 
       console.log('User set in locals:', locals.user);
     } catch (error) {

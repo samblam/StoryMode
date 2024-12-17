@@ -12,7 +12,7 @@
   "dependencies": {
     "@astrojs/mdx": "^2.1.1",
     "@astrojs/netlify": "^4.1.1",
-    "@astrojs/node": "^7.0.4",
+    "@astrojs/node": "^9.0.0",
     "@astrojs/tailwind": "^5.1.0",
     "@supabase/supabase-js": "^2.39.3",
     "astro": "^4.4.0",
