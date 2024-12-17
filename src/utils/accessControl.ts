@@ -10,7 +10,7 @@ type SoundProfileWithClient = Database['public']['Tables']['sound_profiles']['Ro
 };
 
 export async function getAccessibleSoundProfiles(user: User | undefined): Promise<SoundProfileWithClient[]> {
-  if (!user) {
+  if (!user) return [];
 
   try {
     let query = supabaseAdmin
@@ -29,7 +29,7 @@ export async function getAccessibleSoundProfiles(user: User | undefined): Promis
 
     const { data, error } = await query;
 
-    if (error) {
+    if (error) throw error;
 
     return data || [];
   } catch (error) {
@@ -39,7 +39,7 @@ export async function getAccessibleSoundProfiles(user: User | undefined): Promis
 }
 
 export async function getAccessibleSounds(user: User | undefined) {
-  if (!user) {
+  if (!user) return [];
 
   try {
     let query = supabaseAdmin
@@ -60,7 +60,7 @@ export async function getAccessibleSounds(user: User | undefined) {
 
     const { data, error } = await query;
 
-    if (error) {
+    if (error) throw error;
 
     return data || [];
   } catch (error) {
