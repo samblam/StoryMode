@@ -60,7 +60,7 @@ export async function getAccessibleSounds(user: User | undefined) {
 
     const { data, error } = await query;
 
-    if (error) throw error;
+    if (error) {
 
     return data || [];
   } catch (error) {
