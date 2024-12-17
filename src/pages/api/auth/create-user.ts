@@ -1,10 +1,33 @@
-// src/pages/api/auth/create-user.ts
 import type { APIRoute } from 'astro';
 import { supabaseAdmin } from '../../../lib/supabase';
 
 export const POST: APIRoute = async ({ request }) => {
   try {
     const { email, password, role, name, company } = await request.json();
+
+    // Validate required fields
+    if (!email || !password || !role) {
+      return new Response(
+        JSON.stringify({ error: 'Missing required fields' }), 
+        { status: 400 }
+      );
+    }
+
+    // Validate role
+    if (!['admin', 'client'].includes(role)) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid role' }),
+        { status: 400 }
+      );
+    }
+
+    // If client role, validate client name
+    if (role === 'client' && !name) {
+      return new Response(
+        JSON.stringify({ error: 'Client name is required' }),
+        { status: 400 }
+      );
+    }
 
     // 1. Create auth user
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
@@ -61,15 +84,14 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     return new Response(
-      JSON.stringify({ success: true, message: 'User created successfully' }),
+      JSON.stringify({ success: true }),
       { status: 200 }
     );
 
   } catch (error) {
     console.error('Create user error:', error);
     return new Response(
-      JSON.stringify({
-        success: false,
+      JSON.stringify({ 
         error: error instanceof Error ? error.message : 'Failed to create user'
       }),
       { status: 500 }
