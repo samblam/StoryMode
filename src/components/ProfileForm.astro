@@ -1,5 +1,4 @@
 ---
-// src/components/ProfileForm.astro
 import type { SoundProfile } from '../types/sound';
 import type { ClientInfo } from '../types/auth';
 import { supabase } from '../lib/supabase';
@@ -13,7 +12,7 @@ const { profile, mode } = Astro.props;
 const user = Astro.locals.user;
 const isAdmin = user?.role === 'admin';
 
-// Fetch clients if admin
+// Fetch active clients if user is admin
 let clients: ClientInfo[] = [];
 if (isAdmin) {
   const { data, error } = await supabase
@@ -28,7 +27,7 @@ if (isAdmin) {
 }
 ---
 
-<form id="profile-form" class="space-y-4">
+<form id="profile-form" class="space-y-6 bg-white rounded-lg shadow-lg p-8">
   <input type="hidden" name="id" value={profile?.id || ''} />
   
   {isAdmin && (
@@ -37,20 +36,19 @@ if (isAdmin) {
       <select
         id="clientId"
         name="clientId"
-        required
         class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400"
       >
-        <option value="">Select a client</option>
+        <option value="">-- Select a client (optional) --</option>
         {clients.map(client => (
           <option 
             value={client.id}
             selected={profile?.clientId === client.id}
           >
-            {client.name}
+            {client.name} {client.company ? `(${client.company})` : ''}
           </option>
         ))}
       </select>
-      <p class="text-sm text-gray-600 mt-1">Select which client this profile belongs to</p>
+      <p class="text-sm text-gray-600 mt-1">Associate this profile with a specific client</p>
     </div>
   )}
 
@@ -67,6 +65,7 @@ if (isAdmin) {
       class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400"
       placeholder="e.g., Professional & Clean"
     />
+    <p class="text-sm text-gray-600 mt-1">2-50 characters</p>
   </div>
 
   <div>
@@ -77,32 +76,64 @@ if (isAdmin) {
       required
       minlength="10"
       maxlength="200"
-      class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400"
+      class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 h-32"
       placeholder="Brief description of this sound profile"
     >{profile?.description || ''}</textarea>
+    <p class="text-sm text-gray-600 mt-1">10-200 characters</p>
   </div>
 
-  <button
-    type="submit"
-    class="bg-green-400 text-white px-8 py-3 rounded-lg text-lg hover:bg-green-500 transition-colors"
-  >
-    {mode === 'create' ? 'Create Profile' : 'Update Profile'}
-  </button>
+  <div class="flex space-x-4">
+    <button
+      type="submit"
+      class="bg-green-400 text-white px-8 py-3 rounded-lg text-lg hover:bg-green-500 transition-colors"
+    >
+      {mode === 'create' ? 'Create Profile' : 'Update Profile'}
+    </button>
+    <a
+      href="/sounds"
+      class="bg-gray-400 text-white px-8 py-3 rounded-lg text-lg hover:bg-gray-500 transition-colors inline-flex items-center"
+    >
+      Cancel
+    </a>
+  </div>
+
+  <div id="form-status" class="hidden">
+    <p class="error hidden text-red-600 bg-red-50 p-3 rounded-lg"></p>
+  </div>
 </form>
 
 <script>
   const form = document.getElementById('profile-form') as HTMLFormElement;
+  const formStatus = document.getElementById('form-status');
+  const errorMessage = formStatus?.querySelector('.error');
   
   form?.addEventListener('submit', async (e) => {
     e.preventDefault();
     
-    const formData = new FormData(form);
-    const data = Object.fromEntries(formData);
+    if (!formStatus || !errorMessage) return;
+
+    // Reset status
+    formStatus.classList.add('hidden');
+    errorMessage.classList.add('hidden');
+    
+    // Disable submit button
+    const submitButton = form.querySelector('button[type="submit"]') as HTMLButtonElement;
+    submitButton.disabled = true;
+    const originalText = submitButton.textContent;
+    submitButton.textContent = 'Saving...';
     
     try {
-      // If no clientId is provided in the form, don't include it in the request
+      const formData = new FormData(form);
+      const data = Object.fromEntries(formData);
+      
+      // Only include clientId if it has a value
       if (!data.clientId) {
         delete data.clientId;
+      }
+
+      // Validate required fields
+      if (!data.title || !data.description) {
+        throw new Error('Please fill in all required fields');
       }
 
       const response = await fetch('/api/sound-profiles', {
@@ -114,13 +145,23 @@ if (isAdmin) {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to save profile');
+        const result = await response.json();
+        throw new Error(result.error || 'Failed to save profile');
       }
 
-      window.location.href = '/sounds';
+      // Redirect on success
+      window.location.href = '/sounds?success=' + encodeURIComponent(
+        data.id ? 'Profile updated successfully' : 'Profile created successfully'
+      );
     } catch (error) {
       console.error('Profile save error:', error);
-      alert(error instanceof Error ? error.message : 'Failed to save profile');
+      formStatus.classList.remove('hidden');
+      errorMessage.classList.remove('hidden');
+      errorMessage.textContent = error instanceof Error ? error.message : 'Failed to save profile';
+      
+      // Re-enable submit button
+      submitButton.disabled = false;
+      submitButton.textContent = originalText;
     }
   });
 </script>
