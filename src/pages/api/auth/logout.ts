@@ -1,4 +1,3 @@
-// src/pages/api/auth/logout.ts
 import type { APIRoute } from 'astro';
 import { supabase } from '../../../lib/supabase';
 

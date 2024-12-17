@@ -1,5 +1,8 @@
 ---
+// src/components/ProfileForm.astro
 import type { SoundProfile } from '../types/sound';
+import type { ClientInfo } from '../types/auth';
+import { supabase } from '../lib/supabase';
 
 interface Props {
   profile?: SoundProfile;
@@ -7,11 +10,50 @@ interface Props {
 }
 
 const { profile, mode } = Astro.props;
+const user = Astro.locals.user;
+const isAdmin = user?.role === 'admin';
+
+// Fetch clients if admin
+let clients: ClientInfo[] = [];
+if (isAdmin) {
+  const { data, error } = await supabase
+    .from('clients')
+    .select('*')
+    .eq('active', true)
+    .order('name');
+  
+  if (!error) {
+    clients = data;
+  }
+}
 ---
 
 <form id="profile-form" class="space-y-4">
   <input type="hidden" name="id" value={profile?.id || ''} />
   
+  {isAdmin && (
+    <div>
+      <label for="clientId" class="block text-lg mb-2">Client</label>
+      <select
+        id="clientId"
+        name="clientId"
+        required
+        class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400"
+      >
+        <option value="">Select a client</option>
+        {clients.map(client => (
+          <option 
+            value={client.id}
+            selected={profile?.clientId === client.id}
+          >
+            {client.name}
+          </option>
+        ))}
+      </select>
+      <p class="text-sm text-gray-600 mt-1">Select which client this profile belongs to</p>
+    </div>
+  )}
+
   <div>
     <label for="title" class="block text-lg mb-2">Profile Title</label>
     <input
@@ -58,6 +100,11 @@ const { profile, mode } = Astro.props;
     const data = Object.fromEntries(formData);
     
     try {
+      // If no clientId is provided in the form, don't include it in the request
+      if (!data.clientId) {
+        delete data.clientId;
+      }
+
       const response = await fetch('/api/sound-profiles', {
         method: data.id ? 'PUT' : 'POST',
         headers: {
