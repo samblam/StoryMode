@@ -1,28 +1,21 @@
 // src/types/auth.ts
 export type UserRole = 'admin' | 'client';
 
-interface ClientInfo {
+export interface ClientInfo {
   id: string;
   name: string;
+  company?: string | null;
+  email: string;
   active: boolean;
-  company?: string;
+  created_at: string;
 }
 
 export interface User {
   id: string;
   email: string;
   role: UserRole;
-  clientId?: string;
-  client?: ClientInfo;
-  createdAt: string;
-}
-
-export interface Client {
-  id: string;
-  name: string;
-  company?: string;
-  email: string;
-  active: boolean;
+  clientId?: string | null;
+  client?: ClientInfo | null;
   createdAt: string;
 }
 

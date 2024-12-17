@@ -126,5 +126,21 @@ export interface Database {
     Enums: {
       user_role: 'admin' | 'client';
     };
+    CompositeTypes: {
+      [_ in never]: never;
+    };
   };
 }
+
+// Helper types for common join queries
+export type UserWithClient = Database['public']['Tables']['users']['Row'] & {
+  clients?: Database['public']['Tables']['clients']['Row'] | null;
+};
+
+export type SoundProfileWithSounds = Database['public']['Tables']['sound_profiles']['Row'] & {
+  sounds: Database['public']['Tables']['sounds']['Row'][];
+};
+
+export type ClientWithUsers = Database['public']['Tables']['clients']['Row'] & {
+  users: Database['public']['Tables']['users']['Row'][];
+};
