@@ -1,7 +1,7 @@
 ---
 import type { SoundProfile } from '../types/sound';
 import type { ClientInfo } from '../types/auth';
-import { supabase } from '../lib/supabase';
+import { supabaseAdmin } from '../lib/supabase';
 
 interface Props {
   profile?: SoundProfile;
@@ -12,17 +12,35 @@ const { profile, mode } = Astro.props;
 const user = Astro.locals.user;
 const isAdmin = user?.role === 'admin';
 
+// Debug log
+console.log('ProfileForm Debug:', {
+  isAdmin,
+  user,
+  profileData: profile
+});
+
 // Fetch active clients if user is admin
 let clients: ClientInfo[] = [];
 if (isAdmin) {
-  const { data, error } = await supabase
+  // Include all necessary fields in the query
+  const { data, error } = await supabaseAdmin
     .from('clients')
-    .select('*')
+    .select('id, name, company, email, active, created_at')
     .eq('active', true)
     .order('name');
   
-  if (!error) {
-    clients = data;
+  if (error) {
+    console.error('Error fetching clients:', error);
+  } else {
+    clients = data.map(client => ({
+      id: client.id,
+      name: client.name,
+      company: client.company,
+      email: client.email,
+      active: client.active,
+      created_at: client.created_at
+    }));
+    console.log('Fetched clients:', clients);
   }
 }
 ---
@@ -130,6 +148,8 @@ if (isAdmin) {
       if (!data.clientId) {
         delete data.clientId;
       }
+
+      console.log('Submitting form data:', data);
 
       // Validate required fields
       if (!data.title || !data.description) {

@@ -1,5 +1,3 @@
-// src/utils/accessControl.ts
-
 import { supabaseAdmin } from '../lib/supabase';
 import type { User } from '../types/auth';
 import type { Database } from '../types/database';
@@ -11,6 +9,8 @@ type SoundProfileWithClient = Database['public']['Tables']['sound_profiles']['Ro
 
 export async function getAccessibleSoundProfiles(user: User | undefined): Promise<SoundProfileWithClient[]> {
   if (!user) {
+    return [];
+  }
 
   try {
     let query = supabaseAdmin
@@ -30,6 +30,9 @@ export async function getAccessibleSoundProfiles(user: User | undefined): Promis
     const { data, error } = await query;
 
     if (error) {
+      console.error('Error fetching sound profiles:', error);
+      return [];
+    }
 
     return data || [];
   } catch (error) {
@@ -40,6 +43,8 @@ export async function getAccessibleSoundProfiles(user: User | undefined): Promis
 
 export async function getAccessibleSounds(user: User | undefined) {
   if (!user) {
+    return [];
+  }
 
   try {
     let query = supabaseAdmin
@@ -61,6 +66,9 @@ export async function getAccessibleSounds(user: User | undefined) {
     const { data, error } = await query;
 
     if (error) {
+      console.error('Error fetching sounds:', error);
+      return [];
+    }
 
     return data || [];
   } catch (error) {
