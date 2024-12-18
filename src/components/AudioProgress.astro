@@ -34,8 +34,7 @@ const { soundId } = Astro.props;
     private durationEl: HTMLElement;
     private soundId: string;
     private isDragging: boolean = false;
-    private updateInterval: number | undefined;
-    private lastValidUrl: string | null = null;
+    private updateInterval: number | null = null;
 
     constructor(progressBar: HTMLElement) {
       this.progressBar = progressBar;
@@ -45,22 +44,17 @@ const { soundId } = Astro.props;
       this.currentTimeEl = progressBar.parentElement?.querySelector('.current-time') as HTMLElement;
       this.durationEl = progressBar.parentElement?.querySelector('.duration') as HTMLElement;
 
-      if (!this.validateElements()) {
-        throw new Error('Required elements not found for progress bar');
+      this.validateAndInitialize();
+    }
+
+    private validateAndInitialize(): void {
+      if (!this.progressBar || !this.progressFill || !this.handle || !this.currentTimeEl || !this.durationEl) {
+        console.error('Required elements not found for progress bar');
+        return;
       }
 
       this.initializeEventListeners();
-      this.startTracking();
-    }
-
-    private validateElements(): boolean {
-      return !!(
-        this.progressBar && 
-        this.progressFill && 
-        this.handle && 
-        this.currentTimeEl && 
-        this.durationEl
-      );
+      this.startProgressTracking();
     }
 
     private formatTime(seconds: number): string {
@@ -69,70 +63,38 @@ const { soundId } = Astro.props;
       return `${mins}:${secs.toString().padStart(2, '0')}`;
     }
 
-    private updateVisuals(percentage: number): void {
+    private updateProgressBar(percentage: number): void {
       percentage = Math.max(0, Math.min(100, percentage));
       this.progressFill.style.width = `${percentage}%`;
       this.handle.style.left = `${percentage}%`;
     }
 
-    private async refreshUrl(): Promise<string> {
-      try {
-        const response = await fetch('/api/sounds/refresh-url', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ soundId: this.soundId })
-        });
+    private updateTimeDisplay(currentTime: number, duration: number): void {
+      this.currentTimeEl.textContent = this.formatTime(currentTime);
+      this.durationEl.textContent = this.formatTime(duration);
+    }
 
-        if (!response.ok) throw new Error('Failed to refresh URL');
+    private async seekAudio(percentage: number): Promise<void> {
+      const sound = await audioManager.getSound(this.soundId);
+      if (!sound) return;
 
-        const data = await response.json();
-        if (!data.success) throw new Error(data.error || 'Failed to refresh URL');
-
-        this.lastValidUrl = data.url;
-        return data.url;
-      } catch (error) {
-        console.error('Error refreshing URL:', error);
-        throw error;
+      const duration = sound.duration();
+      if (duration) {
+        const seekTime = duration * (percentage / 100);
+        sound.seek(seekTime);
+        this.updateTimeDisplay(seekTime, duration);
       }
     }
 
-    private async handleSeek(percentage: number): Promise<void> {
-      try {
-        const sound = audioManager.getSound(this.soundId);
-        if (!sound) return;
-
-        const duration = sound.duration();
-        if (duration) {
-          sound.seek(duration * (percentage / 100));
-        }
-      } catch (error) {
-        console.error('Seek error:', error);
-        try {
-          // Try to refresh URL and replay
-          const newUrl = await this.refreshUrl();
-          const sound = audioManager.getSound(newUrl);
-          const duration = sound.duration();
-          if (duration) {
-            sound.seek(duration * (percentage / 100));
-          }
-        } catch (refreshError) {
-          console.error('Failed to refresh URL for seeking:', refreshError);
-        }
-      }
-    }
-
-    private initializeEventListeners(): void {
-      // Handle mouse interaction for seeking
-      this.progressBar.addEventListener('mousedown', (e) => {
-        e.preventDefault();
-        this.isDragging = true;
-        this.handle.classList.add('opacity-100');
-        this.updateFromMouseEvent(e);
-
-        document.addEventListener('mousemove', this.handleMouseMove);
-        document.addEventListener('mouseup', this.handleMouseUp);
-      });
-    }
+    private handleMouseDown = (e: MouseEvent): void => {
+      e.preventDefault();
+      this.isDragging = true;
+      this.handle.classList.add('opacity-100');
+      this.updateFromMouseEvent(e);
+      
+      document.addEventListener('mousemove', this.handleMouseMove);
+      document.addEventListener('mouseup', this.handleMouseUp);
+    };
 
     private handleMouseMove = (e: MouseEvent): void => {
       if (!this.isDragging) return;
@@ -143,8 +105,7 @@ const { soundId } = Astro.props;
       if (!this.isDragging) return;
       this.isDragging = false;
       
-      const sound = audioManager.getSound(this.soundId);
-      if (!sound?.playing()) {
+      if (!audioManager.isPlaying()) {
         this.handle.classList.remove('opacity-100');
       }
 
@@ -157,55 +118,59 @@ const { soundId } = Astro.props;
       const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
       const percentage = (x / rect.width) * 100;
       
-      this.updateVisuals(percentage);
-      this.handleSeek(percentage);
+      this.updateProgressBar(percentage);
+      this.seekAudio(percentage);
     }
 
-    private startTracking(): void {
+    private initializeEventListeners(): void {
+      this.progressBar.addEventListener('mousedown', this.handleMouseDown);
+      
+      // Reset progress on audio end
+      document.addEventListener('audioend', (e: Event) => {
+        const customEvent = e as CustomEvent;
+        if (customEvent.detail.soundId === this.soundId) {
+          this.updateProgressBar(0);
+          this.updateTimeDisplay(0, customEvent.detail.duration || 0);
+          this.handle.classList.remove('opacity-100');
+        }
+      });
+    }
+
+    private startProgressTracking(): void {
       this.updateInterval = window.setInterval(async () => {
         if (this.isDragging) return;
 
         try {
-          const sound = audioManager.getSound(this.soundId);
-          if (!sound) return;
+          const sound = await audioManager.getSound(this.soundId);
+          if (!sound || !sound.playing()) return;
 
-          if (sound.playing()) {
+          const seek = sound.seek() as number;
+          const duration = sound.duration();
+
+          if (duration > 0) {
+            const percentage = (seek / duration) * 100;
+            this.updateProgressBar(percentage);
+            this.updateTimeDisplay(seek, duration);
             this.handle.classList.add('opacity-100');
-            const seek = sound.seek() as number;
-            const duration = sound.duration();
-
-            if (duration > 0) {
-              const percentage = (seek / duration) * 100;
-              this.updateVisuals(percentage);
-              this.currentTimeEl.textContent = this.formatTime(seek);
-              this.durationEl.textContent = this.formatTime(duration);
-            }
-          } else {
-            this.handle.classList.remove('opacity-100');
           }
         } catch (error) {
           console.error('Error updating progress:', error);
-          try {
-            if (!this.lastValidUrl) {
-              await this.refreshUrl();
-            }
-          } catch (refreshError) {
-            console.error('Failed to refresh URL:', refreshError);
-          }
         }
-      }, 50);
+      }, 100);
     }
 
     public cleanup(): void {
       if (this.updateInterval) {
-        clearInterval(this.updateInterval);
+        window.clearInterval(this.updateInterval);
       }
+      
+      this.progressBar.removeEventListener('mousedown', this.handleMouseDown);
       document.removeEventListener('mousemove', this.handleMouseMove);
       document.removeEventListener('mouseup', this.handleMouseUp);
     }
   }
 
-  // Initialize all progress bars
+  // Initialize progress bars
   const controllers = new Map<string, AudioProgressController>();
 
   document.querySelectorAll('.progress-bar[data-sound-id]').forEach(progressBar => {
