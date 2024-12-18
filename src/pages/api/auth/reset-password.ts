@@ -4,16 +4,35 @@ import { supabaseAdmin } from '../../../lib/supabase';
 export const POST: APIRoute = async ({ request }) => {
   try {
     const { email } = await request.json();
+    const normalizedEmail = email.trim().toLowerCase();
 
-    if (!email) {
+    if (!normalizedEmail) {
       return new Response(
         JSON.stringify({ error: 'Email is required' }),
         { status: 400 }
       );
     }
 
+    // Verify the user exists before sending reset email
+    const { data: userData, error: userError } = await supabaseAdmin
+      .from('users')
+      .select('id')
+      .eq('email', normalizedEmail)
+      .maybeSingle();
+
+    if (userError) {
+      throw userError;
+    }
+
+    if (!userData) {
+      return new Response(
+        JSON.stringify({ error: 'No account found with this email' }),
+        { status: 404 }
+      );
+    }
+
     // Send password reset email through Supabase
-    const { error } = await supabaseAdmin.auth.resetPasswordForEmail(email, {
+    const { error } = await supabaseAdmin.auth.resetPasswordForEmail(normalizedEmail, {
       redirectTo: `${new URL(request.url).origin}/reset-password/confirm`,
     });
 

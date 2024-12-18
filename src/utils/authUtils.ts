@@ -1,6 +1,16 @@
 import { supabase } from '../lib/supabase';
-import type { User, Client, AuthError } from '../types/auth';
+import type { User, AuthError } from '../types/auth';
 
+/**
+ * Normalizes an email address by trimming whitespace and converting to lowercase
+ */
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+/**
+ * Gets the current authenticated user
+ */
 export async function getCurrentUser(): Promise<User | null> {
   try {
     const {
@@ -35,13 +45,18 @@ export async function getCurrentUser(): Promise<User | null> {
   }
 }
 
+/**
+ * Signs in a user with email and password
+ */
 export async function signIn(
   email: string,
   password: string
 ): Promise<{ user: User | null; error: AuthError | null }> {
   try {
+    const normalizedEmail = normalizeEmail(email);
+    
     const { data, error } = await supabase.auth.signInWithPassword({
-      email,
+      email: normalizedEmail,
       password,
     });
 
@@ -103,6 +118,9 @@ export async function signIn(
   }
 }
 
+/**
+ * Signs out the current user
+ */
 export async function signOut(): Promise<{ error: AuthError | null }> {
   try {
     const { error } = await supabase.auth.signOut();
@@ -126,21 +144,33 @@ export async function signOut(): Promise<{ error: AuthError | null }> {
   }
 }
 
+/**
+ * Checks if the current user is authenticated
+ */
 export async function isAuthenticated(): Promise<boolean> {
   const user = await getCurrentUser();
   return user !== null;
 }
 
+/**
+ * Checks if the current user is an admin
+ */
 export async function isAdmin(): Promise<boolean> {
   const user = await getCurrentUser();
   return user?.role === 'admin';
 }
 
+/**
+ * Gets the client ID of the current user
+ */
 export async function getClientId(): Promise<string | null> {
   const user = await getCurrentUser();
   return user?.clientId ?? null;
 }
 
+/**
+ * Middleware function to require authentication
+ */
 export function requireAuth() {
   return async ({ request }: { request: Request }) => {
     const user = await getCurrentUser();
@@ -156,6 +186,9 @@ export function requireAuth() {
   };
 }
 
+/**
+ * Middleware function to require admin access
+ */
 export function requireAdmin() {
   return async ({ request }: { request: Request }) => {
     const user = await getCurrentUser();

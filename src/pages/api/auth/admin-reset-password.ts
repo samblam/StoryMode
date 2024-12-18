@@ -4,19 +4,20 @@ import { supabaseAdmin } from '../../../lib/supabase';
 export const POST: APIRoute = async ({ request }) => {
   try {
     const { email, password } = await request.json();
+    const normalizedEmail = email.trim().toLowerCase();
 
-    if (!email || !password) {
+    if (!normalizedEmail || !password) {
       return new Response(
         JSON.stringify({ error: 'Email and password are required' }),
         { status: 400 }
       );
     }
 
-    // First, verify the user exists
+    // First, verify the user exists using normalized email
     const { data: userData, error: userError } = await supabaseAdmin
       .from('users')
       .select('id')
-      .eq('email', email)
+      .eq('email', normalizedEmail)
       .single();
 
     if (userError || !userData) {

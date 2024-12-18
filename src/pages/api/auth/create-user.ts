@@ -4,9 +4,10 @@ import { supabaseAdmin } from '../../../lib/supabase';
 export const POST: APIRoute = async ({ request }) => {
   try {
     const { email, password, role, name, company } = await request.json();
+    const normalizedEmail = email.trim().toLowerCase();
 
     // Validate required fields
-    if (!email || !password || !role) {
+    if (!normalizedEmail || !password || !role) {
       return new Response(
         JSON.stringify({ error: 'Missing required fields' }), 
         { status: 400 }
@@ -29,9 +30,23 @@ export const POST: APIRoute = async ({ request }) => {
       );
     }
 
+    // Check if email already exists
+    const { data: existingUser } = await supabaseAdmin
+      .from('users')
+      .select('id')
+      .eq('email', normalizedEmail)
+      .maybeSingle();
+
+    if (existingUser) {
+      return new Response(
+        JSON.stringify({ error: 'Email already in use' }),
+        { status: 400 }
+      );
+    }
+
     // 1. Create auth user
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email,
+      email: normalizedEmail,
       password,
       email_confirm: true
     });
@@ -49,7 +64,7 @@ export const POST: APIRoute = async ({ request }) => {
         .insert({
           name,
           company,
-          email,
+          email: normalizedEmail,
           active: true
         })
         .select('id')
@@ -69,7 +84,7 @@ export const POST: APIRoute = async ({ request }) => {
       .from('users')
       .insert({
         id: userId,
-        email,
+        email: normalizedEmail,
         role,
         client_id: clientId
       });
