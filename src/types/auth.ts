@@ -9,7 +9,7 @@ export interface ClientInfo {
   company?: string | null;
   email: string;
   active: boolean;
-  created_at: string;
+  created_at?: string; // Make this optional since we don't always need it
 }
 
 export interface User {
