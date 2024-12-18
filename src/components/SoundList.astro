@@ -51,7 +51,7 @@ const { sounds, profileId, isAdmin } = Astro.props;
             )}
           </div>
         </div>
-        <AudioProgress soundId={sound.file} />
+        <AudioProgress soundId={sound.id} />
       </div>
     </div>
   ))}
@@ -60,44 +60,22 @@ const { sounds, profileId, isAdmin } = Astro.props;
 <script>
   import { audioManager } from '../utils/audioManager';
 
-  interface ButtonStates {
-    [key: string]: string;
-  }
-
-  // Store original button texts
-  const buttonTexts: ButtonStates = {};
-
   // Handle playback
   document.querySelectorAll('.play-button').forEach((button) => {
     const buttonEl = button as HTMLButtonElement;
     const soundFile = buttonEl.getAttribute('data-sound');
+    
     if (!soundFile) return;
 
-    // Store original text
-    buttonTexts[soundFile] = buttonEl.textContent || 'Play';
-
-    buttonEl.addEventListener('click', () => {
-      const currentSoundId = audioManager.getCurrentSoundId();
-      
-      if (currentSoundId === soundFile && audioManager.isPlaying()) {
-        audioManager.pause();
-        buttonEl.textContent = buttonTexts[soundFile];
-        buttonEl.classList.remove('bg-yellow-400', 'hover:bg-yellow-500');
-        buttonEl.classList.add('bg-green-400', 'hover:bg-green-500');
-      } else {
-        if (currentSoundId && currentSoundId !== soundFile) {
-          const prevButton = document.querySelector(`[data-sound="${currentSoundId}"]`) as HTMLButtonElement | null;
-          if (prevButton) {
-            prevButton.textContent = buttonTexts[currentSoundId];
-            prevButton.classList.remove('bg-yellow-400', 'hover:bg-yellow-500');
-            prevButton.classList.add('bg-green-400', 'hover:bg-green-500');
-          }
-        }
-        
-        audioManager.play(soundFile);
-        buttonEl.textContent = 'Pause';
-        buttonEl.classList.remove('bg-green-400', 'hover:bg-green-500');
-        buttonEl.classList.add('bg-yellow-400', 'hover:bg-yellow-500');
+    buttonEl.addEventListener('click', async () => {
+      try {
+        buttonEl.disabled = true;
+        await audioManager.play(soundFile);
+      } catch (error) {
+        console.error('Playback error:', error);
+        alert('Failed to play sound. Please try again.');
+      } finally {
+        buttonEl.disabled = false;
       }
     });
   });
@@ -108,12 +86,9 @@ const { sounds, profileId, isAdmin } = Astro.props;
     const soundUrl = buttonEl.getAttribute('data-sound');
     const filename = buttonEl.getAttribute('data-filename')?.toLowerCase().replace(/[^a-z0-9]/g, '-') || 'sound';
     
-    // Store original text
-    buttonTexts[filename] = buttonEl.textContent || 'Download';
-    
     buttonEl.addEventListener('click', async () => {
       if (!soundUrl) return;
-
+      
       try {
         buttonEl.disabled = true;
         buttonEl.textContent = 'Downloading...';
@@ -136,20 +111,17 @@ const { sounds, profileId, isAdmin } = Astro.props;
         alert('Failed to download sound. Please try again.');
       } finally {
         buttonEl.disabled = false;
-        buttonEl.textContent = buttonTexts[filename];
+        buttonEl.textContent = 'Download';
       }
     });
   });
 
-  // Handle deletion (admin only)
+  // Handle deletion
   document.querySelectorAll('.delete-button').forEach((button) => {
     const buttonEl = button as HTMLButtonElement;
     const soundId = buttonEl.getAttribute('data-sound-id');
     const soundFile = buttonEl.getAttribute('data-sound');
     
-    // Store original text
-    buttonTexts[soundId || ''] = buttonEl.textContent || 'Delete';
-
     buttonEl.addEventListener('click', async () => {      
       if (!soundId || !soundFile) return;
       
@@ -172,17 +144,19 @@ const { sounds, profileId, isAdmin } = Astro.props;
 
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
+        // Stop playback if this sound is playing
         if (audioManager.getCurrentSoundId() === soundFile) {
-          audioManager.pause();
+          await audioManager.pause();
         }
 
+        // Remove from DOM
         const soundElement = buttonEl.closest('.border');
         soundElement?.remove();
       } catch (error) {
         console.error('Delete error:', error);
         alert('Failed to delete sound. Please try again.');
         buttonEl.disabled = false;
-        buttonEl.textContent = buttonTexts[soundId];
+        buttonEl.textContent = 'Delete';
       }
     });
   });

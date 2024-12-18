@@ -15,83 +15,87 @@ class AudioManager {
     return AudioManager.instance;
   }
 
-  async refreshUrl(soundId: string): Promise<string> {
-    try {
-      const response = await fetch('/api/sounds/refresh-url', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ soundId }),
+  private async loadSound(soundUrl: string): Promise<Howl> {
+    return new Promise((resolve, reject) => {
+      const sound = new Howl({
+        src: [soundUrl],
+        html5: true,
+        preload: true,
+        volume: this.volume,
+        format: ['mp3'],
+        onload: () => resolve(sound),
+        onloaderror: (_id, error) => reject(error)
       });
+    });
+  }
 
-      if (!response.ok) throw new Error('Failed to refresh URL');
-
-      const data = await response.json();
-      if (!data.success) throw new Error(data.error || 'Failed to refresh URL');
-
-      return data.url;
+  async getSound(soundUrl: string): Promise<Howl> {
+    try {
+      let sound = this.sounds.get(soundUrl);
+      
+      if (!sound) {
+        sound = await this.loadSound(soundUrl);
+        this.sounds.set(soundUrl, sound);
+      }
+      
+      return sound;
     } catch (error) {
-      console.error('Error refreshing URL:', error);
+      console.error('Error loading sound:', error);
       throw error;
     }
   }
 
-  getSound(soundId: string): Howl {
-    let sound = this.sounds.get(soundId);
+  async play(soundUrl: string): Promise<void> {
+    try {
+      // Stop current sound if different
+      if (this.currentSoundId && this.currentSoundId !== soundUrl) {
+        await this.pause();
+      }
 
-    if (!sound) {
-      sound = new Howl({
-        src: [soundId],
-        html5: true,
-        volume: this.volume,
-        onloaderror: async (id, error) => {
-          console.error('Load error:', error);
-          try {
-            // Try to refresh the URL and reload the sound
-            const newUrl = await this.refreshUrl(soundId);
-            sound?.unload();
-            this.sounds.delete(soundId);
-            sound = new Howl({
-              src: [newUrl],
-              html5: true,
-              volume: this.volume,
-            });
-            this.sounds.set(soundId, sound);
-            sound.play();
-          } catch (refreshError) {
-            console.error('Failed to refresh and reload sound:', refreshError);
-          }
-        },
-        onend: () => {
-          if (this.currentSoundId === soundId) {
-            this.currentSoundId = null;
-          }
-        },
+      const sound = await this.getSound(soundUrl);
+      
+      if (sound.playing()) {
+        sound.pause();
+        this.currentSoundId = null;
+        return;
+      }
+
+      sound.play();
+      this.currentSoundId = soundUrl;
+      
+      // Update UI elements
+      this.updatePlayButton(soundUrl, true);
+      
+      // Handle sound ending
+      sound.once('end', () => {
+        this.currentSoundId = null;
+        this.updatePlayButton(soundUrl, false);
       });
-      this.sounds.set(soundId, sound);
-    }
 
-    return sound;
+    } catch (error) {
+      console.error('Error playing sound:', error);
+      this.updatePlayButton(soundUrl, false);
+      throw error;
+    }
   }
 
-  play(soundId: string): void {
-    // Stop current sound if different from the one being played
-    if (this.currentSoundId && this.currentSoundId !== soundId) {
-      this.pause();
+  private updatePlayButton(soundUrl: string, isPlaying: boolean) {
+    const button = document.querySelector(`[data-sound="${soundUrl}"]`) as HTMLButtonElement;
+    if (button) {
+      button.textContent = isPlaying ? 'Pause' : 'Play';
+      button.classList.remove(isPlaying ? 'bg-green-400' : 'bg-yellow-400');
+      button.classList.add(isPlaying ? 'bg-yellow-400' : 'bg-green-400');
     }
-
-    const sound = this.getSound(soundId);
-    sound.play();
-    this.currentSoundId = soundId;
   }
 
-  pause(): void {
+  async pause(): Promise<void> {
     if (this.currentSoundId) {
       const sound = this.sounds.get(this.currentSoundId);
       if (sound?.playing()) {
         sound.pause();
+        this.updatePlayButton(this.currentSoundId, false);
       }
+      this.currentSoundId = null;
     }
   }
 
@@ -107,7 +111,7 @@ class AudioManager {
 
   setVolume(volume: number): void {
     this.volume = Math.max(0, Math.min(1, volume));
-    this.sounds.forEach((sound) => {
+    this.sounds.forEach(sound => {
       sound.volume(this.volume);
     });
   }
@@ -117,7 +121,7 @@ class AudioManager {
   }
 
   cleanup(): void {
-    this.sounds.forEach((sound) => {
+    this.sounds.forEach(sound => {
       sound.unload();
     });
     this.sounds.clear();
