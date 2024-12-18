@@ -6,6 +6,7 @@ import type { Database } from '../../../types/database';
 export const POST: APIRoute = async ({ request, cookies }) => {
   try {
     const { email, password } = await request.json();
+    const normalizedEmail = email.trim().toLowerCase();
 
     // Create a new Supabase client for this request
     const supabaseAuth = createClient<Database>(
@@ -20,9 +21,9 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       }
     );
 
-    // Step 1: Sign in with email and password
+    // Step 1: Sign in with normalized email and password
     const { data: authData, error: authError } = await supabaseAuth.auth.signInWithPassword({
-      email,
+      email: normalizedEmail,
       password,
     });
 

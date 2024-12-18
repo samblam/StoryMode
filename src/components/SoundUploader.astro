@@ -151,11 +151,13 @@ const profiles = await getSoundProfiles();
       // Upload file
       const response = await fetch('/api/sounds/upload', {
         method: 'POST',
+        credentials: 'include', // Include cookies in the request
         body: formData,
       });
 
+      const result = await response.json();
+
       if (!response.ok) {
-        const result = await response.json();
         throw new Error(result.error || 'Upload failed');
       }
 
@@ -166,6 +168,12 @@ const profiles = await getSoundProfiles();
       const errorMessage = error instanceof Error ? error.message : 'Upload failed';
       alert(errorMessage);
       console.error('Upload error:', error);
+
+      if (errorMessage.includes('Authentication') || errorMessage.includes('Unauthorized')) {
+        // If it's an auth error, redirect to login
+        window.location.href = '/login';
+        return;
+      }
 
       // Re-enable submit button
       const submitButton = form.querySelector('button[type="submit"]') as HTMLButtonElement;
