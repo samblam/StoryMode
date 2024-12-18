@@ -1,0 +1,137 @@
+---
+import Layout from './../../layouts/Layout.astro';
+
+// Redirect if already logged in
+const user = Astro.locals.user;
+if (user) {
+  return Astro.redirect('/sounds');
+}
+---
+
+<Layout title="Reset Password | Story Mode">
+  <main class="min-h-screen bg-gray-50 py-12">
+    <div class="max-w-6xl mx-auto px-4">
+      <div class="flex flex-col items-center justify-center min-h-[calc(100vh-16rem)]">
+        <div class="mb-12 text-center">
+          <h1 class="text-5xl font-editorial mb-4">Reset Password</h1>
+          <p class="text-xl text-gray-600">Enter your new password</p>
+        </div>
+
+        <div class="w-full max-w-md bg-white rounded-lg shadow-lg p-8">
+          <form id="reset-confirm-form" class="space-y-6">
+            <div>
+              <label for="password" class="block text-lg mb-2">New Password</label>
+              <input
+                type="password"
+                id="password"
+                name="password"
+                required
+                minlength="8"
+                class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-400"
+                placeholder="Minimum 8 characters"
+              />
+            </div>
+
+            <div>
+              <label for="confirmPassword" class="block text-lg mb-2">Confirm Password</label>
+              <input
+                type="password"
+                id="confirmPassword"
+                name="confirmPassword"
+                required
+                minlength="8"
+                class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-400"
+                placeholder="Minimum 8 characters"
+              />
+            </div>
+
+            <div id="form-status" class="hidden">
+              <p class="success hidden text-green-600 bg-green-50 p-3 rounded-lg"></p>
+              <p class="error hidden text-red-600 bg-red-50 p-3 rounded-lg"></p>
+            </div>
+
+            <button
+              type="submit"
+              class="w-full bg-green-400 text-white px-8 py-3 rounded-lg text-lg hover:bg-green-500 transition-colors"
+            >
+              Reset Password
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </main>
+</Layout>
+
+<script>
+  import { supabase } from './../../lib/supabase';
+
+  const form = document.getElementById('reset-confirm-form') as HTMLFormElement;
+  const formStatus = document.getElementById('form-status');
+  const successMessage = formStatus?.querySelector('.success');
+  const errorMessage = formStatus?.querySelector('.error');
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    // Reset status messages
+    formStatus?.classList.add('hidden');
+    successMessage?.classList.add('hidden');
+    errorMessage?.classList.add('hidden');
+
+    // Disable submit button
+    const submitButton = form.querySelector('button[type="submit"]') as HTMLButtonElement;
+    submitButton.disabled = true;
+    submitButton.textContent = 'Resetting...';
+
+    try {
+      const formData = new FormData(form);
+      const password = formData.get('password')?.toString();
+      const confirmPassword = formData.get('confirmPassword')?.toString();
+
+      if (!password || !confirmPassword) {
+        throw new Error('Please fill in all fields');
+      }
+
+      if (password !== confirmPassword) {
+        throw new Error('Passwords do not match');
+      }
+
+      if (password.length < 8) {
+        throw new Error('Password must be at least 8 characters long');
+      }
+
+      // Update password through Supabase
+      const { error } = await supabase.auth.updateUser({
+        password: password
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      // Show success message
+      formStatus?.classList.remove('hidden');
+      successMessage?.classList.remove('hidden');
+      if (successMessage) {
+        successMessage.textContent = 'Password reset successfully! Redirecting to login...';
+      }
+
+      // Redirect to login after a short delay
+      setTimeout(() => {
+        window.location.href = '/login?message=' + encodeURIComponent('Password reset successfully. Please login with your new password.');
+      }, 2000);
+    } catch (error) {
+      console.error('Password reset error:', error);
+      formStatus?.classList.remove('hidden');
+      errorMessage?.classList.remove('hidden');
+      if (errorMessage) {
+        errorMessage.textContent = error instanceof Error ? error.message : 'Failed to reset password';
+      }
+    } finally {
+      // Re-enable submit button
+      submitButton.disabled = false;
+      submitButton.textContent = 'Reset Password';
+    }
+  });
+</script>
