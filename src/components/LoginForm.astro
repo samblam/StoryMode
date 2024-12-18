@@ -30,7 +30,7 @@
   </div>
 
   <div id="form-status" class="hidden">
-    <p class="error hidden text-red-600 bg-red-50 p-3 rounded-lg"></p>
+    <p class="error text-red-600 bg-red-50 p-3 rounded-lg"></p>
   </div>
 
   <button
@@ -46,21 +46,6 @@
 </form>
 
 <script>
-  interface LoginResponse {
-    user?: {
-      id: string;
-      email: string;
-      role: 'admin' | 'client';
-      clientId?: string;
-      client?: {
-        id: string;
-        name: string;
-        active: boolean;
-      };
-    };
-    error?: string;
-  }
-
   const form = document.getElementById('login-form') as HTMLFormElement;
   const formStatus = document.getElementById('form-status');
   const errorMessage = formStatus?.querySelector('.error');
@@ -70,7 +55,7 @@
 
     // Reset status messages
     formStatus?.classList.add('hidden');
-    errorMessage?.classList.add('hidden');
+    if (errorMessage) errorMessage.textContent = '';
 
     // Disable submit button while processing
     const submitButton = form.querySelector('button[type="submit"]') as HTMLButtonElement;
@@ -95,18 +80,18 @@
         throw new Error(result.error || 'Login failed');
       }
 
-      // Force a complete page reload to ensure middleware runs and state is fresh
-      window.location.replace('/sounds');
+      if (result.success) {
+        window.location.href = '/sounds';
+      } else {
+        throw new Error('Login failed');
+      }
 
     } catch (error) {
       console.error('Login error:', error);
       formStatus?.classList.remove('hidden');
-      errorMessage?.classList.remove('hidden');
       if (errorMessage) {
         errorMessage.textContent = error instanceof Error ? error.message : 'Login failed';
       }
-    } finally {
-      // Re-enable submit button
       submitButton.disabled = false;
       submitButton.textContent = 'Sign In';
     }

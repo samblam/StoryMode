@@ -1,14 +1,23 @@
 ---
-import Layout from '../layouts/Layout.astro';
-import ProfileCard from '../components/ProfileCard.astro';
-import SoundProfile from '../components/SoundProfile.astro';
-import type { User as AuthUser } from '../types/auth';
-import { getAccessibleSoundProfiles, organizeProfilesByClient } from '../utils/accessControl';
-import { supabaseAdmin } from '../lib/supabase';
+import Layout from './../layouts/Layout.astro';
+import ProfileCard from './../components/ProfileCard.astro';
+import SoundProfile from './../components/SoundProfile.astro';
+import type { User } from './../types/auth';
+import type { Database } from './../types/database';
+import { supabaseAdmin } from './../lib/supabase';
+
+type ProfileWithSounds = Database['public']['Tables']['sound_profiles']['Row'] & {
+  client: Database['public']['Tables']['clients']['Row'] | null;
+  sounds: Database['public']['Tables']['sounds']['Row'][];
+};
 
 // Get current user from locals
-const user = Astro.locals.user as AuthUser | undefined;
+const user = Astro.locals.user as User | undefined;
 const isAdmin = user?.role === 'admin';
+
+if (!user) {
+  return Astro.redirect('/login');
+}
 
 // Get URL parameters
 const success = Astro.url.searchParams.get('success');
@@ -16,23 +25,64 @@ const error = Astro.url.searchParams.get('error');
 const currentTab = Astro.url.searchParams.get('tab') || 'library';
 const selectedClientId = Astro.url.searchParams.get('client') || 'all';
 
-// Fetch all active clients for admin
+// Fetch all active clients for admin (with error handling)
 let clients = [];
 if (isAdmin) {
-  const { data: clientsData } = await supabaseAdmin
-    .from('clients')
-    .select('id, name, company')
-    .eq('active', true)
-    .order('name');
-  clients = clientsData || [];
+  try {
+    const { data: clientsData, error: clientsError } = await supabaseAdmin
+      .from('clients')
+      .select('id, name, company')
+      .eq('active', true)
+      .order('name');
+    
+    if (clientsError) throw clientsError;
+    clients = clientsData || [];
+  } catch (error) {
+    console.error('Error fetching clients:', error);
+  }
 }
 
-// Get profiles with access control
-const profiles = await getAccessibleSoundProfiles(user);
-const filteredProfiles = selectedClientId === 'all' 
-  ? profiles 
-  : profiles.filter(p => p.client_id === selectedClientId);
-const profilesByClient = organizeProfilesByClient(filteredProfiles);
+// Fetch profiles with proper error handling
+let profiles: ProfileWithSounds[] = [];
+try {
+  let query = supabaseAdmin
+    .from('sound_profiles')
+    .select(`
+      *,
+      client:clients(*),
+      sounds(*)
+    `)
+    .order('created_at', { ascending: false });
+
+  // Filter by client if user is a client
+  if (user.role === 'client' && user.clientId) {
+    query = query.eq('client_id', user.clientId);
+  } else if (selectedClientId !== 'all') {
+    query = query.eq('client_id', selectedClientId);
+  }
+
+  const { data, error: profilesError } = await query;
+  if (profilesError) throw profilesError;
+  profiles = (data || []) as ProfileWithSounds[];
+} catch (error) {
+  console.error('Error fetching profiles:', error);
+  profiles = [];
+}
+
+// Organize profiles by client
+const profilesByClient = profiles.reduce((acc, profile) => {
+  const clientName = profile.client?.name || 'No Client';
+  if (!acc[clientName]) {
+    acc[clientName] = [];
+  }
+  acc[clientName].push(profile);
+  return acc;
+}, {} as Record<string, ProfileWithSounds[]>);
+
+// Rest of the file stays the same from here...
+---
+
+<!-- Rest of the template remains exactly the same -->
 ---
 
 <Layout title="Sound Library | Story Mode">
@@ -60,7 +110,7 @@ const profilesByClient = organizeProfilesByClient(filteredProfiles);
           )}
         </div>
 
-        {isAdmin && (
+        {isAdmin && clients.length > 0 && (
           <div class="flex items-center space-x-4">
             <label for="clientFilter" class="text-lg font-medium">Filter by Client:</label>
             <select
@@ -96,13 +146,17 @@ const profilesByClient = organizeProfilesByClient(filteredProfiles);
       <!-- Tab Navigation -->
       <div class="flex space-x-4 mb-8 border-b border-gray-200">
         <button
-          class="tab-button px-6 py-3 text-lg font-medium rounded-t-lg focus:outline-none"
+          class={`tab-button px-6 py-3 text-lg font-medium rounded-t-lg focus:outline-none ${
+            currentTab === 'library' ? 'active' : ''
+          }`}
           data-tab="library"
         >
           Sound Library
         </button>
         <button
-          class="tab-button px-6 py-3 text-lg font-medium rounded-t-lg focus:outline-none"
+          class={`tab-button px-6 py-3 text-lg font-medium rounded-t-lg focus:outline-none ${
+            currentTab === 'profiles' ? 'active' : ''
+          }`}
           data-tab="profiles"
         >
           Sound Profiles
@@ -110,8 +164,8 @@ const profilesByClient = organizeProfilesByClient(filteredProfiles);
       </div>
 
       <!-- Tab Content -->
-      <div class="tab-content" data-content="library">
-        <div class="space-y-12" id="library-content">
+      <div class="tab-content" data-content="library" class:list={[{ hidden: currentTab !== 'library' }]}>
+        <div class="space-y-12">
           {Object.entries(profilesByClient).map(([clientName, clientProfiles]) => (
             <div class="space-y-8">
               <h2 class="text-3xl font-editorial text-gray-700">{clientName}</h2>
@@ -135,8 +189,8 @@ const profilesByClient = organizeProfilesByClient(filteredProfiles);
         </div>
       </div>
 
-      <div class="tab-content hidden" data-content="profiles">
-        <div class="space-y-12" id="profiles-content">
+      <div class="tab-content" data-content="profiles" class:list={[{ hidden: currentTab !== 'profiles' }]}>
+        <div class="space-y-12">
           {Object.entries(profilesByClient).map(([clientName, clientProfiles]) => (
             <div class="space-y-8">
               <h2 class="text-3xl font-editorial text-gray-700">{clientName}</h2>
@@ -177,13 +231,32 @@ const profilesByClient = organizeProfilesByClient(filteredProfiles);
 </style>
 
 <script>
-  import { setupTabs, setupStatusMessages } from '../utils/uiUtils';
+  function setupTabs() {
+    const tabButtons = document.querySelectorAll('.tab-button');
+    const tabContents = document.querySelectorAll('.tab-content');
 
-  document.addEventListener('DOMContentLoaded', () => {
-    setupTabs();
-    setupStatusMessages();
+    tabButtons.forEach(button => {
+      button.addEventListener('click', () => {
+        const tab = button.getAttribute('data-tab');
+        if (!tab) return;
 
-    // Handle client filter changes
+        // Update URL without reload
+        const url = new URL(window.location.href);
+        url.searchParams.set('tab', tab);
+        window.history.pushState({}, '', url);
+
+        // Update UI
+        tabButtons.forEach(btn => btn.classList.toggle('active', btn === button));
+        tabContents.forEach(content => {
+          if (content instanceof HTMLElement) {
+            content.classList.toggle('hidden', content.getAttribute('data-content') !== tab);
+          }
+        });
+      });
+    });
+  }
+
+  function setupClientFilter() {
     const clientFilter = document.getElementById('clientFilter') as HTMLSelectElement;
     if (clientFilter) {
       clientFilter.addEventListener('change', () => {
@@ -192,5 +265,22 @@ const profilesByClient = organizeProfilesByClient(filteredProfiles);
         window.location.href = url.toString();
       });
     }
+  }
+
+  function setupStatusMessages() {
+    const messages = document.querySelectorAll('#success-message, #error-message');
+    messages.forEach(message => {
+      setTimeout(() => {
+        message.classList.add('opacity-0', 'transition-opacity', 'duration-500');
+        setTimeout(() => message.remove(), 500);
+      }, 5000);
+    });
+  }
+
+  // Initialize everything
+  document.addEventListener('DOMContentLoaded', () => {
+    setupTabs();
+    setupClientFilter();
+    setupStatusMessages();
   });
 </script>
