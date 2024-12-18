@@ -12,10 +12,11 @@ const user = Astro.locals.user;
 const isAdmin = user?.role === 'admin';
 
 // Debug logging
-console.log('Layout - Debug Info:', {
+console.log('Layout.astro - Debug Info:', {
   user,
   isAdmin,
-  allLocals: Astro.locals
+  allLocals: Astro.locals,
+    title
 });
 ---
 
@@ -65,7 +66,7 @@ console.log('Layout - Debug Info:', {
 
     <footer class="bg-indigo-500 text-white py-4">
       <div class="max-w-6xl mx-auto px-4 text-center">
-        <p>&copy; {new Date().getFullYear()} Story Mode</p>
+        <p>© {new Date().getFullYear()} Story Mode</p>
       </div>
     </footer>
 

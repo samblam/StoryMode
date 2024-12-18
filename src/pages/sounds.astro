@@ -15,6 +15,8 @@ type ProfileWithSounds = Database['public']['Tables']['sound_profiles']['Row'] &
 const user = Astro.locals.user as User | undefined;
 const isAdmin = user?.role === 'admin';
 
+console.log('sounds.astro - User Info', {user, isAdmin});
+
 if (!user) {
   return Astro.redirect('/login');
 }
@@ -37,6 +39,7 @@ if (isAdmin) {
     
     if (clientsError) throw clientsError;
     clients = clientsData || [];
+    console.log('sounds.astro - Fetched clients:', clients);
   } catch (error) {
     console.error('Error fetching clients:', error);
   }
@@ -55,13 +58,16 @@ try {
     .order('created_at', { ascending: false });
 
   // Filter by client if user is a client
-  if (user.role === 'client' && user.clientId) {
-    query = query.eq('client_id', user.clientId);
-  } else if (selectedClientId !== 'all') {
-    query = query.eq('client_id', selectedClientId);
-  }
+    if (user.role === 'client' && user.clientId) {
+        query = query.eq('client_id', user.clientId);
+    } else if (selectedClientId !== 'all' && isAdmin) {
+        query = query.eq('client_id', selectedClientId);
+    }
+  
 
   const { data, error: profilesError } = await query;
+    console.log('sounds.astro - Profiles Data', { data, error: profilesError });
+
   if (profilesError) throw profilesError;
   profiles = (data || []) as ProfileWithSounds[];
 } catch (error) {
@@ -78,6 +84,9 @@ const profilesByClient = profiles.reduce((acc, profile) => {
   acc[clientName].push(profile);
   return acc;
 }, {} as Record<string, ProfileWithSounds[]>);
+
+console.log('sounds.astro - Organized Profiles', profilesByClient)
+
 
 // Rest of the file stays the same from here...
 ---
@@ -178,7 +187,8 @@ const profilesByClient = profiles.reduce((acc, profile) => {
                     name: sound.name,
                     description: sound.description,
                     file: sound.file_path,
-                    profileId: sound.profile_id
+                    profileId: sound.profile_id,
+                    storage_path: sound.storage_path // Add this line
                   }))}
                   profileId={profile.id}
                   isAdmin={isAdmin}
@@ -206,6 +216,7 @@ const profilesByClient = profiles.reduce((acc, profile) => {
                       name: sound.name,
                       description: sound.description,
                       file: sound.file_path,
+                      storage_path: sound.storage_path,  // Add this line
                       profileId: sound.profile_id
                     }))
                   }}
@@ -257,14 +268,17 @@ const profilesByClient = profiles.reduce((acc, profile) => {
   }
 
   function setupClientFilter() {
-    const clientFilter = document.getElementById('clientFilter') as HTMLSelectElement;
-    if (clientFilter) {
-      clientFilter.addEventListener('change', () => {
-        const url = new URL(window.location.href);
-        url.searchParams.set('client', clientFilter.value);
-        window.location.href = url.toString();
-      });
-    }
+      const clientFilter = document.getElementById('clientFilter') as HTMLSelectElement;
+      if (clientFilter && !('isAdmin' in document.body.dataset) ) {
+            clientFilter.remove()
+      }
+          if (clientFilter) {
+              clientFilter.addEventListener('change', () => {
+                  const url = new URL(window.location.href);
+                  url.searchParams.set('client', clientFilter.value);
+                  window.location.href = url.toString();
+              });
+      }
   }
 
   function setupStatusMessages() {
@@ -279,8 +293,11 @@ const profilesByClient = profiles.reduce((acc, profile) => {
 
   // Initialize everything
   document.addEventListener('DOMContentLoaded', () => {
-    setupTabs();
-    setupClientFilter();
-    setupStatusMessages();
+      setupTabs();
+      setupClientFilter();
+      setupStatusMessages();
+      if ('isAdmin' in document.body.dataset){
+          document.querySelector("#clientFilter")?.classList.remove("hidden");
+      }
   });
 </script>
