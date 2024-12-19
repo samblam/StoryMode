@@ -101,26 +101,26 @@ console.log('sounds.astro - Organized Profiles', profilesByClient)
       <div class="flex flex-col space-y-4 mb-8">
         <div class="flex justify-between items-center">
           <h1 class="text-6xl font-editorial">Sound Library</h1>
-          {isAdmin && (
-            <div class="flex space-x-4">
-              <a
-                href="/sounds/upload"
-                class="bg-blue-400 text-white px-6 py-3 rounded-lg text-lg hover:bg-blue-500 transition-colors"
-              >
-                Upload Sound
-              </a>
-              <a
-                href="/sounds/profiles/new"
-                class="bg-green-400 text-white px-6 py-3 rounded-lg text-lg hover:bg-green-500 transition-colors"
-              >
-                New Profile
-              </a>
-            </div>
+             {isAdmin && (
+                <div  class="flex space-x-4">
+                     <a
+                       href="/sounds/upload"
+                        class="bg-blue-400 text-white px-6 py-3 rounded-lg text-lg hover:bg-blue-500 transition-colors"
+                    >
+                    Upload Sound
+                   </a>
+                    <a
+                       href="/sounds/profiles/new"
+                       class="bg-green-400 text-white px-6 py-3 rounded-lg text-lg hover:bg-green-500 transition-colors"
+                      >
+                    New Profile
+                    </a>
+                </div>
           )}
         </div>
 
         {isAdmin && clients.length > 0 && (
-          <div class="flex items-center space-x-4">
+          <div id="client-filter" class="flex items-center space-x-4">
             <label for="clientFilter" class="text-lg font-medium">Filter by Client:</label>
             <select
               id="clientFilter"
@@ -162,14 +162,6 @@ console.log('sounds.astro - Organized Profiles', profilesByClient)
         >
           Sound Library
         </button>
-        <button
-          class={`tab-button px-6 py-3 text-lg font-medium rounded-t-lg focus:outline-none ${
-            currentTab === 'profiles' ? 'active' : ''
-          }`}
-          data-tab="profiles"
-        >
-          Sound Profiles
-        </button>
       </div>
 
       <!-- Tab Content -->
@@ -199,34 +191,6 @@ console.log('sounds.astro - Organized Profiles', profilesByClient)
         </div>
       </div>
 
-      <div class="tab-content" data-content="profiles" class:list={[{ hidden: currentTab !== 'profiles' }]}>
-        <div class="space-y-12">
-          {Object.entries(profilesByClient).map(([clientName, clientProfiles]) => (
-            <div class="space-y-8">
-              <h2 class="text-3xl font-editorial text-gray-700">{clientName}</h2>
-              {clientProfiles.map(profile => (
-                <ProfileCard 
-                  profile={{
-                    id: profile.id,
-                    title: profile.title,
-                    description: profile.description,
-                    slug: profile.slug,
-                    sounds: profile.sounds.map(sound => ({
-                      id: sound.id,
-                      name: sound.name,
-                      description: sound.description,
-                      file: sound.file_path,
-                      storage_path: sound.storage_path,  // Add this line
-                      profileId: sound.profile_id
-                    }))
-                  }}
-                  isAdmin={isAdmin}
-                />
-              ))}
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   </main>
 </Layout>
@@ -245,6 +209,20 @@ console.log('sounds.astro - Organized Profiles', profilesByClient)
   function setupTabs() {
     const tabButtons = document.querySelectorAll('.tab-button');
     const tabContents = document.querySelectorAll('.tab-content');
+    const params = new URLSearchParams(window.location.search);
+    const initialTab = params.get('tab') || 'library';
+      
+    // Set default active tab to 'library'
+    const setActiveTab = (tabName = 'library') => {
+          tabButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tabName));
+        tabContents.forEach(content => {
+            if (content instanceof HTMLElement) {
+                content.classList.toggle('hidden', content.dataset.content !== tabName);
+            }
+        });
+    }
+
+    setActiveTab(initialTab);
 
     tabButtons.forEach(button => {
       button.addEventListener('click', () => {
@@ -257,29 +235,35 @@ console.log('sounds.astro - Organized Profiles', profilesByClient)
         window.history.pushState({}, '', url);
 
         // Update UI
-        tabButtons.forEach(btn => btn.classList.toggle('active', btn === button));
-        tabContents.forEach(content => {
-          if (content instanceof HTMLElement) {
-            content.classList.toggle('hidden', content.getAttribute('data-content') !== tab);
-          }
-        });
+        setActiveTab(tab);
       });
     });
+        
+      window.addEventListener('popstate', () => {
+            const params = new URLSearchParams(window.location.search);
+          const currentTab = params.get('tab') || 'library';
+          setActiveTab(currentTab);
+        });
   }
 
-  function setupClientFilter() {
-      const clientFilter = document.getElementById('clientFilter') as HTMLSelectElement;
-      if (clientFilter && !('isAdmin' in document.body.dataset) ) {
-            clientFilter.remove()
-      }
-          if (clientFilter) {
-              clientFilter.addEventListener('change', () => {
-                  const url = new URL(window.location.href);
-                  url.searchParams.set('client', clientFilter.value);
-                  window.location.href = url.toString();
-              });
-      }
-  }
+
+    function setupClientFilter() {
+    const clientFilter = document.getElementById('clientFilter');
+
+    if (clientFilter) {
+        if (!('isAdmin' in document.body.dataset) ) {
+           clientFilter.remove()
+        }
+            else {
+                    (clientFilter as HTMLSelectElement).addEventListener('change', () => {
+                        const url = new URL(window.location.href);
+                        url.searchParams.set('client', (clientFilter as HTMLSelectElement).value);
+                        window.location.href = url.toString();
+                    });
+            }
+        }
+    }
+
 
   function setupStatusMessages() {
     const messages = document.querySelectorAll('#success-message, #error-message');
@@ -293,11 +277,9 @@ console.log('sounds.astro - Organized Profiles', profilesByClient)
 
   // Initialize everything
   document.addEventListener('DOMContentLoaded', () => {
-      setupTabs();
+      console.log('sounds.astro - DOMContentLoaded');
+    setupTabs();
       setupClientFilter();
-      setupStatusMessages();
-      if ('isAdmin' in document.body.dataset){
-          document.querySelector("#clientFilter")?.classList.remove("hidden");
-      }
+    setupStatusMessages();
   });
 </script>

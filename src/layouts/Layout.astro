@@ -21,7 +21,7 @@ console.log('Layout.astro - Debug Info:', {
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang="en" data-is-admin={isAdmin}>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width" />
@@ -44,7 +44,9 @@ console.log('Layout.astro - Debug Info:', {
           {user ? (
             <>
               <a href="/sounds" class="hover:underline">Sounds</a>
-              {isAdmin && <a href="/create-user" class="hover:underline">Create User</a>}
+                {isAdmin ? (
+                    <a href="/create-user" class="hover:underline">Create User</a>
+                ) : null}
               <button 
                 id="logout-button" 
                 class="hover:underline text-white bg-transparent border-none cursor-pointer font-inherit"
