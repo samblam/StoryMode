@@ -214,7 +214,11 @@ console.log('sounds.astro - Organized Profiles', profilesByClient)
       
     // Set default active tab to 'library'
     const setActiveTab = (tabName = 'library') => {
-          tabButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tabName));
+          tabButtons.forEach(btn => {
+              if (btn instanceof HTMLElement) {
+                btn.classList.toggle('active', btn.dataset.tab === tabName)
+              }
+            });
         tabContents.forEach(content => {
             if (content instanceof HTMLElement) {
                 content.classList.toggle('hidden', content.dataset.content !== tabName);
@@ -249,21 +253,20 @@ console.log('sounds.astro - Organized Profiles', profilesByClient)
 
     function setupClientFilter() {
         const clientFilter = document.getElementById('clientFilter');
-        if (clientFilter) {
-            if (!('isAdmin' in document.body.dataset) ) {
+       if (clientFilter) {
+             if (!('isAdmin' in document.body.dataset) ) {
                 clientFilter.remove();
-             }
-            else {
-                  (clientFilter as HTMLSelectElement).addEventListener('change', () => {
-                      const url = new URL(window.location.href);
-                      url.searchParams.set('client', (clientFilter as HTMLSelectElement).value);
-                      window.location.href = url.toString();
-                    });
+            }
+            else if (clientFilter instanceof HTMLSelectElement) {
+                 clientFilter.addEventListener('change', () => {
+                    const url = new URL(window.location.href);
+                    url.searchParams.set('client', clientFilter.value);
+                    window.location.href = url.toString();
+                  });
            }
         }
 
     }
-
 
 
   function setupStatusMessages() {

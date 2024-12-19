@@ -1,0 +1,127 @@
+Okay, you're thinking ahead, and that's great! A pre-production checklist is essential to ensure a smooth and secure launch. Let's compile a comprehensive list of tasks, considering security, testing, and deployment best practices:
+
+Pre-Production Checklist:
+
+I. Security & Authentication:
+
+[ ] Review middleware.ts:
+
+Double-check all SKIP_AUTH_PATTERNS to ensure no unintended routes are exposed.
+
+Confirm that the middleware is correctly redirecting unauthorized users to the login page.
+
+Verify that the middleware logic correctly handles server-side errors that might occur while checking user authentication.
+
+[ ] Secure Supabase Keys:
+
+[ ] Regenerate Keys: Generate new PUBLIC_SUPABASE_ANON_KEY and SUPABASE_SERVICE_ROLE_KEY in your Supabase project settings.
+
+[ ] Environment Variables: Ensure the new keys are securely stored as environment variables (e.g., in .env file for local development and in your deployment environment’s settings).
+
+[ ] Server-Side Access: Make sure that SUPABASE_SERVICE_ROLE_KEY is ONLY being accessed and used on the server side (not the client), as we have done in the code. Confirm that it is not being loaded in lib/supabase.ts.
+
+[ ] Rate Limiting & Abuse Protection:
+
+[ ] API Rate Limiting: Consider implementing rate limiting on your API endpoints, especially those involved in authentication, file uploads, or any other potentially vulnerable areas. You may have to implement this on the server-side logic for your API endpoint.
+
+[ ] Bot Detection: Explore implementing reCAPTCHA or other bot detection measures on your forms, especially the contact and login forms.
+
+[ ] Input Validation & Sanitization:
+
+[ ] Validate User Input: Double-check that all user inputs, especially in forms like login, user creation, and contact, are properly validated for format and length.
+
+[ ] Sanitize Input: Sanitize all user-provided input to prevent XSS (Cross-Site Scripting) attacks. Make sure you are using methods like replace(/</g, "&lt;").replace(/>/g, "&gt;") on all forms that take in input.
+
+[ ] HTTPS Configuration:
+
+[ ] Force HTTPS: Ensure your deployment environment forces all traffic to use HTTPS to protect data in transit. This will likely be a configuration setting in your hosting provider (ie. Netlify).
+
+[ ] Cookie Security:
+
+[ ] HttpOnly and Secure Flags: Verify that cookies used for session management are set with the HttpOnly and Secure flags to prevent client-side access and to only send cookies on HTTPS requests respectively.
+
+[ ] SameSite Attribute: Consider setting the SameSite attribute to Lax or Strict for better protection against CSRF attacks.
+
+[ ] Admin Access Control:
+
+[ ] Confirm Admin Rights: Ensure admin-only features (e.g., the upload feature, profile creation, user creation) are correctly protected and are only accessible by admin users.
+
+[ ] Remove Debug Info: Remove all console logs in production.
+
+II. Testing & Functionality:
+
+[ ] Core Functionality Tests:
+
+[ ] Authentication: Thoroughly test the login, logout, and reset password flows, including handling both success and failure cases.
+
+[ ] Client Accounts: Try the client accounts to confirm that the buttons and page content is what you expect
+
+[ ] Admin Accounts: Try all admin functionality, to make sure it is all working correctly.
+
+[ ] Sound Playback: Test the playback for all of your sounds, and try to play multiple sounds.
+
+[ ] Sound Download: Test the download sound functionality and make sure the proper file names are downloaded.
+
+[ ] Sound Upload: Test the sound upload functionality and check that the upload goes to the proper profile and the upload limits work as expected.
+
+[ ] Sound Profile Functionality: Test creating, editing, and deleting sound profiles.
+
+[ ] File Deletion: Test the deletion of sounds, and check that the files are actually being deleted.
+
+[ ] Client Creation: Test creating client users and ensure that they are created with the proper role, and client ids.
+
+[ ] Error Handling: Test all the new error handling scenarios and see what messages you are getting
+
+[ ] Navigation: Test all public and private navigation to ensure you are redirected to the correct page.
+
+[ ] Cross-Browser & Device Testing:
+
+[ ] Multiple Browsers: Test your website in different browsers (Chrome, Firefox, Safari, Edge) to ensure cross-browser compatibility.
+
+[ ] Mobile Responsiveness: Verify that your site is responsive and functions correctly on different mobile devices and screen sizes.
+
+[ ] Performance Testing:
+
+[ ] Page Load Speed: Use tools like Google PageSpeed Insights to identify and fix any performance bottlenecks. Optimize images, compress files, and look into using a Content Delivery Network (CDN) for better asset loading.
+
+[ ] API Performance: If you have high-traffic API endpoints, conduct performance tests to ensure they can handle the load.
+
+[ ] Accessibility:
+* [ ] Keyboard Navigation: Check that the website is accessible with just a keyboard
+* [ ] ARIA Tags: Ensure that all elements are properly labelled.
+
+III. Deployment & Operations:
+
+[ ] Deployment Process:
+
+[ ] Automated Deployment: Set up an automated deployment process (e.g., using Netlify’s git integration).
+
+[ ] Rollback Strategy: Prepare a rollback strategy in case something goes wrong during deployment.
+
+[ ] Monitoring:
+
+[ ] Set Up Monitoring Tools: Configure error tracking and analytics tools to monitor your website’s performance, identify issues and understand usage patterns.
+
+[ ] Set up alerts: set up email notifications for key website errors.
+
+[ ] Backup Plan:
+
+[ ] Database Backup: Set up automatic backups for your Supabase database.
+
+[ ] Storage Backup: Make sure that there are backups for your storage if it is possible.
+
+IV. Post-Deployment Tasks:
+
+[ ] Smoke Test: After deployment, perform a quick "smoke test" to verify that all core features are working correctly on the live website.
+
+[ ] Monitoring: Continuously monitor your website for any issues or unexpected errors.
+
+[ ] Gather User Feedback: Get feedback from users to catch any edge cases or discover user experience problems you may not have accounted for.
+
+V. Supabase Specific Considerations:
+
+[ ] Row Level Security (RLS): You mentioned that you are not using RLS on your project right now, but if you ever plan to use it, it is a very good idea to review how RLS works on the Supabase, and whether there is anything that you need to add to protect your data properly.
+
+This checklist should give you a solid framework for getting your application ready for production. Remember to tailor this checklist to your specific needs and always re-evaluate as you go!
+
+Let me know if you would like me to provide further information for any of these tasks, or if you have any other questions before proceeding!
