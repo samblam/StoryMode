@@ -101,7 +101,7 @@ console.log('sounds.astro - Organized Profiles', profilesByClient)
       <div class="flex flex-col space-y-4 mb-8">
         <div class="flex justify-between items-center">
           <h1 class="text-6xl font-editorial">Sound Library</h1>
-             {isAdmin && (
+            {isAdmin && (
                 <div  class="flex space-x-4">
                      <a
                        href="/sounds/upload"
@@ -248,21 +248,22 @@ console.log('sounds.astro - Organized Profiles', profilesByClient)
 
 
     function setupClientFilter() {
-    const clientFilter = document.getElementById('clientFilter');
-
-    if (clientFilter) {
-        if (!('isAdmin' in document.body.dataset) ) {
-           clientFilter.remove()
-        }
+        const clientFilter = document.getElementById('clientFilter');
+        if (clientFilter) {
+            if (!('isAdmin' in document.body.dataset) ) {
+                clientFilter.remove();
+             }
             else {
-                    (clientFilter as HTMLSelectElement).addEventListener('change', () => {
-                        const url = new URL(window.location.href);
-                        url.searchParams.set('client', (clientFilter as HTMLSelectElement).value);
-                        window.location.href = url.toString();
+                  (clientFilter as HTMLSelectElement).addEventListener('change', () => {
+                      const url = new URL(window.location.href);
+                      url.searchParams.set('client', (clientFilter as HTMLSelectElement).value);
+                      window.location.href = url.toString();
                     });
-            }
+           }
         }
+
     }
+
 
 
   function setupStatusMessages() {
