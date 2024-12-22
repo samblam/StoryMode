@@ -36,8 +36,8 @@ class AudioManager {
         this.urlLocks.set(storagePath, fetchPromise);
 
         try {
-            const signedUrl = await fetchPromise;
-            return signedUrl;
+            return await fetchPromise;
+
         } finally {
             this.urlLocks.delete(storagePath);
         }
