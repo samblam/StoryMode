@@ -65,7 +65,7 @@ const verifyAndGetUser = async (token: string): Promise<User | null> => {
 
 export const onRequest: MiddlewareHandler = async ({ request, locals, cookies }, next) => {
   const url = new URL(request.url);
-  const pathname = url.pathname;
+  const {pathname} = url;
 
   console.log('Middleware - Processing request:', { pathname });
 
