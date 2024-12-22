@@ -1,9 +1,10 @@
 ---
 interface Props {
   soundId: string;
+    storagePath: string;
 }
 
-const { soundId } = Astro.props;
+const { soundId, storagePath } = Astro.props;
 ---
 
 <div class="flex flex-col w-full space-y-2" data-component-id={soundId}>
@@ -33,12 +34,14 @@ const { soundId } = Astro.props;
     private currentTimeEl: HTMLElement;
     private durationEl: HTMLElement;
     private soundId: string;
+    private storagePath: string;
     private isDragging: boolean = false;
     private updateInterval: number | null = null;
 
-    constructor(progressBar: HTMLElement) {
+    constructor(progressBar: HTMLElement, storagePath: string) {
       this.progressBar = progressBar;
       this.soundId = progressBar.dataset.soundId || '';
+      this.storagePath = storagePath;
       this.progressFill = progressBar.querySelector('.progress-fill') as HTMLElement;
       this.handle = progressBar.querySelector('.handle') as HTMLElement;
       this.currentTimeEl = progressBar.parentElement?.querySelector('.current-time') as HTMLElement;
@@ -75,7 +78,7 @@ const { soundId } = Astro.props;
     }
 
     private async seekAudio(percentage: number): Promise<void> {
-      const sound = await audioManager.getSound(this.soundId);
+      const sound = await audioManager.getSound(this.soundId, this.storagePath);
       if (!sound) return;
 
       const duration = sound.duration();
@@ -141,7 +144,7 @@ const { soundId } = Astro.props;
         if (this.isDragging) return;
 
         try {
-          const sound = await audioManager.getSound(this.soundId);
+          const sound = await audioManager.getSound(this.soundId, this.storagePath);
           if (!sound || !sound.playing()) return;
 
           const seek = sound.seek() as number;
@@ -176,8 +179,10 @@ const { soundId } = Astro.props;
   document.querySelectorAll('.progress-bar[data-sound-id]').forEach(progressBar => {
     if (progressBar instanceof HTMLElement) {
       const soundId = progressBar.dataset.soundId;
-      if (soundId) {
-        const controller = new AudioProgressController(progressBar);
+            const storagePath = (progressBar.closest('.border')?.querySelector('.play-button') as HTMLElement)?.dataset.storagePath;
+
+      if (soundId && storagePath) {
+        const controller = new AudioProgressController(progressBar, storagePath);
         controllers.set(soundId, controller);
       }
     }

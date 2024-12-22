@@ -5,8 +5,11 @@ const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY;
 const supabaseServiceRole = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRole) {
-  throw new Error(
+console.log("supabase.ts - Initializing...");
+
+if (!supabaseUrl || !supabaseAnonKey) {
+    console.error('supabase.ts - Missing Supabase environment variables:', {supabaseUrl, supabaseAnonKey});
+    throw new Error(
     'Missing Supabase environment variables. Please check your .env file.'
   );
 }
@@ -21,14 +24,23 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
 });
 
 // Admin client with service role key for privileged operations
-export const supabaseAdmin = createClient<Database>(
-  supabaseUrl,
-  supabaseServiceRole,
-  {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
-    },
-  }
-);
+let supabaseAdmin;
+
+// Only create supabaseAdmin client on the server
+if (import.meta.env.SSR){
+  supabaseAdmin = createClient<Database>(
+      supabaseUrl,
+      supabaseServiceRole,
+    {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+      },
+    }
+  );
+}
+export { supabaseAdmin };
+
+
+console.log("supabase.ts - Initialization complete");

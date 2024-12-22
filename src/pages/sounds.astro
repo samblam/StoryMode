@@ -1,14 +1,25 @@
 ---
-import Layout from '../layouts/Layout.astro';
-import ProfileCard from '../components/ProfileCard.astro';
-import SoundProfile from '../components/SoundProfile.astro';
-import type { User as AuthUser } from '../types/auth';
-import { getAccessibleSoundProfiles, organizeProfilesByClient } from '../utils/accessControl';
-import { supabaseAdmin } from '../lib/supabase';
+import Layout from './../layouts/Layout.astro';
+import ProfileCard from './../components/ProfileCard.astro';
+import SoundProfile from './../components/SoundProfile.astro';
+import type { User } from './../types/auth';
+import type { Database } from './../types/database';
+import { supabaseAdmin } from './../lib/supabase';
+
+type ProfileWithSounds = Database['public']['Tables']['sound_profiles']['Row'] & {
+  client: Database['public']['Tables']['clients']['Row'] | null;
+  sounds: Database['public']['Tables']['sounds']['Row'][];
+};
 
 // Get current user from locals
-const user = Astro.locals.user as AuthUser | undefined;
+const user = Astro.locals.user as User | undefined;
 const isAdmin = user?.role === 'admin';
+
+console.log('sounds.astro - User Info', {user, isAdmin});
+
+if (!user) {
+  return Astro.redirect('/login');
+}
 
 // Get URL parameters
 const success = Astro.url.searchParams.get('success');
@@ -16,27 +27,68 @@ const error = Astro.url.searchParams.get('error');
 const currentTab = Astro.url.searchParams.get('tab') || 'library';
 const selectedClientId = Astro.url.searchParams.get('client') || 'all';
 
-// Fetch all active clients for admin
+// Fetch all active clients for admin (with error handling)
 let clients = [];
 if (isAdmin) {
-  const { data: clientsData } = await supabaseAdmin
-    .from('clients')
-    .select('id, name, company')
-    .eq('active', true)
-    .order('name');
-  clients = clientsData || [];
+  try {
+    const { data: clientsData, error: clientsError } = await supabaseAdmin
+      .from('clients')
+      .select('id, name, company')
+      .eq('active', true)
+      .order('name');
+    
+    if (clientsError) throw clientsError;
+    clients = clientsData || [];
+    console.log('sounds.astro - Fetched clients:', clients);
+  } catch (error) {
+    console.error('Error fetching clients:', error);
+  }
 }
 
-// Get profiles with access control
-const profiles = await getAccessibleSoundProfiles(user);
-const filteredProfiles = selectedClientId === 'all' 
-  ? profiles 
-  : profiles.filter(p => p.client_id === selectedClientId);
-const profilesByClient = organizeProfilesByClient(filteredProfiles);
+// Fetch profiles with proper error handling
+let profiles: ProfileWithSounds[] = [];
+try {
+  let query = supabaseAdmin
+    .from('sound_profiles')
+    .select(`
+      *,
+      client:clients(*),
+      sounds(*)
+    `)
+    .order('created_at', { ascending: false });
+
+  // Filter by client if user is a client
+  if (user.role === 'client' && user.clientId) {
+    query = query.eq('client_id', user.clientId);
+  } else if (selectedClientId !== 'all' && isAdmin) {
+    query = query.eq('client_id', selectedClientId);
+  }
+
+  const { data, error: profilesError } = await query;
+  console.log('sounds.astro - Profiles Data', { data, error: profilesError });
+
+  if (profilesError) throw profilesError;
+  profiles = (data || []) as ProfileWithSounds[];
+} catch (error) {
+  console.error('Error fetching profiles:', error);
+  profiles = [];
+}
+
+// Organize profiles by client
+const profilesByClient = profiles.reduce((acc, profile) => {
+  const clientName = profile.client?.name || 'No Client';
+  if (!acc[clientName]) {
+    acc[clientName] = [];
+  }
+  acc[clientName].push(profile);
+  return acc;
+}, {} as Record<string, ProfileWithSounds[]>);
+
+console.log('sounds.astro - Organized Profiles', profilesByClient);
 ---
 
 <Layout title="Sound Library | Story Mode">
-  <main class="min-h-screen bg-gray-100 py-12">
+  <main class="min-h-screen bg-gray-100 py-12" data-is-admin={isAdmin.toString()}>
     <div class="max-w-6xl mx-auto px-4">
       <!-- Header -->
       <div class="flex flex-col space-y-4 mb-8">
@@ -60,8 +112,8 @@ const profilesByClient = organizeProfilesByClient(filteredProfiles);
           )}
         </div>
 
-        {isAdmin && (
-          <div class="flex items-center space-x-4">
+        {isAdmin && clients.length > 0 && (
+          <div id="client-filter" class="flex items-center space-x-4">
             <label for="clientFilter" class="text-lg font-medium">Filter by Client:</label>
             <select
               id="clientFilter"
@@ -93,25 +145,9 @@ const profilesByClient = organizeProfilesByClient(filteredProfiles);
         </div>
       )}
 
-      <!-- Tab Navigation -->
-      <div class="flex space-x-4 mb-8 border-b border-gray-200">
-        <button
-          class="tab-button px-6 py-3 text-lg font-medium rounded-t-lg focus:outline-none"
-          data-tab="library"
-        >
-          Sound Library
-        </button>
-        <button
-          class="tab-button px-6 py-3 text-lg font-medium rounded-t-lg focus:outline-none"
-          data-tab="profiles"
-        >
-          Sound Profiles
-        </button>
-      </div>
-
       <!-- Tab Content -->
       <div class="tab-content" data-content="library">
-        <div class="space-y-12" id="library-content">
+        <div class="space-y-12">
           {Object.entries(profilesByClient).map(([clientName, clientProfiles]) => (
             <div class="space-y-8">
               <h2 class="text-3xl font-editorial text-gray-700">{clientName}</h2>
@@ -124,37 +160,10 @@ const profilesByClient = organizeProfilesByClient(filteredProfiles);
                     name: sound.name,
                     description: sound.description,
                     file: sound.file_path,
-                    profileId: sound.profile_id
+                    profileId: sound.profile_id,
+                    storage_path: sound.storage_path
                   }))}
                   profileId={profile.id}
-                  isAdmin={isAdmin}
-                />
-              ))}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div class="tab-content hidden" data-content="profiles">
-        <div class="space-y-12" id="profiles-content">
-          {Object.entries(profilesByClient).map(([clientName, clientProfiles]) => (
-            <div class="space-y-8">
-              <h2 class="text-3xl font-editorial text-gray-700">{clientName}</h2>
-              {clientProfiles.map(profile => (
-                <ProfileCard 
-                  profile={{
-                    id: profile.id,
-                    title: profile.title,
-                    description: profile.description,
-                    slug: profile.slug,
-                    sounds: profile.sounds.map(sound => ({
-                      id: sound.id,
-                      name: sound.name,
-                      description: sound.description,
-                      file: sound.file_path,
-                      profileId: sound.profile_id
-                    }))
-                  }}
                   isAdmin={isAdmin}
                 />
               ))}
@@ -166,31 +175,40 @@ const profilesByClient = organizeProfilesByClient(filteredProfiles);
   </main>
 </Layout>
 
-<style>
-  .tab-button {
-    @apply text-gray-500 hover:text-gray-700 hover:bg-gray-50 transition-colors;
-  }
-
-  .tab-button.active {
-    @apply text-green-500 border-b-2 border-green-500 bg-white;
-  }
-</style>
-
 <script>
-  import { setupTabs, setupStatusMessages } from '../utils/uiUtils';
+  function setupClientFilter() {
+    const mainElement = document.querySelector('main');
+    const clientFilter = document.getElementById('clientFilter');
+    
+    if (!clientFilter) return;
 
-  document.addEventListener('DOMContentLoaded', () => {
-    setupTabs();
-    setupStatusMessages();
-
-    // Handle client filter changes
-    const clientFilter = document.getElementById('clientFilter') as HTMLSelectElement;
-    if (clientFilter) {
+    // Check if user is admin based on main element's data attribute
+    const isAdmin = mainElement?.dataset.isAdmin === 'true';
+    
+    if (!isAdmin) {
+      clientFilter.remove();
+    } else if (clientFilter instanceof HTMLSelectElement) {
       clientFilter.addEventListener('change', () => {
         const url = new URL(window.location.href);
         url.searchParams.set('client', clientFilter.value);
         window.location.href = url.toString();
       });
     }
+  }
+
+  function setupStatusMessages() {
+    const messages = document.querySelectorAll('#success-message, #error-message');
+    messages.forEach(message => {
+      setTimeout(() => {
+        message.classList.add('opacity-0', 'transition-opacity', 'duration-500');
+        setTimeout(() => message.remove(), 500);
+      }, 5000);
+    });
+  }
+
+  // Initialize everything
+  document.addEventListener('DOMContentLoaded', () => {
+    setupClientFilter();
+    setupStatusMessages();
   });
 </script>

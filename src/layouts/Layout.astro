@@ -6,17 +6,8 @@ interface Props {
 }
 
 const { title } = Astro.props;
-
-// Access user from locals
 const user = Astro.locals.user;
 const isAdmin = user?.role === 'admin';
-
-// Debug logging
-console.log('Layout - Debug Info:', {
-  user,
-  isAdmin,
-  allLocals: Astro.locals
-});
 ---
 
 <!doctype html>
@@ -39,22 +30,24 @@ console.log('Layout - Debug Info:', {
           <a href="/about" class="hover:underline">About</a>
           <a href="/blog" class="hover:underline">Blog</a>
           <a href="/contact" class="hover:underline">Contact</a>
-          
-          {user ? (
-            <>
-              <a href="/sounds" class="hover:underline">Sounds</a>
-              {isAdmin && <a href="/create-user" class="hover:underline">Create User</a>}
-              <button 
-                id="logout-button" 
-                class="hover:underline text-white bg-transparent border-none cursor-pointer font-inherit"
-                type="button"
-              >
-                Logout ({user.email})
-              </button>
-            </>
-          ) : (
-            <a href="/login" class="hover:underline">Login</a>
-          )}
+
+          <span id="header-user">
+            {user ? (
+              <>
+                <a href="/sounds" class="hover:underline">Sounds</a>
+                {isAdmin && <a href="/create-user" class="hover:underline">Create User</a>}
+                <button 
+                  id="logout-button" 
+                  class="hover:underline text-white bg-transparent border-none cursor-pointer font-inherit"
+                  type="button"
+                >
+                  Logout ({user.email})
+                </button>
+              </>
+            ) : (
+              <a href="/login" class="hover:underline">Login</a>
+            )}
+          </span>
         </div>
       </nav>
     </header>
@@ -65,11 +58,12 @@ console.log('Layout - Debug Info:', {
 
     <footer class="bg-indigo-500 text-white py-4">
       <div class="max-w-6xl mx-auto px-4 text-center">
-        <p>&copy; {new Date().getFullYear()} Story Mode</p>
+        <p>© {new Date().getFullYear()} Story Mode</p>
       </div>
     </footer>
 
     <script>
+      // Simple logout handler
       document.getElementById('logout-button')?.addEventListener('click', async () => {
         try {
           const response = await fetch('/api/auth/logout', {
@@ -81,8 +75,6 @@ console.log('Layout - Debug Info:', {
 
           if (response.ok) {
             window.location.href = '/login';
-          } else {
-            console.error('Logout failed');
           }
         } catch (error) {
           console.error('Logout error:', error);

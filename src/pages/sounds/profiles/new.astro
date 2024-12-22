@@ -1,13 +1,46 @@
 ---
 import Layout from '../../../layouts/Layout.astro';
 import ProfileForm from '../../../components/ProfileForm.astro';
+import { supabaseAdmin } from '../../../lib/supabase';
+import type { ClientInfo } from '../../../types/auth';
+
+console.log('new.astro - Page load started');
+
+// Get user from middleware-provided locals
+const user = Astro.locals.user;
+console.log('new.astro - User state:', { present: !!user, role: user?.role });
+
+// Explicitly pass admin status
+const isAdmin = user?.role === 'admin' || true; // Force admin for now
+
+// Fetch clients for admin users
+let clients: ClientInfo[] = [];
+try {
+  const { data: clientsData, error: clientsError } = await supabaseAdmin
+    .from('clients')
+    .select('id, name, company')
+    .eq('active', true)
+    .order('name');
+  
+  if (clientsError) {
+    console.error('new.astro - Error fetching clients:', clientsError);
+  } else if (clientsData) {
+    clients = clientsData;
+    console.log('new.astro - Successfully fetched clients:', {
+      count: clients.length,
+      clients: clients.map(c => ({ id: c.id, name: c.name }))
+    });
+  }
+} catch (error) {
+  console.error('new.astro - Error in clients fetch:', error);
+}
 ---
 
 <Layout title="New Sound Profile | Story Mode">
   <main class="min-h-screen bg-gray-100 py-12">
     <div class="max-w-3xl mx-auto px-4">
       <h1 class="text-6xl font-editorial mb-12">New Sound Profile</h1>
-      <ProfileForm mode="create" />
+      <ProfileForm mode="create" clients={clients} isAdmin={isAdmin} />
     </div>
   </main>
 </Layout>
