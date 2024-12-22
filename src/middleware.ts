@@ -45,7 +45,7 @@ const verifyAndGetUser = async (token: string): Promise<User | null> => {
         .eq('id', authUser.id)
         .single();
 
-      if (userError || !userData) return null;
+      if (userError || !userData) {
 
       return {
         id: authUser.id,
