@@ -58,15 +58,14 @@ try {
     .order('created_at', { ascending: false });
 
   // Filter by client if user is a client
-    if (user.role === 'client' && user.clientId) {
-        query = query.eq('client_id', user.clientId);
-    } else if (selectedClientId !== 'all' && isAdmin) {
-        query = query.eq('client_id', selectedClientId);
-    }
-  
+  if (user.role === 'client' && user.clientId) {
+    query = query.eq('client_id', user.clientId);
+  } else if (selectedClientId !== 'all' && isAdmin) {
+    query = query.eq('client_id', selectedClientId);
+  }
 
   const { data, error: profilesError } = await query;
-    console.log('sounds.astro - Profiles Data', { data, error: profilesError });
+  console.log('sounds.astro - Profiles Data', { data, error: profilesError });
 
   if (profilesError) throw profilesError;
   profiles = (data || []) as ProfileWithSounds[];
@@ -85,37 +84,31 @@ const profilesByClient = profiles.reduce((acc, profile) => {
   return acc;
 }, {} as Record<string, ProfileWithSounds[]>);
 
-console.log('sounds.astro - Organized Profiles', profilesByClient)
-
-
-// Rest of the file stays the same from here...
----
-
-<!-- Rest of the template remains exactly the same -->
+console.log('sounds.astro - Organized Profiles', profilesByClient);
 ---
 
 <Layout title="Sound Library | Story Mode">
-  <main class="min-h-screen bg-gray-100 py-12">
+  <main class="min-h-screen bg-gray-100 py-12" data-is-admin={isAdmin.toString()}>
     <div class="max-w-6xl mx-auto px-4">
       <!-- Header -->
       <div class="flex flex-col space-y-4 mb-8">
         <div class="flex justify-between items-center">
           <h1 class="text-6xl font-editorial">Sound Library</h1>
-            {isAdmin && (
-                <div  class="flex space-x-4">
-                     <a
-                       href="/sounds/upload"
-                        class="bg-blue-400 text-white px-6 py-3 rounded-lg text-lg hover:bg-blue-500 transition-colors"
-                    >
-                    Upload Sound
-                   </a>
-                    <a
-                       href="/sounds/profiles/new"
-                       class="bg-green-400 text-white px-6 py-3 rounded-lg text-lg hover:bg-green-500 transition-colors"
-                      >
-                    New Profile
-                    </a>
-                </div>
+          {isAdmin && (
+            <div class="flex space-x-4">
+              <a
+                href="/sounds/upload"
+                class="bg-blue-400 text-white px-6 py-3 rounded-lg text-lg hover:bg-blue-500 transition-colors"
+              >
+                Upload Sound
+              </a>
+              <a
+                href="/sounds/profiles/new"
+                class="bg-green-400 text-white px-6 py-3 rounded-lg text-lg hover:bg-green-500 transition-colors"
+              >
+                New Profile
+              </a>
+            </div>
           )}
         </div>
 
@@ -152,20 +145,8 @@ console.log('sounds.astro - Organized Profiles', profilesByClient)
         </div>
       )}
 
-      <!-- Tab Navigation -->
-      <div class="flex space-x-4 mb-8 border-b border-gray-200">
-        <button
-          class={`tab-button px-6 py-3 text-lg font-medium rounded-t-lg focus:outline-none ${
-            currentTab === 'library' ? 'active' : ''
-          }`}
-          data-tab="library"
-        >
-          Sound Library
-        </button>
-      </div>
-
       <!-- Tab Content -->
-      <div class="tab-content" data-content="library" class:list={[{ hidden: currentTab !== 'library' }]}>
+      <div class="tab-content" data-content="library">
         <div class="space-y-12">
           {Object.entries(profilesByClient).map(([clientName, clientProfiles]) => (
             <div class="space-y-8">
@@ -180,7 +161,7 @@ console.log('sounds.astro - Organized Profiles', profilesByClient)
                     description: sound.description,
                     file: sound.file_path,
                     profileId: sound.profile_id,
-                    storage_path: sound.storage_path // Add this line
+                    storage_path: sound.storage_path
                   }))}
                   profileId={profile.id}
                   isAdmin={isAdmin}
@@ -190,84 +171,30 @@ console.log('sounds.astro - Organized Profiles', profilesByClient)
           ))}
         </div>
       </div>
-
     </div>
   </main>
 </Layout>
 
-<style>
-  .tab-button {
-    @apply text-gray-500 hover:text-gray-700 hover:bg-gray-50 transition-colors;
-  }
-
-  .tab-button.active {
-    @apply text-green-500 border-b-2 border-green-500 bg-white;
-  }
-</style>
-
 <script>
-  function setupTabs() {
-    const tabButtons = document.querySelectorAll('.tab-button');
-    const tabContents = document.querySelectorAll('.tab-content');
-    const params = new URLSearchParams(window.location.search);
-    const initialTab = params.get('tab') || 'library';
-      
-    // Set default active tab to 'library'
-    const setActiveTab = (tabName = 'library') => {
-          tabButtons.forEach(btn => {
-              if (btn instanceof HTMLElement) {
-                btn.classList.toggle('active', btn.dataset.tab === tabName)
-              }
-            });
-        tabContents.forEach(content => {
-            if (content instanceof HTMLElement) {
-                content.classList.toggle('hidden', content.dataset.content !== tabName);
-            }
-        });
-    }
+  function setupClientFilter() {
+    const mainElement = document.querySelector('main');
+    const clientFilter = document.getElementById('clientFilter');
+    
+    if (!clientFilter) return;
 
-    setActiveTab(initialTab);
-
-    tabButtons.forEach(button => {
-      button.addEventListener('click', () => {
-        const tab = button.getAttribute('data-tab');
-        if (!tab) return;
-
-        // Update URL without reload
+    // Check if user is admin based on main element's data attribute
+    const isAdmin = mainElement?.dataset.isAdmin === 'true';
+    
+    if (!isAdmin) {
+      clientFilter.remove();
+    } else if (clientFilter instanceof HTMLSelectElement) {
+      clientFilter.addEventListener('change', () => {
         const url = new URL(window.location.href);
-        url.searchParams.set('tab', tab);
-        window.history.pushState({}, '', url);
-
-        // Update UI
-        setActiveTab(tab);
+        url.searchParams.set('client', clientFilter.value);
+        window.location.href = url.toString();
       });
-    });
-        
-      window.addEventListener('popstate', () => {
-            const params = new URLSearchParams(window.location.search);
-          const currentTab = params.get('tab') || 'library';
-          setActiveTab(currentTab);
-        });
-  }
-
-
-    function setupClientFilter() {
-        const clientFilter = document.getElementById('clientFilter');
-       if (clientFilter) {
-             if (!('isAdmin' in document.body.dataset) ) {
-                clientFilter.remove();
-            }
-            else if (clientFilter instanceof HTMLSelectElement) {
-                 clientFilter.addEventListener('change', () => {
-                    const url = new URL(window.location.href);
-                    url.searchParams.set('client', clientFilter.value);
-                    window.location.href = url.toString();
-                  });
-           }
-        }
-
     }
-
+  }
 
   function setupStatusMessages() {
     const messages = document.querySelectorAll('#success-message, #error-message');
@@ -281,9 +208,7 @@ console.log('sounds.astro - Organized Profiles', profilesByClient)
 
   // Initialize everything
   document.addEventListener('DOMContentLoaded', () => {
-      console.log('sounds.astro - DOMContentLoaded');
-    setupTabs();
-      setupClientFilter();
+    setupClientFilter();
     setupStatusMessages();
   });
 </script>

@@ -6,22 +6,12 @@ interface Props {
 }
 
 const { title } = Astro.props;
-
-// Access user from locals
 const user = Astro.locals.user;
 const isAdmin = user?.role === 'admin';
-
-// Debug logging
-console.log('Layout.astro - Debug Info:', {
-  user,
-  isAdmin,
-  allLocals: Astro.locals,
-    title
-});
 ---
 
 <!doctype html>
-<html lang="en" data-is-admin={isAdmin}>
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width" />
@@ -40,24 +30,24 @@ console.log('Layout.astro - Debug Info:', {
           <a href="/about" class="hover:underline">About</a>
           <a href="/blog" class="hover:underline">Blog</a>
           <a href="/contact" class="hover:underline">Contact</a>
-          
-          {user ? (
-            <>
-              <a href="/sounds" class="hover:underline">Sounds</a>
-                {isAdmin ? (
-                    <a href="/create-user" class="hover:underline">Create User</a>
-                ) : null}
-              <button 
-                id="logout-button" 
-                class="hover:underline text-white bg-transparent border-none cursor-pointer font-inherit"
-                type="button"
-              >
-                Logout ({user.email})
-              </button>
-            </>
-          ) : (
-            <a href="/login" class="hover:underline">Login</a>
-          )}
+
+          <span id="header-user">
+            {user ? (
+              <>
+                <a href="/sounds" class="hover:underline">Sounds</a>
+                {isAdmin && <a href="/create-user" class="hover:underline">Create User</a>}
+                <button 
+                  id="logout-button" 
+                  class="hover:underline text-white bg-transparent border-none cursor-pointer font-inherit"
+                  type="button"
+                >
+                  Logout ({user.email})
+                </button>
+              </>
+            ) : (
+              <a href="/login" class="hover:underline">Login</a>
+            )}
+          </span>
         </div>
       </nav>
     </header>
@@ -73,6 +63,7 @@ console.log('Layout.astro - Debug Info:', {
     </footer>
 
     <script>
+      // Simple logout handler
       document.getElementById('logout-button')?.addEventListener('click', async () => {
         try {
           const response = await fetch('/api/auth/logout', {
@@ -84,8 +75,6 @@ console.log('Layout.astro - Debug Info:', {
 
           if (response.ok) {
             window.location.href = '/login';
-          } else {
-            console.error('Logout failed');
           }
         } catch (error) {
           console.error('Logout error:', error);
