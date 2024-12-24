@@ -145,9 +145,12 @@ class AudioManager {
 
     isPlaying(): boolean {
         if (!this.currentSoundId) {
-        const sound = this.sounds.get(this.currentSoundId);
-        return sound?.playing() || false;
+          return false;
+        }
+      const sound = this.sounds.get(this.currentSoundId);
+      return sound?.playing() || false;
     }
+
 
     getCurrentSoundId(): string | null {
         return this.currentSoundId;
