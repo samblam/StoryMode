@@ -9,8 +9,9 @@ export const POST: APIRoute = async ({ cookies }) => {
     if (error) throw error;
 
     // Clear the auth cookie
-    cookies.delete('sb-token', {
+    cookies.set('sb-token', "",{
       path: '/',
+      maxAge: 0
     });
 
     return new Response(JSON.stringify({

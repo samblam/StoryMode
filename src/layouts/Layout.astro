@@ -1,7 +1,6 @@
 ---
 import '../styles/global.css';
 import AuthCheck from '../components/authCheck.astro';
-import type { User } from '../types/auth';
 
 interface Props {
     title: string;
@@ -86,7 +85,10 @@ const shouldCheckAuth = !isPublicPath(pathname);
 
 <script lang="ts">
     // Simple logout handler
-    document.getElementById('logout-button')?.addEventListener('click', async () => {
+    const logoutButton = document.getElementById('logout-button');
+    console.log("Layout.astro - Logout Button:", logoutButton);
+    logoutButton?.addEventListener('click', async () => {
+        console.log("Logout button pressed");
         try {
             const response = await fetch('/api/auth/logout', {
                 method: 'POST',
@@ -103,44 +105,43 @@ const shouldCheckAuth = !isPublicPath(pathname);
         }
     });
 
-  let headerUser =  {
+     let headerUser =  {
         id: null,
         email: null,
         role: null,
       clientId: null,
       createdAt: null,
     };
-    let headerIsAdmin = false;
+  let headerIsAdmin = false;
     document.addEventListener('user', (event) => {
-       console.log("Layout.astro - User event received, setting user to:", event.detail?.user);
-          const user = event.detail?.user;
-          if (user?.role === 'admin') {
-             headerIsAdmin = true;
-           } else {
+      console.log("Layout.astro - User event received, setting user to:", event.detail?.user);
+        const user = event.detail?.user;
+        if (user?.role === 'admin') {
+            headerIsAdmin = true;
+         } else {
              headerIsAdmin = false;
          }
-
-           headerUser = user;
-       console.log("Layout.astro - isAdmin:", headerIsAdmin, headerUser);
+          headerUser = user;
+      console.log("Layout.astro - isAdmin:", headerIsAdmin, headerUser);
          const headerUserContainer = document.getElementById('header-user');
-            if(headerUserContainer) {
-              headerUserContainer.innerHTML = `
-                     ${headerUser ? `
-                         <a href="/sounds" class="hover:underline">Sounds</a>
-                          ${headerIsAdmin ? '<a href="/create-user" class="hover:underline">Create User</a>' : '' }
-                           <button
-                              id="logout-button"
-                             class="hover:underline text-white bg-transparent border-none cursor-pointer font-inherit"
-                             type="button"
-                       >
-                          Logout (${headerUser.email})
-                     </button>
-                       ` : `
-                           <a href="/login" class="hover:underline">Login</a>
-                       `}
-                 `
-             }
-      });
+           if(headerUserContainer) {
+            headerUserContainer.innerHTML = `
+                ${headerUser ? `
+                     <a href="/sounds" class="hover:underline">Sounds</a>
+                      ${headerIsAdmin ? '<a href="/create-user" class="hover:underline">Create User</a>' : '' }
+                      <button
+                            id="logout-button"
+                         class="hover:underline text-white bg-transparent border-none cursor-pointer font-inherit"
+                            type="button"
+                        >
+                         Logout (${headerUser.email})
+                        </button>
+                     ` : `
+                         <a href="/login" class="hover:underline">Login</a>
+                     `}
+                `
+            }
+    });
 </script>
 </body>
 </html>
