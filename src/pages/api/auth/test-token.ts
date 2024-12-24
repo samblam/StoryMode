@@ -1,15 +1,22 @@
 import type { APIRoute } from 'astro';
 import { supabaseAdmin } from '../../../lib/supabase';
 
-export const POST: APIRoute = async ({ request }) => {
+export const POST: APIRoute = async ({ request, cookies }) => {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
   };
 
-  try {
-    const { token } = await request.json();
+    try {
+        const token = cookies.get('sb-token')?.value;
 
+        if (!token) {
+            return new Response(JSON.stringify({ error: 'No token found in cookie' }), {
+                status: 401,
+                headers
+            });
+        }
+        
     // Verify the token
     const { data: { user: authUser }, error: authError } = await supabaseAdmin.auth.getUser(token);
     

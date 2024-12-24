@@ -1,35 +1,45 @@
 ---
 ---
 <script>
+    console.log('authCheck.astro - Initializing');
     const setUser = async () => {
-     const token = document.cookie.split('; ').find(row => row.startsWith('sb-token='))?.split('=')[1];
-     if (!token) {
-           const event = new CustomEvent('user', { detail: { user: null } });
-           document.dispatchEvent(event);
-           return;
-         }
-          try {
-             const response = await fetch('/api/auth/test-token', {
-                 method: 'POST',
-                 headers: {
-                     'Content-Type': 'application/json',
-                 },
-                 body: JSON.stringify({ token }),
-             });
- 
-             if (response.ok) {
-               const result = await response.json();
-                 const event = new CustomEvent('user', { detail: { user: result.user } });
-                 document.dispatchEvent(event);
-                 return;
-             }
-         } catch (error) {
-             console.error('Error checking session:', error);
-         }
+        console.log('authCheck.astro - setUser called');
+        const token = document.cookie.split('; ').find(row => row.startsWith('sb-token='))?.split('=')[1];
+        console.log('authCheck.astro - Token present:', !!token);
+        if (!token) {
+            const event = new CustomEvent('user', { detail: { user: null } });
+            document.dispatchEvent(event);
+            console.log('authCheck.astro - No token, dispatched user:null event');
+            return;
+        }
+        try {
+            console.log('authCheck.astro - Attempting to verify token...');
+            const response = await fetch('/api/auth/test-token', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Cookie': `sb-token=${token}`
+                },
+                body: JSON.stringify({ token }),
+            });
+            console.log('authCheck.astro - Response from /api/auth/test-token', response);
+            if (response.ok) {
+                const result = await response.json();
+                const event = new CustomEvent('user', { detail: { user: result.user } });
+                document.dispatchEvent(event);
+                 console.log('authCheck.astro - Token verified, dispatched user event', result.user);
+                return;
+            } else {
+                const result = await response.json();
+                console.error('authCheck.astro - Token verification failed', result);
+            }
+        } catch (error) {
+            console.error('authCheck.astro - Error checking session:', error);
+        }
         const event = new CustomEvent('user', { detail: { user: null } });
-       document.dispatchEvent(event);
-     };
- 
-     setUser();
- 
- </script>
+        document.dispatchEvent(event);
+        console.log('authCheck.astro - Error or invalid token, dispatched user:null event');
+    };
+
+    setUser();
+</script>

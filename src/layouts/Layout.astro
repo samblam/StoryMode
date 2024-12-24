@@ -1,85 +1,146 @@
 ---
 import '../styles/global.css';
+import AuthCheck from '../components/authCheck.astro';
+import type { User } from '../types/auth';
 
 interface Props {
-  title: string;
+    title: string;
 }
 
 const { title } = Astro.props;
-const user = Astro.locals.user;
-const isAdmin = user?.role === 'admin';
+
+let user = Astro.locals.user;
+let isAdmin = user?.role === 'admin';
+
+const PUBLIC_PATHS = [
+    '/',
+    '/login',
+    '/reset-password',
+    '/about',
+    '/contact',
+    '/works',
+    '/blog'
+];
+
+const isPublicPath = (pathname: string): boolean => {
+    return PUBLIC_PATHS.includes(pathname) || pathname.startsWith('/reset-password/');
+};
+
+const { pathname } = Astro.url;
+const shouldCheckAuth = !isPublicPath(pathname);
 ---
 
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width"/>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
-    <meta name="description" content="Story Mode is a cutting edge audio branding and UX sound design studio in Montreal, Canada." />
+    <meta name="description"
+          content="Story Mode is a cutting edge audio branding and UX sound design studio in Montreal, Canada."/>
     <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700&display=swap" rel="stylesheet">
-  </head>
-  <body>
-    <header class="fixed w-full top-0 z-50 bg-green-400 text-white">
-      <nav class="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
+</head>
+<body>
+{shouldCheckAuth && <AuthCheck />}
+<header class="fixed w-full top-0 z-50 bg-green-400 text-white">
+    <nav class="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
         <a href="/" class="text-3xl font-editorial">Story Mode</a>
         <div class="space-x-8">
-          <a href="/works" class="hover:underline">Works</a>
-          <a href="/about" class="hover:underline">About</a>
-          <a href="/blog" class="hover:underline">Blog</a>
-          <a href="/contact" class="hover:underline">Contact</a>
+            <a href="/works" class="hover:underline">Works</a>
+            <a href="/about" class="hover:underline">About</a>
+            <a href="/blog" class="hover:underline">Blog</a>
+            <a href="/contact" class="hover:underline">Contact</a>
 
-          <span id="header-user">
+            <span id="header-user">
             {user ? (
-              <>
-                <a href="/sounds" class="hover:underline">Sounds</a>
-                {isAdmin && <a href="/create-user" class="hover:underline">Create User</a>}
-                <button
-                  id="logout-button"
-                  class="hover:underline text-white bg-transparent border-none cursor-pointer font-inherit"
-                  type="button"
-                >
-                  Logout ({user.email})
-                </button>
-              </>
+                <>
+                    <a href="/sounds" class="hover:underline">Sounds</a>
+                    {isAdmin && <a href="/create-user" class="hover:underline">Create User</a>}
+                    <button
+                            id="logout-button"
+                            class="hover:underline text-white bg-transparent border-none cursor-pointer font-inherit"
+                            type="button"
+                    >
+                        Logout ({user.email})
+                    </button>
+                </>
             ) : (
-              <a href="/login" class="hover:underline">Login</a>
+                <a href="/login" class="hover:underline">Login</a>
             )}
           </span>
         </div>
-      </nav>
-    </header>
+    </nav>
+</header>
 
-    <div class="h-20"></div>
+<div class="h-20"></div>
 
-    <slot />
+<slot/>
 
-    <footer class="bg-indigo-500 text-white py-4">
-      <div class="max-w-6xl mx-auto px-4 text-center">
+<footer class="bg-indigo-500 text-white py-4">
+    <div class="max-w-6xl mx-auto px-4 text-center">
         <p>© {new Date().getFullYear()} Story Mode</p>
-      </div>
-    </footer>
+    </div>
+</footer>
 
-    <script>
-      // Simple logout handler
-      document.getElementById('logout-button')?.addEventListener('click', async () => {
+<script lang="ts">
+    // Simple logout handler
+    document.getElementById('logout-button')?.addEventListener('click', async () => {
         try {
-          const response = await fetch('/api/auth/logout', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            }
-          });
+            const response = await fetch('/api/auth/logout', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
 
-          if (response.ok) {
-            window.location.href = '/login';
-          }
+            if (response.ok) {
+                window.location.href = '/login';
+            }
         } catch (error) {
-          console.error('Logout error:', error);
+            console.error('Logout error:', error);
         }
+    });
+
+  let headerUser =  {
+        id: null,
+        email: null,
+        role: null,
+      clientId: null,
+      createdAt: null,
+    };
+    let headerIsAdmin = false;
+    document.addEventListener('user', (event) => {
+       console.log("Layout.astro - User event received, setting user to:", event.detail?.user);
+          const user = event.detail?.user;
+          if (user?.role === 'admin') {
+             headerIsAdmin = true;
+           } else {
+             headerIsAdmin = false;
+         }
+
+           headerUser = user;
+       console.log("Layout.astro - isAdmin:", headerIsAdmin, headerUser);
+         const headerUserContainer = document.getElementById('header-user');
+            if(headerUserContainer) {
+              headerUserContainer.innerHTML = `
+                     ${headerUser ? `
+                         <a href="/sounds" class="hover:underline">Sounds</a>
+                          ${headerIsAdmin ? '<a href="/create-user" class="hover:underline">Create User</a>' : '' }
+                           <button
+                              id="logout-button"
+                             class="hover:underline text-white bg-transparent border-none cursor-pointer font-inherit"
+                             type="button"
+                       >
+                          Logout (${headerUser.email})
+                     </button>
+                       ` : `
+                           <a href="/login" class="hover:underline">Login</a>
+                       `}
+                 `
+             }
       });
-    </script>
-  </body>
+</script>
+</body>
 </html>
