@@ -28,15 +28,14 @@ const { sounds, profileId, isAdmin } = Astro.props;
           <div class="flex space-x-2">
             <button
               class="play-button bg-green-400 text-white px-4 py-2 rounded-lg hover:bg-green-500 transition-colors"
+              data-sound={sound.file}
               data-sound-id={sound.id}
-              data-storage-path={sound.storage_path}
             >
               Play
             </button>
             <button
               class="download-button bg-blue-400 text-white px-4 py-2 rounded-lg hover:bg-blue-500 transition-colors"
-              data-sound-id={sound.id}
-              data-storage-path={sound.storage_path}
+              data-sound={sound.file}
               data-filename={sound.name}
             >
               Download
@@ -44,15 +43,15 @@ const { sounds, profileId, isAdmin } = Astro.props;
             {isAdmin && (
               <button
                 class="delete-button bg-red-400 text-white px-4 py-2 rounded-lg hover:bg-red-500 transition-colors"
+                data-sound={sound.file}
                 data-sound-id={sound.id}
-                data-storage-path={sound.storage_path}
               >
                 Delete
               </button>
             )}
           </div>
         </div>
-        <AudioProgress soundId={sound.id} storagePath={sound.storage_path} />
+        <AudioProgress soundId={sound.id} />
       </div>
     </div>
   ))}
@@ -61,141 +60,106 @@ const { sounds, profileId, isAdmin } = Astro.props;
 <script>
   import { audioManager } from '../utils/audioManager';
 
-  function setupPlayButtons() {
-    document.querySelectorAll('.play-button').forEach((button) => {
-      const buttonEl = button as HTMLButtonElement;
-      const soundId = buttonEl.getAttribute('data-sound-id');
-      const storagePath = buttonEl.getAttribute('data-storage-path');
+  // Handle playback
+  document.querySelectorAll('.play-button').forEach((button) => {
+    const buttonEl = button as HTMLButtonElement;
+    const soundFile = buttonEl.getAttribute('data-sound');
+    
+    if (!soundFile) return;
 
-      if (!soundId || !storagePath) return;
-
-      buttonEl.addEventListener('click', async () => {
-        try {
-          buttonEl.disabled = true;
-          
-          if (audioManager.getCurrentSoundId() === soundId && audioManager.isPlaying()) {
-            await audioManager.pause();
-            buttonEl.textContent = 'Play';
-            buttonEl.classList.remove('bg-yellow-400', 'hover:bg-yellow-500');
-            buttonEl.classList.add('bg-green-400', 'hover:bg-green-500');
-          } else {
-            // Stop any currently playing sound button UI
-            document.querySelectorAll('.play-button').forEach((btn) => {
-              if (btn instanceof HTMLButtonElement) {
-                btn.textContent = 'Play';
-                btn.classList.remove('bg-yellow-400', 'hover:bg-yellow-500');
-                btn.classList.add('bg-green-400', 'hover:bg-green-500');
-              }
-            });
-
-            await audioManager.play(soundId, storagePath);
-            buttonEl.textContent = 'Pause';
-            buttonEl.classList.remove('bg-green-400', 'hover:bg-green-500');
-            buttonEl.classList.add('bg-yellow-400', 'hover:bg-yellow-500');
-          }
-        } catch (error) {
-          console.error('Playback error:', error);
-          alert('Failed to play sound. Please try again.');
-          buttonEl.textContent = 'Play';
-          buttonEl.classList.remove('bg-yellow-400', 'hover:bg-yellow-500');
-          buttonEl.classList.add('bg-green-400', 'hover:bg-green-500');
-        } finally {
-          buttonEl.disabled = false;
-        }
-      });
+    buttonEl.addEventListener('click', async () => {
+      try {
+        buttonEl.disabled = true;
+        await audioManager.play(soundFile);
+      } catch (error) {
+        console.error('Playback error:', error);
+        alert('Failed to play sound. Please try again.');
+      } finally {
+        buttonEl.disabled = false;
+      }
     });
-  }
+  });
 
-    function setupDownloadButtons() {
-      document.querySelectorAll('.download-button').forEach((button) => {
-        const buttonEl = button as HTMLButtonElement;
-        const soundId = buttonEl.getAttribute('data-sound-id');
-        const storagePath = buttonEl.getAttribute('data-storage-path');
-        const filename = buttonEl.getAttribute('data-filename')?.toLowerCase().replace(/[^a-z0-9]/g, '-') || 'sound';
-
-        if (!soundId || !storagePath) return;
-
-        buttonEl.addEventListener('click', async () => {
-          try {
-            buttonEl.disabled = true;
-            buttonEl.textContent = 'Downloading...';
-
-            const response = await fetch(storagePath);
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-
-              const blob = await response.blob();
-              const url = window.URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.style.display = 'none';
-              a.href = url;
-              a.download = `${filename}.mp3`;
-              document.body.appendChild(a);
-              a.click();
-              window.URL.revokeObjectURL(url);
-              document.body.removeChild(a);
-            } catch (error) {
-              console.error('Download error:', error);
-              alert('Failed to download sound. Please try again.');
-            } finally {
-              buttonEl.disabled = false;
-              buttonEl.textContent = 'Download';
-            }
-          });
-      });
-  }
-
-
-  function setupDeleteButtons() {
-      document.querySelectorAll('.delete-button').forEach((button) => {
-          const buttonEl = button as HTMLButtonElement;
-        const soundId = buttonEl.getAttribute('data-sound-id');
-        const storagePath = buttonEl.getAttribute('data-storage-path');
+  // Handle downloads
+  document.querySelectorAll('.download-button').forEach((button) => {
+    const buttonEl = button as HTMLButtonElement;
+    const soundUrl = buttonEl.getAttribute('data-sound');
+    const filename = buttonEl.getAttribute('data-filename')?.toLowerCase().replace(/[^a-z0-9]/g, '-') || 'sound';
+    
+    buttonEl.addEventListener('click', async () => {
+      if (!soundUrl) return;
       
-        if (!soundId || !storagePath) return;
+      try {
+        buttonEl.disabled = true;
+        buttonEl.textContent = 'Downloading...';
 
-        buttonEl.addEventListener('click', async () => {
-            if (!confirm('Are you sure you want to delete this sound?')) return;
+        const response = await fetch(soundUrl);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
-            try {
-              buttonEl.disabled = true;
-              buttonEl.textContent = 'Deleting...';
-
-              const response = await fetch('/api/sounds/delete', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  id: soundId,
-                  storagePath: storagePath,
-                }),
-              });
-
-              if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-
-              if (audioManager.getCurrentSoundId() === soundId) {
-                await audioManager.pause();
-              }
-
-              // Remove from DOM
-              const soundElement = buttonEl.closest('.border');
-              soundElement?.remove();
-            } catch (error) {
-              console.error('Delete error:', error);
-              alert('Failed to delete sound. Please try again.');
-              buttonEl.disabled = false;
-              buttonEl.textContent = 'Delete';
-            }
-        });
-      });
-    }
-
-  // Initialize all functionality
-  document.addEventListener('DOMContentLoaded', () => {
-        setupPlayButtons();
-        setupDownloadButtons();
-        setupDeleteButtons();
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = `${filename}.mp3`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } catch (error) {
+        console.error('Download error:', error);
+        alert('Failed to download sound. Please try again.');
+      } finally {
+        buttonEl.disabled = false;
+        buttonEl.textContent = 'Download';
+      }
     });
+  });
+
+  // Handle deletion
+  document.querySelectorAll('.delete-button').forEach((button) => {
+    const buttonEl = button as HTMLButtonElement;
+    const soundId = buttonEl.getAttribute('data-sound-id');
+    const soundFile = buttonEl.getAttribute('data-sound');
+    
+    buttonEl.addEventListener('click', async () => {      
+      if (!soundId || !soundFile) return;
+      
+      if (!confirm('Are you sure you want to delete this sound?')) return;
+
+      try {
+        buttonEl.disabled = true;
+        buttonEl.textContent = 'Deleting...';
+
+        const response = await fetch('/api/sounds/delete', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            id: soundId,
+            filePath: soundFile,
+          }),
+        });
+
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+        // Stop playback if this sound is playing
+        if (audioManager.getCurrentSoundId() === soundFile) {
+          await audioManager.pause();
+        }
+
+        // Remove from DOM
+        const soundElement = buttonEl.closest('.border');
+        soundElement?.remove();
+      } catch (error) {
+        console.error('Delete error:', error);
+        alert('Failed to delete sound. Please try again.');
+        buttonEl.disabled = false;
+        buttonEl.textContent = 'Delete';
+      }
+    });
+  });
 
   // Cleanup on page unload
   window.addEventListener('unload', () => {
