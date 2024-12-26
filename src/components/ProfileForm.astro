@@ -1,37 +1,62 @@
 ---
 import type { SoundProfile } from '../types/sound';
 import type { ClientInfo } from '../types/auth';
+import { supabaseAdmin } from '../lib/supabase';
 
 interface Props {
   profile?: SoundProfile;
   mode: 'create' | 'edit';
-  clients?: ClientInfo[];
-  isAdmin?: boolean;  // Add isAdmin prop
 }
 
-const { profile, mode, clients = [], isAdmin = false } = Astro.props;
+const { profile, mode } = Astro.props;
+const user = Astro.locals.user;
+const isAdmin = user?.role === 'admin';
 
+// Debug log
 console.log('ProfileForm Debug:', {
   isAdmin,
-  mode,
-  clientsCount: clients.length,
-  clients: clients.map(c => ({ id: c.id, name: c.name }))
+  user,
+  profileData: profile
 });
+
+// Fetch active clients if user is admin
+let clients: ClientInfo[] = [];
+if (isAdmin) {
+  // Include all necessary fields in the query
+  const { data, error } = await supabaseAdmin
+    .from('clients')
+    .select('id, name, company, email, active, created_at')
+    .eq('active', true)
+    .order('name');
+  
+  if (error) {
+    console.error('Error fetching clients:', error);
+  } else {
+    clients = data.map(client => ({
+      id: client.id,
+      name: client.name,
+      company: client.company,
+      email: client.email,
+      active: client.active,
+      created_at: client.created_at
+    }));
+    console.log('Fetched clients:', clients);
+  }
+}
 ---
 
 <form id="profile-form" class="space-y-6 bg-white rounded-lg shadow-lg p-8">
   <input type="hidden" name="id" value={profile?.id || ''} />
   
-  {/* Only show client dropdown for admin users when clients exist */}
-  {isAdmin && clients.length > 0 && (
-    <div class="mb-6">
-      <label for="clientId" class="block text-lg mb-2 font-medium">Client Association</label>
+  {isAdmin && (
+    <div>
+      <label for="clientId" class="block text-lg mb-2">Client</label>
       <select
         id="clientId"
         name="clientId"
         class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400"
       >
-        <option value="">No Client (General Profile)</option>
+        <option value="">-- Select a client (optional) --</option>
         {clients.map(client => (
           <option 
             value={client.id}
@@ -41,12 +66,12 @@ console.log('ProfileForm Debug:', {
           </option>
         ))}
       </select>
-      <p class="text-sm text-gray-600 mt-1">Choose which client this profile belongs to (optional)</p>
+      <p class="text-sm text-gray-600 mt-1">Associate this profile with a specific client</p>
     </div>
   )}
 
-  <div class="mb-6">
-    <label for="title" class="block text-lg mb-2 font-medium">Profile Title</label>
+  <div>
+    <label for="title" class="block text-lg mb-2">Profile Title</label>
     <input
       type="text"
       id="title"
@@ -56,13 +81,13 @@ console.log('ProfileForm Debug:', {
       minlength="2"
       maxlength="50"
       class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400"
-      placeholder="e.g., Professional Sound Pack"
+      placeholder="e.g., Professional & Clean"
     />
     <p class="text-sm text-gray-600 mt-1">2-50 characters</p>
   </div>
 
-  <div class="mb-6">
-    <label for="description" class="block text-lg mb-2 font-medium">Description</label>
+  <div>
+    <label for="description" class="block text-lg mb-2">Description</label>
     <textarea
       id="description"
       name="description"
@@ -105,46 +130,30 @@ console.log('ProfileForm Debug:', {
     
     if (!formStatus || !errorMessage) return;
 
-    // Reset status messages
+    // Reset status
     formStatus.classList.add('hidden');
     errorMessage.classList.add('hidden');
     
     // Disable submit button
     const submitButton = form.querySelector('button[type="submit"]') as HTMLButtonElement;
-    if (!submitButton) return;
-    
     submitButton.disabled = true;
-    const originalText = submitButton.textContent || '';
+    const originalText = submitButton.textContent;
     submitButton.textContent = 'Saving...';
     
     try {
       const formData = new FormData(form);
-      const data: Record<string, string> = {};
+      const data = Object.fromEntries(formData);
       
-      // Safely get and type form values
-      const title = formData.get('title')?.toString() || '';
-      const description = formData.get('description')?.toString() || '';
-      const clientId = formData.get('clientId')?.toString() || '';
-      const id = formData.get('id')?.toString() || '';
+      // Only include clientId if it has a value
+      if (!data.clientId) {
+        delete data.clientId;
+      }
 
-      // Build data object
-      data.title = title;
-      data.description = description;
-      if (clientId) data.clientId = clientId;
-      if (id) data.id = id;
+      console.log('Submitting form data:', data);
 
       // Validate required fields
-      if (!title || !description) {
+      if (!data.title || !data.description) {
         throw new Error('Please fill in all required fields');
-      }
-
-      // Validate length constraints
-      if (title.length < 2 || title.length > 50) {
-        throw new Error('Title must be between 2 and 50 characters');
-      }
-
-      if (description.length < 10 || description.length > 200) {
-        throw new Error('Description must be between 10 and 200 characters');
       }
 
       const response = await fetch('/api/sound-profiles', {
