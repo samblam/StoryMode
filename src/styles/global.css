@@ -3,17 +3,17 @@
 @tailwind utilities;
 
 @font-face {
-    font-family: 'Editorial';
-    src: url('/fonts/PPEditorialNew-Regular.woff2') format('woff2');
-    font-weight: normal;
-    font-style: normal;
-    font-display: swap;
+  font-family: 'Editorial';
+  src: url('/fonts/PPEditorialNew-Regular.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
 }
 
 :root {
-    --font-editorial: 'Editorial', serif;
+  --font-editorial: 'Editorial', serif;
 }
 
 .font-editorial {
-    font-family: var(--font-editorial);
+  font-family: var(--font-editorial);
 }
