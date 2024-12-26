@@ -1,22 +1,31 @@
 import type { APIRoute } from 'astro';
 import { supabaseAdmin } from '../../../lib/supabase';
 
-export const POST: APIRoute = async ({ request, locals }): Promise<Response> => {
+export const POST: APIRoute = async ({ request, locals, cookies }) => {
   try {
     const data = await request.json();
     const { user } = locals;
 
+    // Debug logging
+    console.log('Profile Creation Debug:', {
+      requestData: data,
+      user,
+      timestamp: new Date().toISOString()
+    });
+
     if (!user) {
+      console.log('Unauthorized: No user in locals');
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401, headers: { 'Content-Type': 'application/json' } }
+        { status: 401 }
       );
     }
 
     if (!data.title || !data.description) {
+      console.log('Validation failed:', { data });
       return new Response(
         JSON.stringify({ error: 'Title and description are required' }),
-        { status: 400, headers: { 'Content-Type': 'application/json' } }
+        { status: 400 }
       );
     }
 
@@ -30,14 +39,23 @@ export const POST: APIRoute = async ({ request, locals }): Promise<Response> => 
       clientId = user.clientId;
     }
 
-    // Create new profile
+    console.log('Preparing to create profile:', {
+      title: data.title,
+      description: data.description,
+      clientId,
+      userRole: user.role
+    });
+
+    // Create new profile with explicit type checking
     const profileData = {
       title: data.title,
       description: data.description,
       slug: data.title.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
       client_id: clientId,
-      is_template: false
+      is_template: false // Add any default fields needed
     };
+
+    console.log('Sending to Supabase:', profileData);
 
     const { data: newProfile, error } = await supabaseAdmin
       .from('sound_profiles')
@@ -46,25 +64,38 @@ export const POST: APIRoute = async ({ request, locals }): Promise<Response> => 
       .single();
 
     if (error) {
+      console.error('Supabase error:', error);
       throw error;
     }
 
-    return new Response(JSON.stringify(newProfile), { 
-      status: 201,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    console.log('Profile created successfully:', newProfile);
+
+    // Get the current session token from cookies
+    const token = cookies.get('sb-token');
+    
+    return new Response(
+      JSON.stringify(newProfile), 
+      { 
+        status: 201,
+        headers: {
+          'Set-Cookie': `sb-token=${token?.value}; Path=/; HttpOnly; Secure; SameSite=Lax` 
+        }
+      }
+    );
   } catch (error) {
     console.error('Profile creation error:', error);
-    return new Response(JSON.stringify({
-      error: error instanceof Error ? error.message : 'Failed to create profile'
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return new Response(
+      JSON.stringify({
+        error: error instanceof Error ? error.message : 'Failed to create profile',
+        details: error instanceof Error ? error.stack : undefined
+      }),
+      { status: 500 }
+    );
   }
 };
 
-export const PUT: APIRoute = async ({ request, locals }): Promise<Response> => {
+
+export const PUT: APIRoute = async ({ request, locals, cookies }) => {
   try {
     const data = await request.json();
     const { user } = locals;
@@ -72,14 +103,14 @@ export const PUT: APIRoute = async ({ request, locals }): Promise<Response> => {
     if (!user) {
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401, headers: { 'Content-Type': 'application/json' } }
+        { status: 401 }
       );
     }
 
     if (!data.id || !data.title || !data.description) {
       return new Response(
         JSON.stringify({ error: 'ID, title, and description are required' }),
-        { status: 400, headers: { 'Content-Type': 'application/json' } }
+        { status: 400 }
       );
     }
 
@@ -93,32 +124,28 @@ export const PUT: APIRoute = async ({ request, locals }): Promise<Response> => {
     if (fetchError || !existingProfile) {
       return new Response(
         JSON.stringify({ error: 'Profile not found' }),
-        { status: 404, headers: { 'Content-Type': 'application/json' } }
+        { status: 404 }
       );
     }
 
     // Check permissions
-    if (user.role === 'client') {
-      if (existingProfile.client_id !== user.clientId) {
-        return new Response(
-          JSON.stringify({ error: 'Unauthorized' }),
-          { status: 403, headers: { 'Content-Type': 'application/json' } }
-        );
-      }
-      // Clients can't change the client_id
-      delete data.clientId;
+    if (user.role === 'client' && existingProfile.client_id !== user.clientId) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 403 }
+      );
     }
 
     // Prepare update data
-    const updateData = {
+    const updateData: any = {
       title: data.title,
       description: data.description,
-      slug: data.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+      slug: data.title.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
     };
 
     // Only allow admins to update client_id
     if (user.role === 'admin' && 'clientId' in data) {
-      updateData['client_id'] = data.clientId || null;
+      updateData.client_id = data.clientId || null;
     }
 
     const { data: updatedProfile, error } = await supabaseAdmin
@@ -132,17 +159,25 @@ export const PUT: APIRoute = async ({ request, locals }): Promise<Response> => {
       throw error;
     }
 
-    return new Response(JSON.stringify(updatedProfile), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    // Get the current session token from cookies
+    const token = cookies.get('sb-token');
+    
+    return new Response(
+      JSON.stringify(updatedProfile), 
+      { 
+        status: 200,
+        headers: {
+          'Set-Cookie': `sb-token=${token?.value}; Path=/; HttpOnly; Secure; SameSite=Lax`
+        }
+      }
+    );
   } catch (error) {
     console.error('Profile update error:', error);
-    return new Response(JSON.stringify({
-      error: error instanceof Error ? error.message : 'Failed to update profile'
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return new Response(
+      JSON.stringify({
+        error: error instanceof Error ? error.message : 'Failed to update profile',
+      }),
+      { status: 500 }
+    );
   }
 };
