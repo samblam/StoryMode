@@ -51,7 +51,7 @@ const { sounds, profileId, isAdmin } = Astro.props;
             )}
           </div>
         </div>
-        <AudioProgress soundId={sound.id} />
+        <AudioProgress soundId={sound.id} soundFile={sound.file} />
       </div>
     </div>
   ))}

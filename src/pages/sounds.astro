@@ -37,6 +37,9 @@ const filteredProfiles = selectedClientId === 'all'
   ? profiles 
   : profiles.filter(p => p.client_id === selectedClientId);
 const profilesByClient = organizeProfilesByClient(filteredProfiles);
+console.log('Sounds page - profiles:', profiles);
+console.log('Sounds page - filteredProfiles:', filteredProfiles);
+console.log('Sounds page - profilesByClient:', profilesByClient);
 ---
 
 <Layout title="Sound Library | Story Mode">
@@ -184,6 +187,7 @@ const profilesByClient = organizeProfilesByClient(filteredProfiles);
   import { setupTabs, setupStatusMessages } from '../utils/uiUtils';
 
   document.addEventListener('DOMContentLoaded', () => {
+      console.log('sounds.astro - DOMContentLoaded');
     setupTabs();
     setupStatusMessages();
 

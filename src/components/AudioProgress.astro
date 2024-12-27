@@ -37,6 +37,7 @@ const { soundId } = Astro.props;
     private updateInterval: number | null = null;
 
     constructor(progressBar: HTMLElement) {
+      console.log('AudioProgressController - constructor - soundId:', progressBar.dataset.soundId);
       this.progressBar = progressBar;
       this.soundId = progressBar.dataset.soundId || '';
       this.progressFill = progressBar.querySelector('.progress-fill') as HTMLElement;
@@ -48,6 +49,7 @@ const { soundId } = Astro.props;
     }
 
     private validateAndInitialize(): void {
+      console.log('AudioProgressController - validateAndInitialize - soundId:', this.soundId);
       if (!this.progressBar || !this.progressFill || !this.handle || !this.currentTimeEl || !this.durationEl) {
         console.error('Required elements not found for progress bar');
         return;
@@ -64,19 +66,25 @@ const { soundId } = Astro.props;
     }
 
     private updateProgressBar(percentage: number): void {
+        console.log('AudioProgressController - updateProgressBar - soundId:', this.soundId, 'percentage:', percentage);
       percentage = Math.max(0, Math.min(100, percentage));
       this.progressFill.style.width = `${percentage}%`;
       this.handle.style.left = `${percentage}%`;
     }
 
     private updateTimeDisplay(currentTime: number, duration: number): void {
+        console.log('AudioProgressController - updateTimeDisplay - soundId:', this.soundId, 'currentTime:', currentTime, 'duration:', duration);
       this.currentTimeEl.textContent = this.formatTime(currentTime);
       this.durationEl.textContent = this.formatTime(duration);
     }
 
     private async seekAudio(percentage: number): Promise<void> {
+      console.log('AudioProgressController - seekAudio - soundId:', this.soundId, 'percentage:', percentage);
       const sound = await audioManager.getSound(this.soundId);
-      if (!sound) return;
+      if (!sound) {
+        console.log('AudioProgressController - seekAudio - sound not found - soundId:', this.soundId);
+        return;
+      }
 
       const duration = sound.duration();
       if (duration) {
@@ -87,6 +95,7 @@ const { soundId } = Astro.props;
     }
 
     private handleMouseDown = (e: MouseEvent): void => {
+        console.log('AudioProgressController - handleMouseDown - soundId:', this.soundId);
       e.preventDefault();
       this.isDragging = true;
       this.handle.classList.add('opacity-100');
@@ -114,6 +123,7 @@ const { soundId } = Astro.props;
     };
 
     private updateFromMouseEvent(e: MouseEvent): void {
+        console.log('AudioProgressController - updateFromMouseEvent - soundId:', this.soundId);
       const rect = this.progressBar.getBoundingClientRect();
       const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
       const percentage = (x / rect.width) * 100;
@@ -123,6 +133,7 @@ const { soundId } = Astro.props;
     }
 
     private initializeEventListeners(): void {
+        console.log('AudioProgressController - initializeEventListeners - soundId:', this.soundId);
       this.progressBar.addEventListener('mousedown', this.handleMouseDown);
       
       // Reset progress on audio end
@@ -137,15 +148,20 @@ const { soundId } = Astro.props;
     }
 
     private startProgressTracking(): void {
+      console.log('AudioProgressController - startProgressTracking - soundId:', this.soundId);
       this.updateInterval = window.setInterval(async () => {
         if (this.isDragging) return;
 
         try {
           const sound = await audioManager.getSound(this.soundId);
-          if (!sound || !sound.playing()) return;
+          if (!sound || !sound.playing()) {
+            console.log('AudioProgressController - startProgressTracking - sound not playing - soundId:', this.soundId);
+            return;
+          }
 
           const seek = sound.seek() as number;
           const duration = sound.duration();
+          console.log('AudioProgressController - startProgressTracking - soundId:', this.soundId, 'seek:', seek, 'duration:', duration);
 
           if (duration > 0) {
             const percentage = (seek / duration) * 100;
@@ -160,6 +176,7 @@ const { soundId } = Astro.props;
     }
 
     public cleanup(): void {
+      console.log('AudioProgressController - cleanup - soundId:', this.soundId);
       if (this.updateInterval) {
         window.clearInterval(this.updateInterval);
       }

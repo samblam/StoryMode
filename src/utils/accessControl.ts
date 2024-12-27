@@ -1,11 +1,13 @@
 import { supabaseAdmin } from '../lib/supabase';
-import type { User } from '../types/auth';
+import type { User, ClientInfo } from '../types/auth';
 import type { Database } from '../types/database';
 
 type SoundProfileWithClient = Database['public']['Tables']['sound_profiles']['Row'] & {
   client?: Database['public']['Tables']['clients']['Row'] | null;
   sounds: Database['public']['Tables']['sounds']['Row'][];
 };
+
+
 
 export async function getAccessibleSoundProfiles(user: User | undefined): Promise<SoundProfileWithClient[]> {
   if (!user) {
@@ -33,7 +35,7 @@ export async function getAccessibleSoundProfiles(user: User | undefined): Promis
       console.error('Error fetching sound profiles:', error);
       return [];
     }
-
+    
     return data || [];
   } catch (error) {
     console.error('Error fetching sound profiles:', error);

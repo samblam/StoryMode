@@ -10,13 +10,6 @@ const { title } = Astro.props;
 // Access user from locals
 const user = Astro.locals.user;
 const isAdmin = user?.role === 'admin';
-
-// Debug logging
-console.log('Layout - Debug Info:', {
-  user,
-  isAdmin,
-  allLocals: Astro.locals
-});
 ---
 
 <!doctype html>
@@ -70,13 +63,19 @@ console.log('Layout - Debug Info:', {
     </footer>
 
     <script>
+      let isLoggingOut = false;
+  
       document.getElementById('logout-button')?.addEventListener('click', async () => {
+        if (isLoggingOut) return;
+        
         try {
+          isLoggingOut = true;
           const response = await fetch('/api/auth/logout', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json'
-            }
+            },
+            credentials: 'include'
           });
 
           if (response.ok) {
@@ -86,6 +85,8 @@ console.log('Layout - Debug Info:', {
           }
         } catch (error) {
           console.error('Logout error:', error);
+        } finally {
+          isLoggingOut = false;
         }
       });
     </script>

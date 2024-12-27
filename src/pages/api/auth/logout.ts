@@ -4,9 +4,7 @@ import { supabase } from '../../../lib/supabase';
 export const POST: APIRoute = async ({ cookies }) => {
   try {
     // Sign out from Supabase
-    const { error } = await supabase.auth.signOut();
-    
-    if (error) throw error;
+    await supabase.auth.signOut();
 
     // Clear the auth cookie
     cookies.delete('sb-token', {
