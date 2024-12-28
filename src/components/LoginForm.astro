@@ -1,3 +1,6 @@
+---
+---
+
 <form id="login-form" class="w-full max-w-md mx-auto space-y-6">
   <div class="text-center">
     <h2 class="text-3xl font-editorial">Welcome Back</h2>
@@ -47,6 +50,7 @@
 
 <script>
   interface LoginResponse {
+    success: boolean;
     user?: {
       id: string;
       email: string;
@@ -87,16 +91,17 @@
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(data),
+        credentials: 'include'
       });
 
-      const result = await response.json();
+      const result = await response.json() as LoginResponse;
 
-      if (!response.ok) {
+      if (!result.success) {
         throw new Error(result.error || 'Login failed');
       }
 
-      // Force a complete page reload to ensure middleware runs and state is fresh
-      window.location.replace('/sounds');
+      // Use window.location.href instead of replace to ensure clean navigation
+      window.location.href = '/sounds';
 
     } catch (error) {
       console.error('Login error:', error);
@@ -105,7 +110,7 @@
       if (errorMessage) {
         errorMessage.textContent = error instanceof Error ? error.message : 'Login failed';
       }
-    } finally {
+      
       // Re-enable submit button
       submitButton.disabled = false;
       submitButton.textContent = 'Sign In';

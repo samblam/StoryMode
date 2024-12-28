@@ -6,13 +6,11 @@ export default defineConfig({
   integrations: [tailwind()],
   output: 'server',
   adapter: netlify({
-    edgeMiddleware: true,
+    edgeMiddleware: true
   }),
   vite: {
-    server: {
-      watch: {
-        usePolling: true,
-      },
-    },
-  },
+    ssr: {
+      noExternal: ['@astrojs/tailwind']
+    }
+  }
 });

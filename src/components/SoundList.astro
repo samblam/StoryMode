@@ -5,11 +5,10 @@ import AudioProgress from './AudioProgress.astro';
 
 interface Props {
   sounds: Sound[];
-  profileId: string;
   isAdmin: boolean;
 }
 
-const { sounds, profileId, isAdmin } = Astro.props;
+const { sounds, isAdmin } = Astro.props;
 ---
 
 <div class="space-y-4">
@@ -36,6 +35,7 @@ const { sounds, profileId, isAdmin } = Astro.props;
             <button
               class="download-button bg-blue-400 text-white px-4 py-2 rounded-lg hover:bg-blue-500 transition-colors"
               data-sound={sound.file}
+              data-sound-id={sound.id}
               data-filename={sound.name}
             >
               Download
@@ -51,7 +51,7 @@ const { sounds, profileId, isAdmin } = Astro.props;
             )}
           </div>
         </div>
-        <AudioProgress soundId={sound.id} />
+        <AudioProgress soundId={sound.id} soundFile={sound.file} />
       </div>
     </div>
   ))}
@@ -63,14 +63,15 @@ const { sounds, profileId, isAdmin } = Astro.props;
   // Handle playback
   document.querySelectorAll('.play-button').forEach((button) => {
     const buttonEl = button as HTMLButtonElement;
-    const soundFile = buttonEl.getAttribute('data-sound');
+    const soundUrl = buttonEl.getAttribute('data-sound');
+    const soundId = buttonEl.getAttribute('data-sound-id');
     
-    if (!soundFile) return;
+    if (!soundUrl || !soundId) return;
 
     buttonEl.addEventListener('click', async () => {
       try {
         buttonEl.disabled = true;
-        await audioManager.play(soundFile);
+        await audioManager.play(soundUrl, soundId);
       } catch (error) {
         console.error('Playback error:', error);
         alert('Failed to play sound. Please try again.');
@@ -83,28 +84,40 @@ const { sounds, profileId, isAdmin } = Astro.props;
   // Handle downloads
   document.querySelectorAll('.download-button').forEach((button) => {
     const buttonEl = button as HTMLButtonElement;
-    const soundUrl = buttonEl.getAttribute('data-sound');
+    const soundId = buttonEl.getAttribute('data-sound-id');
     const filename = buttonEl.getAttribute('data-filename')?.toLowerCase().replace(/[^a-z0-9]/g, '-') || 'sound';
     
     buttonEl.addEventListener('click', async () => {
-      if (!soundUrl) return;
+      if (!soundId) return;
       
       try {
         buttonEl.disabled = true;
         buttonEl.textContent = 'Downloading...';
 
-        const response = await fetch(soundUrl);
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        // Get fresh URL before downloading
+        const response = await fetch('/api/sounds/refresh-url', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ soundId }),
+        });
 
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const { url } = await response.json();
+
+        const fileResponse = await fetch(url);
+        if (!fileResponse.ok) throw new Error(`HTTP error! status: ${fileResponse.status}`);
+
+        const blob = await fileResponse.blob();
+        const downloadUrl = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.style.display = 'none';
-        a.href = url;
+        a.href = downloadUrl;
         a.download = `${filename}.mp3`;
         document.body.appendChild(a);
         a.click();
-        window.URL.revokeObjectURL(url);
+        window.URL.revokeObjectURL(downloadUrl);
         document.body.removeChild(a);
       } catch (error) {
         console.error('Download error:', error);
