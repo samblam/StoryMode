@@ -1,9 +1,10 @@
 ---
 interface Props {
   soundId: string;
+  soundFile: string;
 }
 
-const { soundId } = Astro.props;
+const { soundId, soundFile } = Astro.props;
 ---
 
 <div class="flex flex-col w-full space-y-2" data-component-id={soundId}>
@@ -12,6 +13,7 @@ const { soundId } = Astro.props;
     <div 
       class="relative flex-grow h-2 bg-gray-200 rounded cursor-pointer progress-bar group" 
       data-sound-id={soundId}
+      data-sound-file={soundFile}
     >
       <div class="absolute h-full bg-green-400 rounded progress-fill" style="width: 0%"></div>
       <div 
@@ -33,13 +35,15 @@ const { soundId } = Astro.props;
     private currentTimeEl: HTMLElement;
     private durationEl: HTMLElement;
     private soundId: string;
+    private soundFile: string;
     private isDragging: boolean = false;
     private updateInterval: number | null = null;
+    private activeSound: Howl | null = null;
 
     constructor(progressBar: HTMLElement) {
-      console.log('AudioProgressController - constructor - soundId:', progressBar.dataset.soundId);
       this.progressBar = progressBar;
       this.soundId = progressBar.dataset.soundId || '';
+      this.soundFile = progressBar.dataset.soundFile || '';
       this.progressFill = progressBar.querySelector('.progress-fill') as HTMLElement;
       this.handle = progressBar.querySelector('.handle') as HTMLElement;
       this.currentTimeEl = progressBar.parentElement?.querySelector('.current-time') as HTMLElement;
@@ -49,8 +53,8 @@ const { soundId } = Astro.props;
     }
 
     private validateAndInitialize(): void {
-      console.log('AudioProgressController - validateAndInitialize - soundId:', this.soundId);
-      if (!this.progressBar || !this.progressFill || !this.handle || !this.currentTimeEl || !this.durationEl) {
+      if (!this.progressBar || !this.progressFill || !this.handle || 
+          !this.currentTimeEl || !this.durationEl || !this.soundFile) {
         console.error('Required elements not found for progress bar');
         return;
       }
@@ -60,31 +64,44 @@ const { soundId } = Astro.props;
     }
 
     private formatTime(seconds: number): string {
+      if (isNaN(seconds) || !isFinite(seconds)) return '0:00';
       const mins = Math.floor(seconds / 60);
       const secs = Math.floor(seconds % 60);
       return `${mins}:${secs.toString().padStart(2, '0')}`;
     }
 
     private updateProgressBar(percentage: number): void {
-        console.log('AudioProgressController - updateProgressBar - soundId:', this.soundId, 'percentage:', percentage);
       percentage = Math.max(0, Math.min(100, percentage));
-      this.progressFill.style.width = `${percentage}%`;
-      this.handle.style.left = `${percentage}%`;
+      requestAnimationFrame(() => {
+        this.progressFill.style.width = `${percentage}%`;
+        this.handle.style.left = `${percentage}%`;
+      });
     }
 
     private updateTimeDisplay(currentTime: number, duration: number): void {
-        console.log('AudioProgressController - updateTimeDisplay - soundId:', this.soundId, 'currentTime:', currentTime, 'duration:', duration);
-      this.currentTimeEl.textContent = this.formatTime(currentTime);
-      this.durationEl.textContent = this.formatTime(duration);
+      requestAnimationFrame(() => {
+        this.currentTimeEl.textContent = this.formatTime(currentTime);
+        this.durationEl.textContent = this.formatTime(duration);
+      });
+    }
+
+    private async updateCurrentSound(): Promise<Howl | null> {
+      if (this.soundId === audioManager.getCurrentSoundId()) {
+        if (!this.activeSound) {
+          try {
+            this.activeSound = await audioManager.getSound(this.soundFile, this.soundId);
+          } catch (error) {
+            return null;
+          }
+        }
+        return this.activeSound;
+      }
+      return null;
     }
 
     private async seekAudio(percentage: number): Promise<void> {
-      console.log('AudioProgressController - seekAudio - soundId:', this.soundId, 'percentage:', percentage);
-      const sound = await audioManager.getSound(this.soundId);
-      if (!sound) {
-        console.log('AudioProgressController - seekAudio - sound not found - soundId:', this.soundId);
-        return;
-      }
+      const sound = await this.updateCurrentSound();
+      if (!sound) return;
 
       const duration = sound.duration();
       if (duration) {
@@ -95,7 +112,6 @@ const { soundId } = Astro.props;
     }
 
     private handleMouseDown = (e: MouseEvent): void => {
-        console.log('AudioProgressController - handleMouseDown - soundId:', this.soundId);
       e.preventDefault();
       this.isDragging = true;
       this.handle.classList.add('opacity-100');
@@ -123,7 +139,6 @@ const { soundId } = Astro.props;
     };
 
     private updateFromMouseEvent(e: MouseEvent): void {
-        console.log('AudioProgressController - updateFromMouseEvent - soundId:', this.soundId);
       const rect = this.progressBar.getBoundingClientRect();
       const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
       const percentage = (x / rect.width) * 100;
@@ -133,50 +148,48 @@ const { soundId } = Astro.props;
     }
 
     private initializeEventListeners(): void {
-        console.log('AudioProgressController - initializeEventListeners - soundId:', this.soundId);
       this.progressBar.addEventListener('mousedown', this.handleMouseDown);
       
-      // Reset progress on audio end
       document.addEventListener('audioend', (e: Event) => {
         const customEvent = e as CustomEvent;
         if (customEvent.detail.soundId === this.soundId) {
           this.updateProgressBar(0);
           this.updateTimeDisplay(0, customEvent.detail.duration || 0);
           this.handle.classList.remove('opacity-100');
+          this.activeSound = null;
         }
+      });
+
+      // Clear active sound when audio changes
+      document.addEventListener('audiochange', () => {
+        this.activeSound = null;
       });
     }
 
-    private startProgressTracking(): void {
-      console.log('AudioProgressController - startProgressTracking - soundId:', this.soundId);
+    private async startProgressTracking(): Promise<void> {
+      if (this.updateInterval) {
+        window.clearInterval(this.updateInterval);
+      }
+
       this.updateInterval = window.setInterval(async () => {
         if (this.isDragging) return;
 
-        try {
-          const sound = await audioManager.getSound(this.soundId);
-          if (!sound || !sound.playing()) {
-            console.log('AudioProgressController - startProgressTracking - sound not playing - soundId:', this.soundId);
-            return;
-          }
+        const sound = await this.updateCurrentSound();
+        if (!sound?.playing()) return;
 
-          const seek = sound.seek() as number;
-          const duration = sound.duration();
-          console.log('AudioProgressController - startProgressTracking - soundId:', this.soundId, 'seek:', seek, 'duration:', duration);
+        const seek = sound.seek() as number;
+        const duration = sound.duration();
 
-          if (duration > 0) {
-            const percentage = (seek / duration) * 100;
-            this.updateProgressBar(percentage);
-            this.updateTimeDisplay(seek, duration);
-            this.handle.classList.add('opacity-100');
-          }
-        } catch (error) {
-          console.error('Error updating progress:', error);
+        if (duration > 0) {
+          const percentage = (seek / duration) * 100;
+          this.updateProgressBar(percentage);
+          this.updateTimeDisplay(seek, duration);
+          this.handle.classList.add('opacity-100');
         }
-      }, 100);
+      }, 250); // Reduced update frequency
     }
 
     public cleanup(): void {
-      console.log('AudioProgressController - cleanup - soundId:', this.soundId);
       if (this.updateInterval) {
         window.clearInterval(this.updateInterval);
       }
@@ -184,6 +197,8 @@ const { soundId } = Astro.props;
       this.progressBar.removeEventListener('mousedown', this.handleMouseDown);
       document.removeEventListener('mousemove', this.handleMouseMove);
       document.removeEventListener('mouseup', this.handleMouseUp);
+      
+      this.activeSound = null;
     }
   }
 
