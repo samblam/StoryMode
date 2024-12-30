@@ -6,6 +6,7 @@ class AudioManager {
   private volume: number = 1.0;
   private currentSoundFile: string | null = null;
   private refreshTimeouts: Map<string, ReturnType<typeof setTimeout>> = new Map();
+  private loadingPromises: Map<string, Promise<Howl>> = new Map();
 
   private constructor() {
     console.log('AudioManager - constructor');
@@ -80,61 +81,71 @@ class AudioManager {
       return soundData.howl;
     }
 
-    try {
-      const sound = await this.loadSound(soundFile, soundId);
-      this.sounds.set(soundFile, { 
-        howl: sound, 
-        lastUsed: Date.now() 
+    // Check if we're already loading this sound
+    let loadingPromise = this.loadingPromises.get(soundFile);
+    if (!loadingPromise) {
+      // Start new load
+      loadingPromise = this.loadSound(soundFile, soundId).then(sound => {
+        // Store the loaded sound
+        this.sounds.set(soundFile, { 
+          howl: sound, 
+          lastUsed: Date.now() 
+        });
+        // Clear the loading promise
+        this.loadingPromises.delete(soundFile);
+        return sound;
+      }).catch(error => {
+        // Clear the loading promise on error
+        this.loadingPromises.delete(soundFile);
+        throw error;
       });
-      return sound;
-    } catch (error) {
-      console.error('AudioManager - getSound - Error loading sound:', error, 'soundFile:', soundFile);
-      throw error;
+      // Store the loading promise
+      this.loadingPromises.set(soundFile, loadingPromise);
     }
+
+    return loadingPromise;
   }
 
+  // Fixed play method with correct button state management
   async play(soundFile: string, soundId: string): Promise<void> {
-    console.log('AudioManager - play - soundFile:', soundFile);
     try {
       // Stop current sound if different
       if (this.currentSoundFile && this.currentSoundFile !== soundFile) {
         await this.pause();
       }
-
+  
       const sound = await this.getSound(soundFile, soundId);
       
       if (sound.playing()) {
         sound.pause();
         this.currentSoundFile = null;
+        this.updatePlayButton(soundFile, false);
         console.log('AudioManager - play - sound paused - soundFile:', soundFile);
         return;
       }
-
+  
       sound.play();
       this.currentSoundFile = soundFile;
-      console.log('AudioManager - play - sound playing - soundFile:', soundFile);
-      
-      // Update UI elements
       this.updatePlayButton(soundFile, true);
+      console.log('AudioManager - play - sound playing - soundFile:', soundFile);
       
       // Handle sound ending
       sound.once('end', () => {
         this.currentSoundFile = null;
-        console.log('AudioManager - play - sound ended - soundFile:', soundFile);
         this.updatePlayButton(soundFile, false);
+        console.log('AudioManager - play - sound ended - soundFile:', soundFile);
         
-        // Dispatch custom event for audio end
-        const event = new CustomEvent('audioend', {
+        document.dispatchEvent(new CustomEvent('audioend', {
           detail: {
-            soundFile,
+            soundId,
             duration: sound.duration()
           }
-        });
-        document.dispatchEvent(event);
+        }));
       });
-
+  
     } catch (error) {
-      console.error('AudioManager - play - Error playing sound:', error, 'soundFile:', soundFile);
+      console.error('AudioManager - play - Error playing sound:', error);
+      this.currentSoundFile = null;
       this.updatePlayButton(soundFile, false);
       throw error;
     }
@@ -193,6 +204,7 @@ class AudioManager {
     // Unload all sounds
     this.sounds.forEach(({ howl }) => howl.unload());
     this.sounds.clear();
+    this.loadingPromises.clear();
     this.currentSoundFile = null;
     console.log('AudioManager - cleanup');
   }
