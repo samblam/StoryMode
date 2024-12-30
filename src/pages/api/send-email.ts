@@ -71,7 +71,7 @@ export const POST: APIRoute = async ({ request }) => {
     const transporter = nodemailer.createTransport({
       host: import.meta.env.SMTP_HOST,
       port: parseInt(import.meta.env.SMTP_PORT),
-      secure: false,
+      secure: false, // true for 465, false for other ports
       auth: {
         user: import.meta.env.SMTP_USER,
         pass: import.meta.env.SMTP_PASS,
@@ -79,14 +79,28 @@ export const POST: APIRoute = async ({ request }) => {
     });
 
     // Verify SMTP connection
-    await transporter.verify();
+    try {
+        await transporter.verify();
+        console.log("SMTP Connection Verified Successfully");
+      } catch (verificationError) {
+        console.error("SMTP Verification Error:", verificationError);
+        return new Response(JSON.stringify({
+          success: false,
+          error: `SMTP verification failed: ${verificationError instanceof Error ? verificationError.message : 'Unknown error'}`
+        }), {
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+      }
 
     // Get CC recipients
     const ccRecipients = import.meta.env.SMTP_CC?.split(',').filter(Boolean) || [];
 
     // Send mail
     const info = await transporter.sendMail({
-      from: `"${sanitizedName}" <${email}>`,
+      from: `"Story Mode Contact Form" <${import.meta.env.SMTP_USER}>`, // Use your authorized address here
       to: import.meta.env.SMTP_TO,
       cc: ccRecipients,
       subject: "New Contact Form Submission - Story Mode",
@@ -98,8 +112,10 @@ export const POST: APIRoute = async ({ request }) => {
         <p><strong>Message:</strong></p>
         <p>${sanitizedMessage.replace(/\n/g, '<br>')}</p>
       `,
-      replyTo: email,
+      replyTo: email, // Set the user's email as the reply-to address
     });
+
+    console.log("Email Sent Info:", info);
 
     return new Response(JSON.stringify({
       success: true,
