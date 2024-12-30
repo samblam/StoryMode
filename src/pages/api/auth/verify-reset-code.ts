@@ -1,11 +1,62 @@
 import type { APIRoute } from 'astro';
 import { supabaseAdmin } from '../../../lib/supabase';
 
-export const POST: APIRoute = async ({ request }) => {
+// In-memory rate limit store (replace with Redis or similar in production)
+const rateLimitStore = new Map<string, { count: number; lastReset: number }>();
+const MAX_ATTEMPTS = 5; // Max attempts per window
+const WINDOW_MS = 60 * 60 * 1000; // 1-hour window (in milliseconds)
+
+// Function to check if a key (email or IP) is rate-limited
+function isRateLimited(key: string): boolean {
+  const record = rateLimitStore.get(key);
+  if (!record) return false;
+
+  const now = Date.now();
+  if (now - record.lastReset > WINDOW_MS) {
+    // Window expired, reset the count
+    record.count = 0;
+    record.lastReset = now;
+    return false;
+  }
+
+  return record.count >= MAX_ATTEMPTS;
+}
+
+// Function to increment the rate limit counter for a key
+function incrementRateLimit(key: string): void {
+  const record = rateLimitStore.get(key);
+  const now = Date.now();
+
+  if (!record) {
+    rateLimitStore.set(key, { count: 1, lastReset: now });
+  } else {
+    if (now - record.lastReset > WINDOW_MS) {
+      // Window expired, reset
+      record.count = 1;
+      record.lastReset = now;
+    } else {
+      record.count++;
+    }
+  }
+}
+
+export const POST: APIRoute = async ({ request, clientAddress }) => {
   try {
     const { email, code, password } = await request.json();
     const normalizedEmail = email.trim().toLowerCase();
 
+    // --- RATE LIMITING ---
+    const emailKey = `email:${normalizedEmail}`;
+    const ipKey = `ip:${clientAddress}`;
+
+    if (isRateLimited(emailKey) || isRateLimited(ipKey)) {
+      return new Response(
+        JSON.stringify({ error: 'Too many requests, please try again later.' }),
+        { status: 429 } // 429 Too Many Requests
+      );
+    }
+
+    // --- Input Validation ---
     if (!normalizedEmail || !code || !password) {
       return new Response(
         JSON.stringify({ error: 'Email, code, and password are required' }),
@@ -13,7 +64,6 @@ export const POST: APIRoute = async ({ request }) => {
       );
     }
 
-    // Validate code format
     if (!/^\d{6}$/.test(code)) {
       return new Response(
         JSON.stringify({ error: 'Invalid code format' }),
@@ -21,7 +71,7 @@ export const POST: APIRoute = async ({ request }) => {
       );
     }
 
-    // Get user by email
+    // --- Get user by email ---
     const { data: userData, error: userError } = await supabaseAdmin
       .from('users')
       .select('id')
@@ -35,11 +85,11 @@ export const POST: APIRoute = async ({ request }) => {
       );
     }
 
-    // Verify reset code
+    // --- Verify reset code ---
     const { data: resetData, error: resetError } = await supabaseAdmin
       .from('password_reset_codes')
       .select('*')
-      .eq('user_id', userData.id)
+      .eq('user_id', userData.id) // Now userData is defined
       .eq('code', code)
       .eq('used', false)
       .gte('expires_at', new Date().toISOString())
@@ -52,9 +102,9 @@ export const POST: APIRoute = async ({ request }) => {
       );
     }
 
-    // Update password FIRST
+    // --- Update password FIRST ---
     const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
-      userData.id,
+      userData.id, // Use userData.id here
       { password }
     );
 
@@ -62,7 +112,7 @@ export const POST: APIRoute = async ({ request }) => {
       throw updateError;
     }
 
-    // Mark code as used AFTER successful password update
+    // --- Mark code as used AFTER successful password update ---
     const { error: updateCodeError } = await supabaseAdmin
       .from('password_reset_codes')
       .update({ used: true, updated_at: new Date().toISOString() })
@@ -71,6 +121,10 @@ export const POST: APIRoute = async ({ request }) => {
     if (updateCodeError) {
       throw updateCodeError;
     }
+
+    // --- Increment rate limit counters AFTER password update ---
+    incrementRateLimit(emailKey);
+    incrementRateLimit(ipKey);
 
     return new Response(
       JSON.stringify({ success: true }),

@@ -1,9 +1,10 @@
 import type { APIRoute } from 'astro';
 import { supabaseAdmin } from '../../../lib/supabase';
 import nodemailer from 'nodemailer';
+import { randomInt } from 'crypto';
 
 function generateResetCode(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  return randomInt(100000, 999999).toString();
 }
 
 export const POST: APIRoute = async ({ request }) => {
