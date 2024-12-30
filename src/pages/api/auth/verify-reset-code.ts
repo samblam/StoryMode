@@ -1,4 +1,3 @@
-// src/pages/api/auth/verify-reset-code.ts
 import type { APIRoute } from 'astro';
 import { supabaseAdmin } from '../../../lib/supabase';
 
@@ -14,7 +13,7 @@ export const POST: APIRoute = async ({ request }) => {
       );
     }
 
-    // Validate code format (must be exactly 6 digits)
+    // Validate code format
     if (!/^\d{6}$/.test(code)) {
       return new Response(
         JSON.stringify({ error: 'Invalid code format' }),
@@ -36,7 +35,7 @@ export const POST: APIRoute = async ({ request }) => {
       );
     }
 
-    // Verify reset code using service role
+    // Verify reset code
     const { data: resetData, error: resetError } = await supabaseAdmin
       .from('password_reset_codes')
       .select('*')
@@ -53,17 +52,7 @@ export const POST: APIRoute = async ({ request }) => {
       );
     }
 
-    // Mark code as used
-    const { error: updateCodeError } = await supabaseAdmin
-      .from('password_reset_codes')
-      .update({ used: true, updated_at: new Date().toISOString() })
-      .eq('id', resetData.id);
-
-    if (updateCodeError) {
-      throw updateCodeError;
-    }
-
-    // Update password
+    // Update password FIRST
     const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
       userData.id,
       { password }
@@ -71,6 +60,16 @@ export const POST: APIRoute = async ({ request }) => {
 
     if (updateError) {
       throw updateError;
+    }
+
+    // Mark code as used AFTER successful password update
+    const { error: updateCodeError } = await supabaseAdmin
+      .from('password_reset_codes')
+      .update({ used: true, updated_at: new Date().toISOString() })
+      .eq('id', resetData.id);
+
+    if (updateCodeError) {
+      throw updateCodeError;
     }
 
     return new Response(
