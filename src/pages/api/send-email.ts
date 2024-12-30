@@ -81,10 +81,14 @@ export const POST: APIRoute = async ({ request }) => {
     // Verify SMTP connection
     await transporter.verify();
 
+    // Get CC recipients
+    const ccRecipients = import.meta.env.SMTP_CC?.split(',').filter(Boolean) || [];
+
     // Send mail
     const info = await transporter.sendMail({
       from: `"${sanitizedName}" <${email}>`,
-      to: "sam@storymode.ca",
+      to: import.meta.env.SMTP_TO,
+      cc: ccRecipients,
       subject: "New Contact Form Submission - Story Mode",
       text: sanitizedMessage,
       html: `
@@ -94,6 +98,7 @@ export const POST: APIRoute = async ({ request }) => {
         <p><strong>Message:</strong></p>
         <p>${sanitizedMessage.replace(/\n/g, '<br>')}</p>
       `,
+      replyTo: email,
     });
 
     return new Response(JSON.stringify({
