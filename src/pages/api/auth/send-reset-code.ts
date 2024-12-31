@@ -60,18 +60,26 @@ export const POST: APIRoute = async ({ request }) => {
       },
     });
 
-    await transporter.sendMail({
-      from: `"Story Mode" <${import.meta.env.SMTP_USER}>`,
-      to: normalizedEmail,
-      subject: "Password Reset Code - Story Mode",
-      html: `
-        <h2>Password Reset Code</h2>
-        <p>You've requested to reset your password. Enter the following code to continue:</p>
-        <h1 style="font-size: 32px; letter-spacing: 5px; text-align: center; padding: 20px;">${code}</h1>
-        <p>This code will expire in 30 minutes.</p>
-        <p>If you didn't request this reset, please ignore this email.</p>
-      `,
-    });
+    try {
+      await transporter.sendMail({
+        from: `"Story Mode" <${import.meta.env.SMTP_USER}>`,
+        to: normalizedEmail,
+        subject: "Password Reset Code - Story Mode",
+        html: `
+          <h2>Password Reset Code</h2>
+          <p>You've requested to reset your password. Enter the following code to continue:</p>
+          <h1 style="font-size: 32px; letter-spacing: 5px; text-align: center; padding: 20px;">${code}</h1>
+          <p>This code will expire in 30 minutes.</p>
+          <p>If you didn't request this reset, please ignore this email.</p>
+        `,
+      });
+    } catch (error) {
+      console.error('Failed to send password reset email:', error);
+      return new Response(
+        JSON.stringify({ error: 'Failed to send password reset email. Please try again later.' }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
 
     return new Response(
       JSON.stringify({ success: true }),

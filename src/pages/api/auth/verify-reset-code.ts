@@ -6,6 +6,16 @@ const rateLimitStore = new Map<string, { count: number; lastReset: number }>();
 const MAX_ATTEMPTS = 5; // Max attempts per window
 const WINDOW_MS = 60 * 60 * 1000; // 1-hour window (in milliseconds)
 
+function validateInput(email: string, code: string, password: string) {
+  if (!email || !code || !password) {
+    return { error: 'Email, code, and password are required', status: 400 };
+  }
+  if (!/^\d{6}$/.test(code)) {
+    return { error: 'Invalid code format', status: 400 };
+  }
+  return null;
+}
+
 // Function to check if a key (email or IP) is rate-limited
 function isRateLimited(key: string): boolean {
   const record = rateLimitStore.get(key);
@@ -29,14 +39,12 @@ function incrementRateLimit(key: string): void {
 
   if (!record) {
     rateLimitStore.set(key, { count: 1, lastReset: now });
+  } else if (now - record.lastReset > WINDOW_MS) {
+    // Window expired, reset
+    record.count = 1;
+    record.lastReset = now;
   } else {
-    if (now - record.lastReset > WINDOW_MS) {
-      // Window expired, reset
-      record.count = 1;
-      record.lastReset = now;
-    } else {
-      record.count++;
-    }
+    record.count++;
   }
 }
 
@@ -52,23 +60,16 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
     if (isRateLimited(emailKey) || isRateLimited(ipKey)) {
       return new Response(
         JSON.stringify({ error: 'Too many requests, please try again later.' }),
-        { status: 429 } // 429 Too Many Requests
+        { status: 429 }
       );
     }
 
     // --- Input Validation ---
-    if (!normalizedEmail || !code || !password) {
-      return new Response(
-        JSON.stringify({ error: 'Email, code, and password are required' }),
-        { status: 400 }
-      );
-    }
-
-    if (!/^\d{6}$/.test(code)) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid code format' }),
-        { status: 400 }
-      );
+    const validationError = validateInput(normalizedEmail, code, password);
+    if (validationError) {
+      return new Response(JSON.stringify({ error: validationError.error }), {
+        status: validationError.status,
+      });
     }
 
     // --- Get user by email ---
@@ -89,7 +90,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
     const { data: resetData, error: resetError } = await supabaseAdmin
       .from('password_reset_codes')
       .select('*')
-      .eq('user_id', userData.id) // Now userData is defined
+      .eq('user_id', userData.id)
       .eq('code', code)
       .eq('used', false)
       .gte('expires_at', new Date().toISOString())
@@ -104,7 +105,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
 
     // --- Update password FIRST ---
     const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
-      userData.id, // Use userData.id here
+      userData.id,
       { password }
     );
 
@@ -134,7 +135,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
     console.error('Password reset verification error:', error);
     return new Response(
       JSON.stringify({
-        error: error instanceof Error ? error.message : 'Failed to verify reset code'
+        error: error instanceof Error ? error.message : 'Failed to verify reset code',
       }),
       { status: 500 }
     );
