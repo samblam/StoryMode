@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { supabaseAdmin } from '../../../chunks/supabase_D4M8dM3h.mjs';
+import { supabaseAdmin } from '../../../chunks/supabase_CUwi8gWR.mjs';
 export { renderers } from '../../../renderers.mjs';
 
 const POST = async ({ request, cookies }) => {
@@ -18,8 +18,8 @@ const POST = async ({ request, cookies }) => {
       });
     }
     const supabaseAuth = createClient(
-      "https://iubzudsaueifxrwrqfjw.supabase.co",
-      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml1Ynp1ZHNhdWVpZnhyd3JxZmp3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzM3Njc2NzQsImV4cCI6MjA0OTM0MzY3NH0.SNXX_0_NMSJqOKSMMxM5WP6sfR3zokgCgdJkH4s-xfg",
+      undefined                                   ,
+      undefined                                        ,
       {
         auth: {
           autoRefreshToken: false,

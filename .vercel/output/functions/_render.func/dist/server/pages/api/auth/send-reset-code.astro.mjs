@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '../../../chunks/supabase_D4M8dM3h.mjs';
+import { supabaseAdmin } from '../../../chunks/supabase_CUwi8gWR.mjs';
 import nodemailer from 'nodemailer';
 import { randomInt } from 'crypto';
 export { renderers } from '../../../renderers.mjs';
@@ -34,17 +34,17 @@ const POST = async ({ request }) => {
       throw resetError;
     }
     const transporter = nodemailer.createTransport({
-      host: "smtp.purelymail.com",
-      port: parseInt("587"),
+      host: undefined                         ,
+      port: parseInt(undefined                         ),
       secure: false,
       auth: {
-        user: "info@storymode.ca",
-        pass: "StoryModeNickBenSam"
+        user: undefined                         ,
+        pass: undefined                         
       }
     });
     try {
       await transporter.sendMail({
-        from: `"Story Mode" <${"info@storymode.ca"}>`,
+        from: `"Story Mode" <${undefined                         }>`,
         to: normalizedEmail,
         subject: "Password Reset Code - Story Mode",
         html: `

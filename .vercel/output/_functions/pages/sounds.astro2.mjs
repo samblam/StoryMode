@@ -1,9 +1,9 @@
 /* empty css                                 */
-import { c as createComponent, r as renderTemplate, m as maybeRenderHead, a as addAttribute, d as renderComponent, f as renderScript, g as createAstro } from '../chunks/astro/server_CkexDsn7.mjs';
+import { c as createComponent, r as renderTemplate, m as maybeRenderHead, a as addAttribute, d as renderComponent, f as renderScript, g as createAstro } from '../chunks/astro/server_COeGrUW_.mjs';
 import 'kleur/colors';
-import { $ as $$Layout } from '../chunks/Layout_Bk1nqY6S.mjs';
-import { a as $$SoundList, $ as $$ProfileCard } from '../chunks/ProfileCard_BYgvrZHK.mjs';
-import { supabaseAdmin } from '../chunks/supabase_D4M8dM3h.mjs';
+import { $ as $$Layout } from '../chunks/Layout_gjCW3zoU.mjs';
+import { a as $$SoundList, $ as $$ProfileCard } from '../chunks/ProfileCard_DekPeNQx.mjs';
+import { supabaseAdmin } from '../chunks/supabase_CUwi8gWR.mjs';
 /* empty css                                  */
 export { renderers } from '../renderers.mjs';
 
@@ -65,14 +65,27 @@ const $$Sounds = createComponent(async ($$result, $$props, $$slots) => {
   const isAdmin = user?.role === "admin";
   const success = Astro2.url.searchParams.get("success");
   const error = Astro2.url.searchParams.get("error");
-  Astro2.url.searchParams.get("tab") || "library";
   const selectedClientId = Astro2.url.searchParams.get("client") || "all";
   let clients = [];
   if (isAdmin) {
     const { data: clientsData } = await supabaseAdmin.from("clients").select("id, name, company").eq("active", true).order("name");
     clients = clientsData || [];
   }
-  const profiles = await getAccessibleSoundProfiles(user);
+  const compatibleUser = {
+    id: user.id,
+    email: user.email,
+    role: user.role,
+    clientId: user.client?.id || null,
+    client: user.client ? {
+      id: user.client.id,
+      name: user.client.name,
+      company: user.client.company || null,
+      email: user.email,
+      active: true
+    } : null,
+    createdAt: user.createdAt
+  };
+  const profiles = await getAccessibleSoundProfiles(compatibleUser);
   const filteredProfiles = selectedClientId === "all" ? profiles : profiles.filter((p) => p.client_id === selectedClientId);
   const profilesByClient = organizeProfilesByClient(filteredProfiles);
   console.log("Sounds page - profiles:", profiles);

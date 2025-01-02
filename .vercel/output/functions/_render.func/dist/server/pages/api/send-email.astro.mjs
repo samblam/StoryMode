@@ -36,15 +36,25 @@ const POST = async ({ request }) => {
         }
       });
     }
-    if (false) ;
+    if (!undefined                          || !undefined                         ) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: "Email service not configured"
+      }), {
+        status: 500,
+        headers: {
+          "Content-Type": "application/json"
+        }
+      });
+    }
     const transporter = nodemailer.createTransport({
-      host: "smtp.purelymail.com",
-      port: parseInt("587"),
+      host: undefined                         ,
+      port: parseInt(undefined                         ),
       secure: false,
       // true for 465, false for other ports
       auth: {
-        user: "info@storymode.ca",
-        pass: "StoryModeNickBenSam"
+        user: undefined                         ,
+        pass: undefined                         
       }
     });
     try {
@@ -62,11 +72,11 @@ const POST = async ({ request }) => {
         }
       });
     }
-    const ccRecipients = "sam@storymode.ca,nick@storymode.ca,ben@storymode.ca"?.split(",").filter(Boolean) || [];
+    const ccRecipients = undefined                       ?.split(",").filter(Boolean) || [];
     const info = await transporter.sendMail({
-      from: `"Story Mode Contact Form" <${"info@storymode.ca"}>`,
+      from: `"Story Mode Contact Form" <${undefined                         }>`,
       // Use your authorized address here
-      to: "info@storymode.ca",
+      to: undefined                       ,
       cc: ccRecipients,
       subject: "New Contact Form Submission - Story Mode",
       text: sanitizedMessage,
