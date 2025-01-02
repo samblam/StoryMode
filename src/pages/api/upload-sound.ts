@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
-import fs from 'fs/promises';
-import path from 'path';
+import { createClient } from '@supabase/supabase-js';
+import type { Database } from '../../types/database';
 
 export const POST: APIRoute = async ({ request }) => {
   try {
@@ -35,45 +35,58 @@ export const POST: APIRoute = async ({ request }) => {
       );
     }
 
-    // Create directory if it doesn't exist
-    const publicDir = path.join(process.cwd(), 'public');
-    const soundsDir = path.join(publicDir, 'sounds', profile);
-    await fs.mkdir(soundsDir, { recursive: true });
+    // Initialize Supabase client
+    const supabase = createClient<Database>(
+      import.meta.env.PUBLIC_SUPABASE_URL,
+      import.meta.env.PUBLIC_SUPABASE_ANON_KEY
+    );
 
     // Generate safe filename
     const extension = file.type.split('/')[1];
     const safeName = name.toLowerCase().replace(/[^a-z0-9]/g, '-');
-    const filename = `${safeName}.${extension}`;
-    const filepath = path.join(soundsDir, filename);
+    const filePath = `${profile}/${safeName}.${extension}`;
 
-    // Save the file
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    await fs.writeFile(filepath, buffer);
+    // Upload file to Supabase Storage
+    const { data: uploadData, error: uploadError } = await supabase
+      .storage
+      .from('sounds')
+      .upload(filePath, file);
 
-    // Update sounds data file
-    const soundsDataPath = path.join(publicDir, 'sounds', 'sounds-data.json');
-    let soundsData = [];
-    try {
-      const data = await fs.readFile(soundsDataPath, 'utf-8');
-      soundsData = JSON.parse(data);
-    } catch (error) {
-      // File doesn't exist yet, start with empty array
+    if (uploadError) {
+      return new Response(
+        JSON.stringify({ error: uploadError.message }),
+        { status: 500 }
+      );
     }
 
-    soundsData.push({
-      profile,
-      name,
-      description,
-      file: `/sounds/${profile}/${filename}`
-    });
+    // Get public URL of uploaded file
+    const { data: urlData } = supabase
+      .storage
+      .from('sounds')
+      .getPublicUrl(filePath);
 
-    await fs.writeFile(soundsDataPath, JSON.stringify(soundsData, null, 2));
+    // Store metadata in database
+    const { error: dbError } = await supabase
+      .from('sounds')
+      .insert({
+        profile,
+        name,
+        description,
+        file_path: filePath,
+        url: urlData.publicUrl
+      });
+
+    if (dbError) {
+      return new Response(
+        JSON.stringify({ error: dbError.message }),
+        { status: 500 }
+      );
+    }
 
     return new Response(
       JSON.stringify({ 
         success: true,
-        url: `/sounds/${profile}/${filename}`
+        url: urlData.publicUrl
       }),
       { status: 200 }
     );
