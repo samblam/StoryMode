@@ -2,12 +2,24 @@
 import Layout from '../layouts/Layout.astro';
 import ProfileCard from '../components/ProfileCard.astro';
 import SoundProfile from '../components/SoundProfile.astro';
-import type { User as AuthUser } from '../types/auth';
+import type { User } from '../types/auth';
 import { getAccessibleSoundProfiles, organizeProfilesByClient } from '../utils/accessControl';
 import { supabaseAdmin } from '../lib/supabase';
 
 // Authentication check
-const user = Astro.locals.user;
+interface LocalUser {
+  id: string;
+  email: string;
+  role: 'admin' | 'client';
+  client?: {
+    id: string;
+    name: string;
+    company?: string | null;
+  } | null;
+  createdAt: string;
+}
+
+const user = Astro.locals.user as LocalUser;
 if (!user) {
   return Astro.redirect('/login');
 }
@@ -17,11 +29,16 @@ const isAdmin = user?.role === 'admin';
 // Get URL parameters
 const success = Astro.url.searchParams.get('success');
 const error = Astro.url.searchParams.get('error');
-const currentTab = Astro.url.searchParams.get('tab') || 'library';
 const selectedClientId = Astro.url.searchParams.get('client') || 'all';
 
+interface Client {
+  id: string;
+  name: string;
+  company: string | null;
+}
+
 // Fetch all active clients for admin
-let clients = [];
+let clients: Client[] = [];
 if (isAdmin) {
   const { data: clientsData } = await supabaseAdmin
     .from('clients')
@@ -32,7 +49,22 @@ if (isAdmin) {
 }
 
 // Get profiles with access control
-const profiles = await getAccessibleSoundProfiles(user);
+const compatibleUser: User = {
+  id: user.id,
+  email: user.email,
+  role: user.role,
+  clientId: user.client?.id || null,
+  client: user.client ? {
+    id: user.client.id,
+    name: user.client.name,
+    company: user.client.company || null,
+    email: user.email,
+    active: true
+  } : null,
+  createdAt: user.createdAt
+};
+
+const profiles = await getAccessibleSoundProfiles(compatibleUser);
 const filteredProfiles = selectedClientId === 'all' 
   ? profiles 
   : profiles.filter(p => p.client_id === selectedClientId);
