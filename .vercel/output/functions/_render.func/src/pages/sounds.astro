@@ -1,0 +1,204 @@
+---
+import Layout from '../layouts/Layout.astro';
+import ProfileCard from '../components/ProfileCard.astro';
+import SoundProfile from '../components/SoundProfile.astro';
+import type { User as AuthUser } from '../types/auth';
+import { getAccessibleSoundProfiles, organizeProfilesByClient } from '../utils/accessControl';
+import { supabaseAdmin } from '../lib/supabase';
+
+// Authentication check
+const user = Astro.locals.user;
+if (!user) {
+  return Astro.redirect('/login');
+}
+
+const isAdmin = user?.role === 'admin';
+
+// Get URL parameters
+const success = Astro.url.searchParams.get('success');
+const error = Astro.url.searchParams.get('error');
+const currentTab = Astro.url.searchParams.get('tab') || 'library';
+const selectedClientId = Astro.url.searchParams.get('client') || 'all';
+
+// Fetch all active clients for admin
+let clients = [];
+if (isAdmin) {
+  const { data: clientsData } = await supabaseAdmin
+    .from('clients')
+    .select('id, name, company')
+    .eq('active', true)
+    .order('name');
+  clients = clientsData || [];
+}
+
+// Get profiles with access control
+const profiles = await getAccessibleSoundProfiles(user);
+const filteredProfiles = selectedClientId === 'all' 
+  ? profiles 
+  : profiles.filter(p => p.client_id === selectedClientId);
+const profilesByClient = organizeProfilesByClient(filteredProfiles);
+console.log('Sounds page - profiles:', profiles);
+console.log('Sounds page - filteredProfiles:', filteredProfiles);
+console.log('Sounds page - profilesByClient:', profilesByClient);
+---
+
+<Layout title="Sound Library | Story Mode">
+  <main class="min-h-screen bg-gray-100 py-12">
+    <div class="max-w-6xl mx-auto px-4">
+      <!-- Header -->
+      <div class="flex flex-col space-y-4 mb-8">
+        <div class="flex justify-between items-center">
+          <h1 class="text-6xl font-editorial">Sound Library</h1>
+          {isAdmin && (
+            <div class="flex space-x-4">
+              <a
+                href="/sounds/upload"
+                class="bg-blue-400 text-white px-6 py-3 rounded-lg text-lg hover:bg-blue-500 transition-colors"
+              >
+                Upload Sound
+              </a>
+              <a
+                href="/sounds/profiles/new"
+                class="bg-green-400 text-white px-6 py-3 rounded-lg text-lg hover:bg-green-500 transition-colors"
+              >
+                New Profile
+              </a>
+            </div>
+          )}
+        </div>
+
+        {isAdmin && (
+          <div class="flex items-center space-x-4">
+            <label for="clientFilter" class="text-lg font-medium">Filter by Client:</label>
+            <select
+              id="clientFilter"
+              class="p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400"
+            >
+              <option value="all">All Clients</option>
+              {clients.map(client => (
+                <option 
+                  value={client.id}
+                  selected={selectedClientId === client.id}
+                >
+                  {client.name} {client.company ? `(${client.company})` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
+
+      <!-- Status Messages -->
+      {success && (
+        <div class="mb-8 p-4 bg-green-50 text-green-600 rounded-lg" id="success-message">
+          {decodeURIComponent(success)}
+        </div>
+      )}
+      {error && (
+        <div class="mb-8 p-4 bg-red-50 text-red-600 rounded-lg" id="error-message">
+          {decodeURIComponent(error)}
+        </div>
+      )}
+
+      <!-- Tab Navigation -->
+      <div class="flex space-x-4 mb-8 border-b border-gray-200">
+        <button
+          class="tab-button px-6 py-3 text-lg font-medium rounded-t-lg focus:outline-none"
+          data-tab="library"
+        >
+          Sound Library
+        </button>
+        <button
+          class="tab-button px-6 py-3 text-lg font-medium rounded-t-lg focus:outline-none"
+          data-tab="profiles"
+        >
+          Sound Profiles
+        </button>
+      </div>
+
+      <!-- Tab Content -->
+      <div class="tab-content" data-content="library">
+        <div class="space-y-12" id="library-content">
+          {Object.entries(profilesByClient).map(([clientName, clientProfiles]) => (
+            <div class="space-y-8">
+              <h2 class="text-3xl font-editorial text-gray-700">{clientName}</h2>
+              {clientProfiles.map(profile => (
+                <SoundProfile 
+                  title={profile.title}
+                  description={profile.description}
+                  sounds={profile.sounds.map(sound => ({
+                    id: sound.id,
+                    name: sound.name,
+                    description: sound.description,
+                    file: sound.file_path,
+                    profileId: sound.profile_id
+                  }))}
+                  profileId={profile.id}
+                  isAdmin={isAdmin}
+                />
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div class="tab-content hidden" data-content="profiles">
+        <div class="space-y-12" id="profiles-content">
+          {Object.entries(profilesByClient).map(([clientName, clientProfiles]) => (
+            <div class="space-y-8">
+              <h2 class="text-3xl font-editorial text-gray-700">{clientName}</h2>
+              {clientProfiles.map(profile => (
+                <ProfileCard 
+                  profile={{
+                    id: profile.id,
+                    title: profile.title,
+                    description: profile.description,
+                    slug: profile.slug,
+                    sounds: profile.sounds.map(sound => ({
+                      id: sound.id,
+                      name: sound.name,
+                      description: sound.description,
+                      file: sound.file_path,
+                      profileId: sound.profile_id
+                    }))
+                  }}
+                  isAdmin={isAdmin}
+                />
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  </main>
+</Layout>
+
+<style>
+  .tab-button {
+    @apply text-gray-500 hover:text-gray-700 hover:bg-gray-50 transition-colors;
+  }
+
+  .tab-button.active {
+    @apply text-green-500 border-b-2 border-green-500 bg-white;
+  }
+</style>
+
+<script>
+  import { setupTabs, setupStatusMessages } from '../utils/uiUtils';
+
+  document.addEventListener('DOMContentLoaded', () => {
+      console.log('sounds.astro - DOMContentLoaded');
+    setupTabs();
+    setupStatusMessages();
+
+    // Handle client filter changes
+    const clientFilter = document.getElementById('clientFilter') as HTMLSelectElement;
+    if (clientFilter) {
+      clientFilter.addEventListener('change', () => {
+        const url = new URL(window.location.href);
+        url.searchParams.set('client', clientFilter.value);
+        window.location.href = url.toString();
+      });
+    }
+  });
+</script>

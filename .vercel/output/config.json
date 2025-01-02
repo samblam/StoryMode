@@ -1,0 +1,163 @@
+{
+	"version": 3,
+	"routes": [
+		{
+			"src": "^/_astro/(.*)$",
+			"headers": {
+				"cache-control": "public, max-age=31536000, immutable"
+			},
+			"continue": true
+		},
+		{
+			"handle": "filesystem"
+		},
+		{
+			"src": "^\\/_image\\/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^\\/about\\/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^\\/api\\/auth\\/admin-reset-password\\/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^\\/api\\/auth\\/create-user\\/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^\\/api\\/auth\\/login\\/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^\\/api\\/auth\\/logout\\/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^\\/api\\/auth\\/reset-password\\/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^\\/api\\/auth\\/send-reset-code\\/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^\\/api\\/auth\\/test-token\\/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^\\/api\\/auth\\/verify-reset-code\\/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^\\/api\\/auth\\/verify-session\\/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^\\/api\\/delete-sound\\/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^\\/api\\/send-email\\/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^\\/api\\/sound-profiles\\/([^/]+?)\\/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^\\/api\\/sound-profiles\\/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^\\/api\\/sounds\\/delete\\/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^\\/api\\/sounds\\/refresh-url\\/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^\\/api\\/sounds\\/upload\\/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^\\/api\\/test-connection\\/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^\\/api\\/upload-sound\\/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^\\/blog\\/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^\\/contact\\/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^\\/create-user\\/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^\\/error\\/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^\\/login\\/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^\\/reset-password\\/confirm\\/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^\\/reset-password\\/verify\\/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^\\/reset-password\\/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^\\/reset-password\\/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^\\/sounds\\/profiles\\/new\\/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^\\/sounds\\/profiles\\/([^/]+?)\\/edit\\/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^\\/sounds\\/profiles\\/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^\\/sounds\\/upload\\/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^\\/sounds\\/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^\\/sounds\\/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^\\/works\\/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^\\/$",
+			"dest": "_render"
+		}
+	]
+}

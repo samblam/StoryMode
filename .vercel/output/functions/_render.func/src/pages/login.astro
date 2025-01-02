@@ -1,0 +1,27 @@
+---
+import Layout from '../layouts/Layout.astro';
+import LoginForm from '../components/LoginForm.astro';
+
+// Redirect if already logged in
+const user = Astro.locals.user;
+if (user) {
+  return Astro.redirect('/sounds');  // Redirect to sounds page instead of dashboard
+}
+---
+
+<Layout title="Login | Story Mode">
+  <main class="min-h-screen bg-gray-50 py-12">
+    <div class="max-w-6xl mx-auto px-4">
+      <div class="flex flex-col items-center justify-center min-h-[calc(100vh-16rem)]">
+        <div class="mb-12 text-center">
+          <h1 class="text-5xl font-editorial mb-4">Story Mode</h1>
+          <p class="text-xl text-gray-600">Audio Branding & UX Sound Design</p>
+        </div>
+
+        <div class="w-full max-w-md bg-white rounded-lg shadow-lg p-8">
+          <LoginForm />
+        </div>
+      </div>
+    </div>
+  </main>
+</Layout>
