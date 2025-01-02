@@ -1,7 +1,4 @@
 ﻿{
-  "buildCommand": "npm run build",
-  "devCommand": "npm run dev",
-  "installCommand": "npm install",
-  "framework": "astro",
-  "outputDirectory": "dist"
-}
+    "buildCommand": "npm run build",
+    "framework": "astro"
+  }
