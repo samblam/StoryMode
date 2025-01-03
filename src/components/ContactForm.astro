@@ -81,23 +81,84 @@
   const successMessage = formStatus?.querySelector('.success');
   const errorMessage = formStatus?.querySelector('.error');
 
+  import { validateField, COMMON_RULES, sanitizeInput } from '../utils/validation';
+
   const validateForm = (data: FormData): string | null => {
-    if (!data.name || data.name.length < 2) {
-      return 'Name must be at least 2 characters long';
-    }
-    if (data.name.length > 100) {
-      return 'Name must not exceed 100 characters';
-    }
-    if (!data.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
-      return 'Please enter a valid email address (e.g., name@example.com)';
-    }
-    if (!data.message || data.message.length < 10) {
-      return 'Message must be at least 10 characters long';
-    }
-    if (data.message.length > 1000) {
-      return 'Message must not exceed 1000 characters';
-    }
+    const nameValidation = validateField(data.name, COMMON_RULES.name);
+    if (!nameValidation.valid) return nameValidation.message || 'Invalid name';
+
+    const emailValidation = validateField(data.email, COMMON_RULES.email);
+    if (!emailValidation.valid) return emailValidation.message || 'Invalid email';
+
+    const messageValidation = validateField(data.message, [
+      { minLength: 10, message: 'Message must be at least 10 characters' },
+      { maxLength: 1000, message: 'Message cannot exceed 1000 characters' },
+      { pattern: /^[A-Za-z0-9\s\-_.,!?'"()]+$/, message: 'Message contains invalid characters' }
+    ]);
+    if (!messageValidation.valid) return messageValidation.message || 'Invalid message';
+
     return null;
+  };
+
+  const setupRealTimeValidation = () => {
+    const nameInput = form.querySelector('#name') as HTMLInputElement;
+    const emailInput = form.querySelector('#email') as HTMLInputElement;
+    const messageInput = form.querySelector('#message') as HTMLTextAreaElement;
+
+    const showError = (input: HTMLElement, message: string) => {
+      const errorElement = input.nextElementSibling as HTMLElement;
+      if (errorElement && errorElement.classList.contains('text-sm')) {
+        errorElement.textContent = message;
+        errorElement.classList.remove('text-gray-600');
+        errorElement.classList.add('text-red-600');
+        input.setAttribute('aria-invalid', 'true');
+      }
+    };
+
+    const clearError = (input: HTMLElement) => {
+      const errorElement = input.nextElementSibling as HTMLElement;
+      if (errorElement && errorElement.classList.contains('text-sm')) {
+        errorElement.textContent = input.id === 'message'
+          ? 'Must be between 10 and 1000 characters'
+          : input.id === 'name'
+          ? 'Must be between 2 and 100 characters'
+          : 'Please enter a valid email address';
+        errorElement.classList.remove('text-red-600');
+        errorElement.classList.add('text-gray-600');
+        input.setAttribute('aria-invalid', 'false');
+      }
+    };
+
+    nameInput?.addEventListener('input', () => {
+      const validation = validateField(nameInput.value, COMMON_RULES.name);
+      if (!validation.valid) {
+        showError(nameInput, validation.message!);
+      } else {
+        clearError(nameInput);
+      }
+    });
+
+    emailInput?.addEventListener('input', () => {
+      const validation = validateField(emailInput.value, COMMON_RULES.email);
+      if (!validation.valid) {
+        showError(emailInput, validation.message!);
+      } else {
+        clearError(emailInput);
+      }
+    });
+
+    messageInput?.addEventListener('input', () => {
+      const validation = validateField(messageInput.value, [
+        { minLength: 10, message: 'Message must be at least 10 characters' },
+        { maxLength: 1000, message: 'Message cannot exceed 1000 characters' },
+        { pattern: /^[A-Za-z0-9\s\-_.,!?'"()]+$/, message: 'Message contains invalid characters' }
+      ]);
+      if (!validation.valid) {
+        showError(messageInput, validation.message!);
+      } else {
+        clearError(messageInput);
+      }
+    });
   };
 
   const updateCharCount = (input: HTMLTextAreaElement | HTMLInputElement, counterId: string) => {
@@ -107,6 +168,9 @@
       counter.textContent = `${remaining} characters remaining`;
     }
   };
+
+  // Initialize real-time validation
+  setupRealTimeValidation();
 
   // Add character counters
   const messageInput = form.querySelector('#message') as HTMLTextAreaElement;
@@ -118,6 +182,49 @@
   }
 
   form?.addEventListener('submit', async (e) => {
+    // Validate all fields before submission
+    const nameInput = form.querySelector('#name') as HTMLInputElement;
+    const emailInput = form.querySelector('#email') as HTMLInputElement;
+    const messageInput = form.querySelector('#message') as HTMLTextAreaElement;
+
+    const nameValidation = validateField(nameInput.value, COMMON_RULES.name);
+    const emailValidation = validateField(emailInput.value, COMMON_RULES.email);
+    const messageValidation = validateField(messageInput.value, [
+      { minLength: 10, message: 'Message must be at least 10 characters' },
+      { maxLength: 1000, message: 'Message cannot exceed 1000 characters' },
+      { pattern: /^[A-Za-z0-9\s\-_.,!?'"()]+$/, message: 'Message contains invalid characters' }
+    ]);
+
+    if (!nameValidation.valid || !emailValidation.valid || !messageValidation.valid) {
+      e.preventDefault();
+      if (!nameValidation.valid) {
+        const errorElement = nameInput.nextElementSibling as HTMLElement;
+        errorElement.textContent = nameValidation.message!;
+        errorElement.classList.remove('text-gray-600');
+        errorElement.classList.add('text-red-600');
+        nameInput.setAttribute('aria-invalid', 'true');
+      }
+      if (!emailValidation.valid) {
+        const errorElement = emailInput.nextElementSibling as HTMLElement;
+        errorElement.textContent = emailValidation.message!;
+        errorElement.classList.remove('text-gray-600');
+        errorElement.classList.add('text-red-600');
+        emailInput.setAttribute('aria-invalid', 'true');
+      }
+      if (!messageValidation.valid) {
+        const errorElement = messageInput.nextElementSibling as HTMLElement;
+        errorElement.textContent = messageValidation.message!;
+        errorElement.classList.remove('text-gray-600');
+        errorElement.classList.add('text-red-600');
+        messageInput.setAttribute('aria-invalid', 'true');
+      }
+      return;
+    }
+
+    // Sanitize inputs before submission
+    nameInput.value = sanitizeInput(nameInput.value);
+    emailInput.value = sanitizeInput(emailInput.value);
+    messageInput.value = sanitizeInput(messageInput.value);
     e.preventDefault();
 
     // Reset status messages

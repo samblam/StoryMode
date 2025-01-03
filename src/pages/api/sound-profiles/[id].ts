@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { supabaseAdmin } from '../../../lib/supabase';
 import { RateLimiter, RATE_LIMITS, rateLimitMiddleware } from '../../../utils/rateLimit';
+import { sanitizeInput } from '../../../utils/validation';
 
 export const DELETE: APIRoute = async ({ params, locals, request }) => {
   const headers = {
@@ -27,10 +28,23 @@ export const DELETE: APIRoute = async ({ params, locals, request }) => {
     }
 
     const { id } = params;
-    if (!id) {
+    const sanitizedId = sanitizeInput(id || '');
+    
+    if (!sanitizedId) {
       return new Response(
-        JSON.stringify({ error: 'Profile ID is required' }), 
-        { 
+        JSON.stringify({ error: 'Profile ID is required' }),
+        {
+          status: 400,
+          headers
+        }
+      );
+    }
+
+    // Validate ID format (UUID)
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(sanitizedId)) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid profile ID format' }),
+        {
           status: 400,
           headers
         }
@@ -41,7 +55,7 @@ export const DELETE: APIRoute = async ({ params, locals, request }) => {
     const { data: sounds, error: fetchError } = await supabaseAdmin
       .from('sounds')
       .select('storage_path')
-      .eq('profile_id', id);
+      .eq('profile_id', sanitizedId);
 
     if (fetchError) {
       console.error('Error fetching sounds:', fetchError);

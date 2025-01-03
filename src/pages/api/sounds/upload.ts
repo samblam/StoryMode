@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import { supabaseAdmin } from '../../../lib/supabase';
 import { uploadSound } from '../../../utils/storageUtils';
 import { RateLimiter, RATE_LIMITS, rateLimitMiddleware } from '../../../utils/rateLimit';
+import { validateField, COMMON_RULES, sanitizeInput } from '../../../utils/validation';
 
 export const POST: APIRoute = async ({ request, cookies }) => {
   const headers = {
@@ -59,15 +60,50 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
     const formData = await request.formData();
     const file = formData.get('sound') as File;
-    const profileId = formData.get('profileId') as string;
-    const profileSlug = formData.get('profileSlug') as string;
-    const name = formData.get('name') as string;
-    const description = formData.get('description') as string;
+    const profileId = sanitizeInput(formData.get('profileId') as string);
+    const profileSlug = sanitizeInput(formData.get('profileSlug') as string);
+    const name = sanitizeInput(formData.get('name') as string);
+    const description = sanitizeInput(formData.get('description') as string);
 
+    // Validate required fields
     if (!file || !profileId || !profileSlug || !name || !description) {
       return new Response(
         JSON.stringify({ error: 'All fields are required' }),
-        { 
+        {
+          status: 400,
+          headers
+        }
+      );
+    }
+
+    // Validate profile ID format (UUID)
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(profileId)) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid profile ID format' }),
+        {
+          status: 400,
+          headers
+        }
+      );
+    }
+
+    // Validate name
+    const nameValidation = validateField(name, COMMON_RULES.name);
+    if (!nameValidation.valid) {
+      return new Response(
+        JSON.stringify({ error: nameValidation.message }),
+        {
+          status: 400,
+          headers
+        }
+      );
+    }
+
+    // Validate description
+    if (description.length < 10 || description.length > 200) {
+      return new Response(
+        JSON.stringify({ error: 'Description must be between 10 and 200 characters' }),
+        {
           status: 400,
           headers
         }
@@ -106,11 +142,11 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       const { data: newSound, error: dbError } = await supabaseAdmin
         .from('sounds')
         .insert({
-          name,
-          description,
+          name: sanitizeInput(name),
+          description: sanitizeInput(description),
           file_path: signedUrl,
           storage_path: storagePath,
-          profile_id: profileId,
+          profile_id: sanitizeInput(profileId),
         })
         .select()
         .single();

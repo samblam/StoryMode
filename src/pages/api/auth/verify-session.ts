@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { supabaseAdmin } from '../../../lib/supabase';
 import { rateLimitMiddleware } from '../../../utils/rateLimit';
+import { sanitizeInput } from '../../../utils/validation';
 
 export const POST: APIRoute = async ({ request, cookies }): Promise<Response> => {
   const headers = {
@@ -14,7 +15,7 @@ export const POST: APIRoute = async ({ request, cookies }): Promise<Response> =>
   }
   Object.assign(headers, rateLimitResponse.headers);
 
-  const token = cookies.get('sb-token')?.value;
+  const token = sanitizeInput(cookies.get('sb-token')?.value || '');
 
   if (!token) {
     return new Response(JSON.stringify({ error: 'No session found' }), {

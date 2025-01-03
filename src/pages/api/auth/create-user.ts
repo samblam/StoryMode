@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { supabaseAdmin } from '../../../lib/supabase';
 import { RateLimiter, RATE_LIMITS, rateLimitMiddleware } from '../../../utils/rateLimit';
+import { validateField, COMMON_RULES, sanitizeInput } from '../../../utils/validation';
 
 export const POST: APIRoute = async ({ request }) => {
   const headers = {
@@ -16,13 +17,32 @@ export const POST: APIRoute = async ({ request }) => {
     Object.assign(headers, rateLimitResponse.headers);
 
     const { email, password, role, name, company } = await request.json();
-    const normalizedEmail = email.trim().toLowerCase();
+    
+    // Sanitize inputs
+    const normalizedEmail = sanitizeInput(email.trim().toLowerCase());
+    const sanitizedPassword = sanitizeInput(password);
+    const sanitizedRole = sanitizeInput(role);
+    const sanitizedName = name ? sanitizeInput(name) : null;
+    const sanitizedCompany = company ? sanitizeInput(company) : null;
 
-    // Validate required fields
-    if (!normalizedEmail || !password || !role) {
+    // Validate email
+    const emailValidation = validateField(normalizedEmail, COMMON_RULES.email);
+    if (!emailValidation.valid) {
       return new Response(
-        JSON.stringify({ error: 'Missing required fields' }), 
-        { 
+        JSON.stringify({ error: emailValidation.message }),
+        {
+          status: 400,
+          headers
+        }
+      );
+    }
+
+    // Validate password
+    const passwordValidation = validateField(sanitizedPassword, COMMON_RULES.password);
+    if (!passwordValidation.valid) {
+      return new Response(
+        JSON.stringify({ error: passwordValidation.message }),
+        {
           status: 400,
           headers
         }
@@ -30,25 +50,44 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     // Validate role
-    if (!['admin', 'client'].includes(role)) {
+    if (!['admin', 'client'].includes(sanitizedRole)) {
       return new Response(
         JSON.stringify({ error: 'Invalid role' }),
-        { 
+        {
           status: 400,
           headers
         }
       );
     }
 
-    // If client role, validate client name
-    if (role === 'client' && !name) {
-      return new Response(
-        JSON.stringify({ error: 'Client name is required' }),
-        { 
-          status: 400,
-          headers
+    // Validate client-specific fields
+    if (sanitizedRole === 'client') {
+      const nameValidation = validateField(sanitizedName || '', COMMON_RULES.name);
+      if (!nameValidation.valid) {
+        return new Response(
+          JSON.stringify({ error: nameValidation.message }),
+          {
+            status: 400,
+            headers
+          }
+        );
+      }
+
+      if (sanitizedCompany) {
+        const companyValidation = validateField(sanitizedCompany, [
+          { minLength: 2, message: 'Company name must be at least 2 characters' },
+          { maxLength: 100, message: 'Company name cannot exceed 100 characters' }
+        ]);
+        if (!companyValidation.valid) {
+          return new Response(
+            JSON.stringify({ error: companyValidation.message }),
+            {
+              status: 400,
+              headers
+            }
+          );
         }
-      );
+      }
     }
 
     // Check if email already exists
@@ -71,7 +110,7 @@ export const POST: APIRoute = async ({ request }) => {
     // 1. Create auth user
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email: normalizedEmail,
-      password,
+      password: sanitizedPassword,
       email_confirm: true
     });
 

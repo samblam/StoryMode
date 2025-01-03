@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { supabaseAdmin } from '../../../lib/supabase';
 import { rateLimitMiddleware } from '../../../utils/rateLimit';
+import { validateField, COMMON_RULES, sanitizeInput } from '../../../utils/validation';
 
 function validateInput(email: string, code: string, password: string) {
   if (!email || !code || !password) {
@@ -26,13 +27,32 @@ export const POST: APIRoute = async ({ request }) => {
     Object.assign(headers, rateLimitResponse.headers);
 
     const { email, code, password } = await request.json();
-    const normalizedEmail = email.trim().toLowerCase();
+    
+    // Sanitize inputs
+    const normalizedEmail = sanitizeInput(email.trim().toLowerCase());
+    const sanitizedCode = sanitizeInput(code);
+    const sanitizedPassword = sanitizeInput(password);
 
-    // --- Input Validation ---
-    const validationError = validateInput(normalizedEmail, code, password);
-    if (validationError) {
-      return new Response(JSON.stringify({ error: validationError.error }), {
-        status: validationError.status,
+    // Validate email
+    const emailValidation = validateField(normalizedEmail, COMMON_RULES.email);
+    if (!emailValidation.valid) {
+      return new Response(JSON.stringify({ error: emailValidation.message }), {
+        status: 400,
+      });
+    }
+
+    // Validate code
+    if (!/^\d{6}$/.test(sanitizedCode)) {
+      return new Response(JSON.stringify({ error: 'Invalid code format' }), {
+        status: 400,
+      });
+    }
+
+    // Validate password
+    const passwordValidation = validateField(sanitizedPassword, COMMON_RULES.password);
+    if (!passwordValidation.valid) {
+      return new Response(JSON.stringify({ error: passwordValidation.message }), {
+        status: 400,
       });
     }
 
@@ -55,7 +75,7 @@ export const POST: APIRoute = async ({ request }) => {
       .from('password_reset_codes')
       .select('*')
       .eq('user_id', userData.id)
-      .eq('code', code)
+      .eq('code', sanitizedCode)
       .eq('used', false)
       .gte('expires_at', new Date().toISOString())
       .single();

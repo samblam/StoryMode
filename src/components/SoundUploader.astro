@@ -94,11 +94,63 @@ const profiles = await getSoundProfiles();
 </div>
 
 <script>
+  import { validateField, COMMON_RULES, sanitizeInput } from '../utils/validation';
+
   const form = document.getElementById('upload-form') as HTMLFormElement;
   const profileSelect = form?.querySelector('#profileId') as HTMLSelectElement;
   const progressBar = document.querySelector('#upload-progress div') as HTMLElement;
   const progressText = document.querySelector('#upload-progress span') as HTMLElement;
   const progressContainer = document.getElementById('upload-progress') as HTMLElement;
+
+  const setupRealTimeValidation = () => {
+    const nameInput = form.querySelector('#name') as HTMLInputElement;
+    const descriptionInput = form.querySelector('#description') as HTMLTextAreaElement;
+
+    const showError = (input: HTMLElement, message: string) => {
+      const errorElement = input.nextElementSibling as HTMLElement;
+      if (errorElement && errorElement.classList.contains('text-sm')) {
+        errorElement.textContent = message;
+        errorElement.classList.remove('text-gray-600');
+        errorElement.classList.add('text-red-600');
+        input.setAttribute('aria-invalid', 'true');
+      }
+    };
+
+    const clearError = (input: HTMLElement) => {
+      const errorElement = input.nextElementSibling as HTMLElement;
+      if (errorElement && errorElement.classList.contains('text-sm')) {
+        errorElement.textContent = '';
+        errorElement.classList.remove('text-red-600');
+        errorElement.classList.add('text-gray-600');
+        input.setAttribute('aria-invalid', 'false');
+      }
+    };
+
+    nameInput?.addEventListener('input', () => {
+      const validation = validateField(nameInput.value, [
+        { minLength: 2, message: 'Name must be at least 2 characters' },
+        { maxLength: 50, message: 'Name cannot exceed 50 characters' },
+        { pattern: /^[A-Za-z0-9\s\-]+$/, message: 'Name contains invalid characters' }
+      ]);
+      if (!validation.valid) {
+        showError(nameInput, validation.message!);
+      } else {
+        clearError(nameInput);
+      }
+    });
+
+    descriptionInput?.addEventListener('input', () => {
+      const validation = validateField(descriptionInput.value, COMMON_RULES.description);
+      if (!validation.valid) {
+        showError(descriptionInput, validation.message!);
+      } else {
+        clearError(descriptionInput);
+      }
+    });
+  };
+
+  // Initialize real-time validation
+  setupRealTimeValidation();
 
   const validateFile = (file: File): string | null => {
     if (!file) {
@@ -121,6 +173,14 @@ const profiles = await getSoundProfiles();
 
     try {
       const formData = new FormData(form);
+      
+      // Sanitize text inputs
+      const nameInput = form.querySelector('#name') as HTMLInputElement;
+      const descriptionInput = form.querySelector('#description') as HTMLTextAreaElement;
+      
+      nameInput.value = sanitizeInput(nameInput.value);
+      descriptionInput.value = sanitizeInput(descriptionInput.value);
+      
       const file = formData.get('sound') as File;
       const selectedOption = profileSelect.selectedOptions[0];
       const profileSlug = selectedOption?.getAttribute('data-slug');

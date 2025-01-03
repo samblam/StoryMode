@@ -1,24 +1,13 @@
 import type { APIRoute } from 'astro';
 import nodemailer from 'nodemailer';
 import { RateLimiter, RATE_LIMITS, rateLimitMiddleware } from '../../utils/rateLimit';
+import { validateField, COMMON_RULES, sanitizeInput } from '../../utils/validation';
 
 interface EmailData {
   name: string;
   email: string;
   message: string;
 }
-
-const validateEmail = (email: string): boolean => {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
-};
-
-const sanitizeInput = (input: string): string => {
-  return input
-    .trim()
-    .replace(/[<>]/g, '')
-    .slice(0, 1000);
-};
 
 export const POST: APIRoute = async ({ request }) => {
   const headers = {
@@ -52,10 +41,11 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     // Validate email format
-    if (!validateEmail(email)) {
+    const emailValidation = validateField(email, COMMON_RULES.email);
+    if (!emailValidation.valid) {
       return new Response(JSON.stringify({
         success: false,
-        error: 'Invalid email format'
+        error: emailValidation.message
       }), {
         status: 400,
         headers

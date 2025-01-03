@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import { supabaseAdmin } from '../../../lib/supabase';
 import type { Database } from '../../../types/database';
 import { RateLimiter, RATE_LIMITS, rateLimitMiddleware } from '../../../utils/rateLimit';
+import { validateField, COMMON_RULES, sanitizeInput } from '../../../utils/validation';
 
 export const POST: APIRoute = async ({ request, cookies }) => {
   const headers = {
@@ -20,14 +21,29 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
     const { email, password } = await request.json();
     
-    // Normalize email and validate format
-    const normalizedEmail = email.trim().toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
-      return new Response(JSON.stringify({ 
-        error: 'Please enter a valid email address' 
-      }), { 
+    // Sanitize inputs
+    const normalizedEmail = sanitizeInput(email.trim().toLowerCase());
+    const sanitizedPassword = sanitizeInput(password);
+
+    // Validate email
+    const emailValidation = validateField(normalizedEmail, COMMON_RULES.email);
+    if (!emailValidation.valid) {
+      return new Response(JSON.stringify({
+        error: emailValidation.message
+      }), {
         status: 400,
-        headers 
+        headers
+      });
+    }
+
+    // Validate password
+    const passwordValidation = validateField(sanitizedPassword, COMMON_RULES.password);
+    if (!passwordValidation.valid) {
+      return new Response(JSON.stringify({
+        error: passwordValidation.message
+      }), {
+        status: 400,
+        headers
       });
     }
 
@@ -47,7 +63,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     // Step 1: Sign in with normalized email and password
     const { data: authData, error: authError } = await supabaseAuth.auth.signInWithPassword({
       email: normalizedEmail,
-      password,
+      password: sanitizedPassword,
     });
 
     if (authError || !authData.user) {

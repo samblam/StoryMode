@@ -121,11 +121,88 @@ if (isAdmin) {
 </form>
 
 <script>
+  import { validateField, COMMON_RULES, sanitizeInput } from '../utils/validation';
+
   const form = document.getElementById('profile-form') as HTMLFormElement;
   const formStatus = document.getElementById('form-status');
   const errorMessage = formStatus?.querySelector('.error');
-  
+
+  const setupRealTimeValidation = () => {
+    const titleInput = form.querySelector('#title') as HTMLInputElement;
+    const descriptionInput = form.querySelector('#description') as HTMLTextAreaElement;
+
+    const showError = (input: HTMLElement, message: string) => {
+      const errorElement = input.nextElementSibling as HTMLElement;
+      if (errorElement && errorElement.classList.contains('text-sm')) {
+        errorElement.textContent = message;
+        errorElement.classList.remove('text-gray-600');
+        errorElement.classList.add('text-red-600');
+        input.setAttribute('aria-invalid', 'true');
+      }
+    };
+
+    const clearError = (input: HTMLElement) => {
+      const errorElement = input.nextElementSibling as HTMLElement;
+      if (errorElement && errorElement.classList.contains('text-sm')) {
+        errorElement.textContent = '';
+        errorElement.classList.remove('text-red-600');
+        errorElement.classList.add('text-gray-600');
+        input.setAttribute('aria-invalid', 'false');
+      }
+    };
+
+    titleInput?.addEventListener('input', () => {
+      const validation = validateField(titleInput.value, COMMON_RULES.title);
+      if (!validation.valid) {
+        showError(titleInput, validation.message!);
+      } else {
+        clearError(titleInput);
+      }
+    });
+
+    descriptionInput?.addEventListener('input', () => {
+      const validation = validateField(descriptionInput.value, COMMON_RULES.description);
+      if (!validation.valid) {
+        showError(descriptionInput, validation.message!);
+      } else {
+        clearError(descriptionInput);
+      }
+    });
+  };
+
+  // Initialize real-time validation
+  setupRealTimeValidation();
+
   form?.addEventListener('submit', async (e) => {
+    // Validate all fields before submission
+    const titleInput = form.querySelector('#title') as HTMLInputElement;
+    const descriptionInput = form.querySelector('#description') as HTMLTextAreaElement;
+
+    const titleValidation = validateField(titleInput.value, COMMON_RULES.title);
+    const descriptionValidation = validateField(descriptionInput.value, COMMON_RULES.description);
+
+    if (!titleValidation.valid || !descriptionValidation.valid) {
+      e.preventDefault();
+      if (!titleValidation.valid) {
+        const errorElement = titleInput.nextElementSibling as HTMLElement;
+        errorElement.textContent = titleValidation.message!;
+        errorElement.classList.remove('text-gray-600');
+        errorElement.classList.add('text-red-600');
+        titleInput.setAttribute('aria-invalid', 'true');
+      }
+      if (!descriptionValidation.valid) {
+        const errorElement = descriptionInput.nextElementSibling as HTMLElement;
+        errorElement.textContent = descriptionValidation.message!;
+        errorElement.classList.remove('text-gray-600');
+        errorElement.classList.add('text-red-600');
+        descriptionInput.setAttribute('aria-invalid', 'true');
+      }
+      return;
+    }
+
+    // Sanitize inputs before submission
+    titleInput.value = sanitizeInput(titleInput.value);
+    descriptionInput.value = sanitizeInput(descriptionInput.value);
     e.preventDefault();
     
     if (!formStatus || !errorMessage) return;

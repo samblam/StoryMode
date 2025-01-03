@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { supabaseAdmin } from '../../../lib/supabase';
 import { RateLimiter, RATE_LIMITS, rateLimitMiddleware } from '../../../utils/rateLimit';
+import { validateField, COMMON_RULES, sanitizeInput } from '../../../utils/validation';
 
 export const POST: APIRoute = async ({ request, locals, cookies }) => {
   const headers = {
@@ -36,11 +37,27 @@ export const POST: APIRoute = async ({ request, locals, cookies }) => {
       );
     }
 
-    if (!data.title || !data.description) {
-      console.log('Validation failed:', { data });
+    // Sanitize inputs
+    const sanitizedTitle = sanitizeInput(data.title);
+    const sanitizedDescription = sanitizeInput(data.description);
+    
+    // Validate title
+    const titleValidation = validateField(sanitizedTitle, COMMON_RULES.name);
+    if (!titleValidation.valid) {
       return new Response(
-        JSON.stringify({ error: 'Title and description are required' }),
-        { 
+        JSON.stringify({ error: titleValidation.message }),
+        {
+          status: 400,
+          headers
+        }
+      );
+    }
+
+    // Validate description
+    if (!sanitizedDescription || sanitizedDescription.length < 10 || sanitizedDescription.length > 200) {
+      return new Response(
+        JSON.stringify({ error: 'Description must be between 10 and 200 characters' }),
+        {
           status: 400,
           headers
         }
@@ -66,9 +83,9 @@ export const POST: APIRoute = async ({ request, locals, cookies }) => {
 
     // Create new profile with explicit type checking
     const profileData = {
-      title: data.title,
-      description: data.description,
-      slug: data.title.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+      title: sanitizedTitle,
+      description: sanitizedDescription,
+      slug: sanitizedTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
       client_id: clientId,
       is_template: false // Add any default fields needed
     };

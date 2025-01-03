@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { supabaseAdmin } from '../../../lib/supabase';
 import { rateLimitMiddleware } from '../../../utils/rateLimit';
+import { validateField, COMMON_RULES, sanitizeInput } from '../../../utils/validation';
 
 export const POST: APIRoute = async ({ request }) => {
   const headers = {
@@ -16,11 +17,14 @@ export const POST: APIRoute = async ({ request }) => {
     Object.assign(headers, rateLimitResponse.headers);
 
     const { email } = await request.json();
-    const normalizedEmail = email.trim().toLowerCase();
-
-    if (!normalizedEmail) {
+    
+    // Sanitize and validate email
+    const normalizedEmail = sanitizeInput(email.trim().toLowerCase());
+    const emailValidation = validateField(normalizedEmail, COMMON_RULES.email);
+    
+    if (!emailValidation.valid) {
       return new Response(
-        JSON.stringify({ error: 'Email is required' }),
+        JSON.stringify({ error: emailValidation.message }),
         { status: 400 }
       );
     }

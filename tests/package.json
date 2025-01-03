@@ -1,0 +1,19 @@
+{
+  "name": "storymode-security-tests",
+  "version": "1.0.0",
+  "description": "Security tests for StoryMode",
+  "type": "module",
+  "scripts": {
+    "test": "node security-tests.js",
+    "test:public": "PUBLIC_ONLY=true node security-tests.js",
+    "test:protected": "PROTECTED_ONLY=true node security-tests.js"
+  },
+  "dependencies": {
+    "formdata-node": "^5.0.1",
+    "node-fetch": "^3.3.2"
+  },
+  "main": "security-tests.js",
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

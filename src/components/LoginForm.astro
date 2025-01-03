@@ -65,11 +65,88 @@
     error?: string;
   }
 
+  import { validateField, COMMON_RULES, sanitizeInput } from '../utils/validation';
+
   const form = document.getElementById('login-form') as HTMLFormElement;
   const formStatus = document.getElementById('form-status');
   const errorMessage = formStatus?.querySelector('.error');
 
+  const setupRealTimeValidation = () => {
+    const emailInput = form.querySelector('#email') as HTMLInputElement;
+    const passwordInput = form.querySelector('#password') as HTMLInputElement;
+
+    const showError = (input: HTMLElement, message: string) => {
+      const errorElement = input.nextElementSibling as HTMLElement;
+      if (errorElement && errorElement.classList.contains('text-sm')) {
+        errorElement.textContent = message;
+        errorElement.classList.remove('text-gray-600');
+        errorElement.classList.add('text-red-600');
+        input.setAttribute('aria-invalid', 'true');
+      }
+    };
+
+    const clearError = (input: HTMLElement) => {
+      const errorElement = input.nextElementSibling as HTMLElement;
+      if (errorElement && errorElement.classList.contains('text-sm')) {
+        errorElement.textContent = '';
+        errorElement.classList.remove('text-red-600');
+        errorElement.classList.add('text-gray-600');
+        input.setAttribute('aria-invalid', 'false');
+      }
+    };
+
+    emailInput?.addEventListener('input', () => {
+      const validation = validateField(emailInput.value, COMMON_RULES.email);
+      if (!validation.valid) {
+        showError(emailInput, validation.message!);
+      } else {
+        clearError(emailInput);
+      }
+    });
+
+    passwordInput?.addEventListener('input', () => {
+      const validation = validateField(passwordInput.value, COMMON_RULES.password);
+      if (!validation.valid) {
+        showError(passwordInput, validation.message!);
+      } else {
+        clearError(passwordInput);
+      }
+    });
+  };
+
+  // Initialize real-time validation
+  setupRealTimeValidation();
+
   form?.addEventListener('submit', async (e) => {
+    // Validate all fields before submission
+    const emailInput = form.querySelector('#email') as HTMLInputElement;
+    const passwordInput = form.querySelector('#password') as HTMLInputElement;
+
+    const emailValidation = validateField(emailInput.value, COMMON_RULES.email);
+    const passwordValidation = validateField(passwordInput.value, COMMON_RULES.password);
+
+    if (!emailValidation.valid || !passwordValidation.valid) {
+      e.preventDefault();
+      if (!emailValidation.valid) {
+        const errorElement = emailInput.nextElementSibling as HTMLElement;
+        errorElement.textContent = emailValidation.message!;
+        errorElement.classList.remove('text-gray-600');
+        errorElement.classList.add('text-red-600');
+        emailInput.setAttribute('aria-invalid', 'true');
+      }
+      if (!passwordValidation.valid) {
+        const errorElement = passwordInput.nextElementSibling as HTMLElement;
+        errorElement.textContent = passwordValidation.message!;
+        errorElement.classList.remove('text-gray-600');
+        errorElement.classList.add('text-red-600');
+        passwordInput.setAttribute('aria-invalid', 'true');
+      }
+      return;
+    }
+
+    // Sanitize inputs before submission
+    emailInput.value = sanitizeInput(emailInput.value);
+    passwordInput.value = sanitizeInput(passwordInput.value);
     e.preventDefault();
 
     // Reset status messages

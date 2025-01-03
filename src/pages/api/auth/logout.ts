@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { supabase } from '../../../lib/supabase';
 import { rateLimitMiddleware } from '../../../utils/rateLimit';
+import { sanitizeInput } from '../../../utils/validation';
 
 export const POST: APIRoute = async ({ request, cookies }) => {
   const headers = {
@@ -17,6 +18,8 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
     // Sign out from Supabase
     // Sign out from Supabase
+    // Get and sanitize token before sign out
+    const token = sanitizeInput(cookies.get('sb-token')?.value || '');
     await supabase.auth.signOut();
 
     // Clear the auth cookie

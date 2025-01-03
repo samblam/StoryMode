@@ -83,6 +83,8 @@
 </form>
 
 <script>
+import { validateField, COMMON_RULES, sanitizeInput } from '../utils/validation';
+
 const form = document.getElementById('user-creation-form') as HTMLFormElement;
 const roleSelect = document.getElementById('role') as HTMLSelectElement;
 const clientFields = document.getElementById('client-fields') as HTMLElement;
@@ -91,6 +93,77 @@ const companyName = document.getElementById('companyName') as HTMLInputElement;
 const formStatus = document.getElementById('form-status') as HTMLElement;
 const errorMessage = formStatus?.querySelector('.error') as HTMLElement;
 const successMessage = formStatus?.querySelector('.success') as HTMLElement;
+
+const setupRealTimeValidation = () => {
+  const emailInput = form.querySelector('#email') as HTMLInputElement;
+  const passwordInput = form.querySelector('#password') as HTMLInputElement;
+
+  const showError = (input: HTMLElement, message: string) => {
+    const errorElement = input.nextElementSibling as HTMLElement;
+    if (errorElement && errorElement.classList.contains('text-sm')) {
+      errorElement.textContent = message;
+      errorElement.classList.remove('text-gray-600');
+      errorElement.classList.add('text-red-600');
+      input.setAttribute('aria-invalid', 'true');
+    }
+  };
+
+  const clearError = (input: HTMLElement) => {
+    const errorElement = input.nextElementSibling as HTMLElement;
+    if (errorElement && errorElement.classList.contains('text-sm')) {
+      errorElement.textContent = '';
+      errorElement.classList.remove('text-red-600');
+      errorElement.classList.add('text-gray-600');
+      input.setAttribute('aria-invalid', 'false');
+    }
+  };
+
+  emailInput?.addEventListener('input', () => {
+    const validation = validateField(emailInput.value, COMMON_RULES.email);
+    if (!validation.valid) {
+      showError(emailInput, validation.message!);
+    } else {
+      clearError(emailInput);
+    }
+  });
+
+  passwordInput?.addEventListener('input', () => {
+    const validation = validateField(passwordInput.value, COMMON_RULES.password);
+    if (!validation.valid) {
+      showError(passwordInput, validation.message!);
+    } else {
+      clearError(passwordInput);
+    }
+  });
+
+  clientName?.addEventListener('input', () => {
+    if (roleSelect.value === 'client') {
+      const validation = validateField(clientName.value, COMMON_RULES.name);
+      if (!validation.valid) {
+        showError(clientName, validation.message!);
+      } else {
+        clearError(clientName);
+      }
+    }
+  });
+
+  companyName?.addEventListener('input', () => {
+    if (roleSelect.value === 'client') {
+      const validation = validateField(companyName.value, [
+        { minLength: 2, message: 'Company name must be at least 2 characters' },
+        { maxLength: 100, message: 'Company name cannot exceed 100 characters' }
+      ]);
+      if (!validation.valid) {
+        showError(companyName, validation.message!);
+      } else {
+        clearError(companyName);
+      }
+    }
+  });
+};
+
+// Initialize real-time validation
+setupRealTimeValidation();
 
 // Handle role selection changes
 roleSelect?.addEventListener('change', () => {
@@ -123,11 +196,12 @@ form?.addEventListener('submit', async (e) => {
     const formData = new FormData(form);
     
     // Type-safe form data extraction
-    const email = formData.get('email')?.toString() || '';
-    const password = formData.get('password')?.toString() || '';
-    const role = formData.get('role')?.toString() || '';
-    const name = formData.get('name')?.toString() || '';
-    const company = formData.get('company')?.toString() || '';
+    // Sanitize inputs
+    const email = sanitizeInput(formData.get('email')?.toString() || '');
+    const password = sanitizeInput(formData.get('password')?.toString() || '');
+    const role = sanitizeInput(formData.get('role')?.toString() || '');
+    const name = sanitizeInput(formData.get('name')?.toString() || '');
+    const company = sanitizeInput(formData.get('company')?.toString() || '');
 
     // Validate required fields
     if (!email || !password || !role) {
