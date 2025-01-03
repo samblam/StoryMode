@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import nodemailer from 'nodemailer';
-import { RateLimiter, RATE_LIMITS } from '../../utils/rateLimit';
+import { RateLimiter, RATE_LIMITS, rateLimitMiddleware } from '../../utils/rateLimit';
 
 interface EmailData {
   name: string;
@@ -26,27 +26,12 @@ export const POST: APIRoute = async ({ request }) => {
   };
 
   try {
-    // Get client IP
-    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0] || 
-                    request.headers.get('x-real-ip') || 
-                    'unknown';
-    
-    // Check rate limit
-    const rateLimitKey = RateLimiter.getKey(clientIp, 'send-email');
-    const rateLimitResult = RateLimiter.check(rateLimitKey, RATE_LIMITS.CONTACT);
-
-    // Add rate limit headers
-    Object.assign(headers, RateLimiter.getHeaders(rateLimitResult));
-
-    if (!rateLimitResult.success) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Too many email attempts. Please try again later.'
-      }), {
-        status: 429,
-        headers
-      });
+    // Apply rate limiting middleware
+    const rateLimitResponse = await rateLimitMiddleware('CONTACT')(request);
+    if (rateLimitResponse instanceof Response) {
+      return rateLimitResponse;
     }
+    Object.assign(headers, rateLimitResponse.headers);
 
     const data = await request.json() as EmailData;
     const { name, email, message } = data;

@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { supabaseAdmin } from '../../../lib/supabase';
-import { RateLimiter, RATE_LIMITS } from '../../../utils/rateLimit';
+import { RateLimiter, RATE_LIMITS, rateLimitMiddleware } from '../../../utils/rateLimit';
 
 export const POST: APIRoute = async ({ request }) => {
   const headers = {
@@ -8,27 +8,12 @@ export const POST: APIRoute = async ({ request }) => {
   };
 
   try {
-    // Get client IP
-    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0] || 
-                    request.headers.get('x-real-ip') || 
-                    'unknown';
-    
-    // Check rate limit
-    const rateLimitKey = RateLimiter.getKey(clientIp, 'create-user');
-    const rateLimitResult = RateLimiter.check(rateLimitKey, RATE_LIMITS.CREATE_USER);
-
-    // Add rate limit headers
-    Object.assign(headers, RateLimiter.getHeaders(rateLimitResult));
-
-    if (!rateLimitResult.success) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Too many user creation attempts. Please try again later.'
-      }), {
-        status: 429,
-        headers
-      });
+    // Apply rate limiting middleware
+    const rateLimitResponse = await rateLimitMiddleware('CREATE_USER')(request);
+    if (rateLimitResponse instanceof Response) {
+      return rateLimitResponse;
     }
+    Object.assign(headers, rateLimitResponse.headers);
 
     const { email, password, role, name, company } = await request.json();
     const normalizedEmail = email.trim().toLowerCase();

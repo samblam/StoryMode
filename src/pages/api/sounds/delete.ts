@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { supabaseAdmin } from '../../../lib/supabase';
-import { RateLimiter, RATE_LIMITS } from '../../../utils/rateLimit';
+import { RateLimiter, RATE_LIMITS, rateLimitMiddleware } from '../../../utils/rateLimit';
 
 export const POST: APIRoute = async ({ request, locals }) => {
   const headers = {
@@ -8,27 +8,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
   };
 
   try {
-    // Get client IP
-    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0] || 
-                    request.headers.get('x-real-ip') || 
-                    'unknown';
-    
-    // Check rate limit
-    const rateLimitKey = RateLimiter.getKey(clientIp, 'sound-delete');
-    const rateLimitResult = RateLimiter.check(rateLimitKey, RATE_LIMITS.DELETE);
-
-    // Add rate limit headers
-    Object.assign(headers, RateLimiter.getHeaders(rateLimitResult));
-
-    if (!rateLimitResult.success) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Too many delete attempts. Please try again later.'
-      }), {
-        status: 429,
-        headers
-      });
+    // Apply rate limiting middleware
+    const rateLimitResponse = await rateLimitMiddleware('DELETE')(request);
+    if (rateLimitResponse instanceof Response) {
+      return rateLimitResponse;
     }
+    Object.assign(headers, rateLimitResponse.headers);
 
     // Check user is admin
     if (!locals.user || locals.user.role !== 'admin') {

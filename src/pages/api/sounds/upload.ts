@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { supabaseAdmin } from '../../../lib/supabase';
 import { uploadSound } from '../../../utils/storageUtils';
-import { RateLimiter, RATE_LIMITS } from '../../../utils/rateLimit';
+import { RateLimiter, RATE_LIMITS, rateLimitMiddleware } from '../../../utils/rateLimit';
 
 export const POST: APIRoute = async ({ request, cookies }) => {
   const headers = {
@@ -9,27 +9,12 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   };
 
   try {
-    // Get client IP
-    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0] || 
-                    request.headers.get('x-real-ip') || 
-                    'unknown';
-    
-    // Check rate limit
-    const rateLimitKey = RateLimiter.getKey(clientIp, 'sound-upload');
-    const rateLimitResult = RateLimiter.check(rateLimitKey, RATE_LIMITS.UPLOAD);
-
-    // Add rate limit headers
-    Object.assign(headers, RateLimiter.getHeaders(rateLimitResult));
-
-    if (!rateLimitResult.success) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Too many upload attempts. Please try again later.'
-      }), {
-        status: 429,
-        headers
-      });
+    // Apply rate limiting middleware
+    const rateLimitResponse = await rateLimitMiddleware('UPLOAD')(request);
+    if (rateLimitResponse instanceof Response) {
+      return rateLimitResponse;
     }
+    Object.assign(headers, rateLimitResponse.headers);
 
     // Get the token from cookies
     const token = cookies.get('sb-token')?.value;
@@ -107,47 +92,71 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       );
     }
 
-    // Upload to Supabase Storage with content-type
-    const { path: storagePath, signedUrl } = await uploadSound({
-      file,
-      profileSlug,
-      contentType: file.type || 'audio/mpeg' // Default to audio/mpeg if type is empty
-    });
+    let storagePath: string | undefined;
+    try {
+      // Upload to Supabase Storage with content-type
+      const { path, signedUrl } = await uploadSound({
+        file,
+        profileSlug,
+        contentType: file.type || 'audio/mpeg' // Default to audio/mpeg if type is empty
+      });
+      storagePath = path;
 
-    // Create database entry
-    const { data: newSound, error: dbError } = await supabaseAdmin
-      .from('sounds')
-      .insert({
-        name,
-        description,
-        file_path: signedUrl,
-        storage_path: storagePath,
-        profile_id: profileId,
-      })
-      .select()
-      .single();
+      // Create database entry
+      const { data: newSound, error: dbError } = await supabaseAdmin
+        .from('sounds')
+        .insert({
+          name,
+          description,
+          file_path: signedUrl,
+          storage_path: storagePath,
+          profile_id: profileId,
+        })
+        .select()
+        .single();
 
-    if (dbError) {
-      throw dbError;
-    }
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        sound: newSound,
-      }),
-      { 
-        status: 200,
-        headers
+      if (dbError) {
+        throw dbError;
       }
-    );
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          sound: newSound,
+        }),
+        {
+          status: 200,
+          headers
+        }
+      );
+    } catch (error) {
+      // Clean up uploaded file if it exists and there was an error
+      if (storagePath) {
+        try {
+          await supabaseAdmin.storage.from('sounds').remove([storagePath]);
+        } catch (cleanupError) {
+          console.error('Failed to cleanup uploaded file:', cleanupError);
+        }
+      }
+
+      console.error('Upload error:', error);
+      return new Response(
+        JSON.stringify({
+          error: error instanceof Error ? error.message : 'Upload failed'
+        }),
+        {
+          status: 500,
+          headers
+        }
+      );
+    }
   } catch (error) {
-    console.error('Upload error:', error);
+    console.error('Error:', error);
     return new Response(
       JSON.stringify({
-        error: error instanceof Error ? error.message : 'Upload failed'
+        error: error instanceof Error ? error.message : 'Request failed'
       }),
-      { 
+      {
         status: 500,
         headers
       }

@@ -1,8 +1,25 @@
 import { supabaseAdmin } from '../../chunks/supabase_D4M8dM3h.mjs';
+import { R as RateLimiter, a as RATE_LIMITS } from '../../chunks/rateLimit_D-TMYXgA.mjs';
 export { renderers } from '../../renderers.mjs';
 
 const POST = async ({ request, locals, cookies }) => {
+  const headers = {
+    "Content-Type": "application/json"
+  };
   try {
+    const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0] || request.headers.get("x-real-ip") || "unknown";
+    const rateLimitKey = RateLimiter.getKey(clientIp, "profile-create");
+    const rateLimitResult = RateLimiter.check(rateLimitKey, RATE_LIMITS.PROFILE_CREATE);
+    Object.assign(headers, RateLimiter.getHeaders(rateLimitResult));
+    if (!rateLimitResult.success) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: "Too many profile creation attempts. Please try again later."
+      }), {
+        status: 429,
+        headers
+      });
+    }
     const data = await request.json();
     const { user } = locals;
     console.log("Profile Creation Debug:", {
@@ -14,14 +31,20 @@ const POST = async ({ request, locals, cookies }) => {
       console.log("Unauthorized: No user in locals");
       return new Response(
         JSON.stringify({ error: "Unauthorized" }),
-        { status: 401 }
+        {
+          status: 401,
+          headers
+        }
       );
     }
     if (!data.title || !data.description) {
       console.log("Validation failed:", { data });
       return new Response(
         JSON.stringify({ error: "Title and description are required" }),
-        { status: 400 }
+        {
+          status: 400,
+          headers
+        }
       );
     }
     let clientId = null;
@@ -57,6 +80,7 @@ const POST = async ({ request, locals, cookies }) => {
       {
         status: 201,
         headers: {
+          ...headers,
           "Set-Cookie": `sb-token=${token?.value}; Path=/; HttpOnly; Secure; SameSite=Lax`
         }
       }
@@ -68,37 +92,68 @@ const POST = async ({ request, locals, cookies }) => {
         error: error instanceof Error ? error.message : "Failed to create profile",
         details: error instanceof Error ? error.stack : void 0
       }),
-      { status: 500 }
+      {
+        status: 500,
+        headers
+      }
     );
   }
 };
 const PUT = async ({ request, locals, cookies }) => {
+  const headers = {
+    "Content-Type": "application/json"
+  };
   try {
+    const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0] || request.headers.get("x-real-ip") || "unknown";
+    const rateLimitKey = RateLimiter.getKey(clientIp, "profile-update");
+    const rateLimitResult = RateLimiter.check(rateLimitKey, RATE_LIMITS.PROFILE_UPDATE);
+    Object.assign(headers, RateLimiter.getHeaders(rateLimitResult));
+    if (!rateLimitResult.success) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: "Too many profile update attempts. Please try again later."
+      }), {
+        status: 429,
+        headers
+      });
+    }
     const data = await request.json();
     const { user } = locals;
     if (!user) {
       return new Response(
         JSON.stringify({ error: "Unauthorized" }),
-        { status: 401 }
+        {
+          status: 401,
+          headers
+        }
       );
     }
     if (!data.id || !data.title || !data.description) {
       return new Response(
         JSON.stringify({ error: "ID, title, and description are required" }),
-        { status: 400 }
+        {
+          status: 400,
+          headers
+        }
       );
     }
     const { data: existingProfile, error: fetchError } = await supabaseAdmin.from("sound_profiles").select("*").eq("id", data.id).single();
     if (fetchError || !existingProfile) {
       return new Response(
         JSON.stringify({ error: "Profile not found" }),
-        { status: 404 }
+        {
+          status: 404,
+          headers
+        }
       );
     }
     if (user.role === "client" && existingProfile.client_id !== user.clientId) {
       return new Response(
         JSON.stringify({ error: "Unauthorized" }),
-        { status: 403 }
+        {
+          status: 403,
+          headers
+        }
       );
     }
     const updateData = {
@@ -119,6 +174,7 @@ const PUT = async ({ request, locals, cookies }) => {
       {
         status: 200,
         headers: {
+          ...headers,
           "Set-Cookie": `sb-token=${token?.value}; Path=/; HttpOnly; Secure; SameSite=Lax`
         }
       }
@@ -129,7 +185,10 @@ const PUT = async ({ request, locals, cookies }) => {
       JSON.stringify({
         error: error instanceof Error ? error.message : "Failed to update profile"
       }),
-      { status: 500 }
+      {
+        status: 500,
+        headers
+      }
     );
   }
 };

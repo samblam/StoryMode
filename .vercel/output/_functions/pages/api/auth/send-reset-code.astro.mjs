@@ -1,26 +1,49 @@
 import { supabaseAdmin } from '../../../chunks/supabase_D4M8dM3h.mjs';
 import nodemailer from 'nodemailer';
 import { randomInt } from 'crypto';
+import { R as RateLimiter, a as RATE_LIMITS } from '../../../chunks/rateLimit_D-TMYXgA.mjs';
 export { renderers } from '../../../renderers.mjs';
 
 function generateResetCode() {
   return randomInt(1e5, 999999).toString();
 }
 const POST = async ({ request }) => {
+  const headers = {
+    "Content-Type": "application/json"
+  };
   try {
+    const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0] || request.headers.get("x-real-ip") || "unknown";
+    const rateLimitKey = RateLimiter.getKey(clientIp, "send-reset-code");
+    const rateLimitResult = RateLimiter.check(rateLimitKey, RATE_LIMITS.PASSWORD_RESET);
+    Object.assign(headers, RateLimiter.getHeaders(rateLimitResult));
+    if (!rateLimitResult.success) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: "Too many password reset attempts. Please try again later."
+      }), {
+        status: 429,
+        headers
+      });
+    }
     const { email } = await request.json();
     const normalizedEmail = email.trim().toLowerCase();
     if (!normalizedEmail) {
       return new Response(
         JSON.stringify({ error: "Email is required" }),
-        { status: 400 }
+        {
+          status: 400,
+          headers
+        }
       );
     }
     const { data: userData, error: userError } = await supabaseAdmin.from("users").select("id").eq("email", normalizedEmail).single();
     if (userError || !userData) {
       return new Response(
         JSON.stringify({ error: "No account found with this email" }),
-        { status: 404 }
+        {
+          status: 404,
+          headers
+        }
       );
     }
     const code = generateResetCode();
@@ -59,12 +82,18 @@ const POST = async ({ request }) => {
       console.error("Failed to send password reset email:", error);
       return new Response(
         JSON.stringify({ error: "Failed to send password reset email. Please try again later." }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
+        {
+          status: 500,
+          headers
+        }
       );
     }
     return new Response(
       JSON.stringify({ success: true }),
-      { status: 200 }
+      {
+        status: 200,
+        headers
+      }
     );
   } catch (error) {
     console.error("Password reset error:", error);
@@ -72,7 +101,10 @@ const POST = async ({ request }) => {
       JSON.stringify({
         error: error instanceof Error ? error.message : "Failed to send reset code"
       }),
-      { status: 500 }
+      {
+        status: 500,
+        headers
+      }
     );
   }
 };

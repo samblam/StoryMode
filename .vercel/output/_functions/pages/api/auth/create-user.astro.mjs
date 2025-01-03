@@ -1,33 +1,62 @@
 import { supabaseAdmin } from '../../../chunks/supabase_D4M8dM3h.mjs';
+import { R as RateLimiter, a as RATE_LIMITS } from '../../../chunks/rateLimit_D-TMYXgA.mjs';
 export { renderers } from '../../../renderers.mjs';
 
 const POST = async ({ request }) => {
+  const headers = {
+    "Content-Type": "application/json"
+  };
   try {
+    const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0] || request.headers.get("x-real-ip") || "unknown";
+    const rateLimitKey = RateLimiter.getKey(clientIp, "create-user");
+    const rateLimitResult = RateLimiter.check(rateLimitKey, RATE_LIMITS.CREATE_USER);
+    Object.assign(headers, RateLimiter.getHeaders(rateLimitResult));
+    if (!rateLimitResult.success) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: "Too many user creation attempts. Please try again later."
+      }), {
+        status: 429,
+        headers
+      });
+    }
     const { email, password, role, name, company } = await request.json();
     const normalizedEmail = email.trim().toLowerCase();
     if (!normalizedEmail || !password || !role) {
       return new Response(
         JSON.stringify({ error: "Missing required fields" }),
-        { status: 400 }
+        {
+          status: 400,
+          headers
+        }
       );
     }
     if (!["admin", "client"].includes(role)) {
       return new Response(
         JSON.stringify({ error: "Invalid role" }),
-        { status: 400 }
+        {
+          status: 400,
+          headers
+        }
       );
     }
     if (role === "client" && !name) {
       return new Response(
         JSON.stringify({ error: "Client name is required" }),
-        { status: 400 }
+        {
+          status: 400,
+          headers
+        }
       );
     }
     const { data: existingUser } = await supabaseAdmin.from("users").select("id").eq("email", normalizedEmail).maybeSingle();
     if (existingUser) {
       return new Response(
         JSON.stringify({ error: "Email already in use" }),
-        { status: 400 }
+        {
+          status: 400,
+          headers
+        }
       );
     }
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
@@ -67,7 +96,10 @@ const POST = async ({ request }) => {
     }
     return new Response(
       JSON.stringify({ success: true }),
-      { status: 200 }
+      {
+        status: 200,
+        headers
+      }
     );
   } catch (error) {
     console.error("Create user error:", error);
@@ -75,7 +107,10 @@ const POST = async ({ request }) => {
       JSON.stringify({
         error: error instanceof Error ? error.message : "Failed to create user"
       }),
-      { status: 500 }
+      {
+        status: 500,
+        headers
+      }
     );
   }
 };

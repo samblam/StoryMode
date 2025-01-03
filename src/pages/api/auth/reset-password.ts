@@ -1,8 +1,20 @@
 import type { APIRoute } from 'astro';
 import { supabaseAdmin } from '../../../lib/supabase';
+import { rateLimitMiddleware } from '../../../utils/rateLimit';
 
 export const POST: APIRoute = async ({ request }) => {
+  const headers = {
+    'Content-Type': 'application/json'
+  };
+
   try {
+    // Apply rate limiting middleware
+    const rateLimitResponse = await rateLimitMiddleware('PASSWORD_RESET')(request);
+    if (rateLimitResponse instanceof Response) {
+      return rateLimitResponse;
+    }
+    Object.assign(headers, rateLimitResponse.headers);
+
     const { email } = await request.json();
     const normalizedEmail = email.trim().toLowerCase();
 

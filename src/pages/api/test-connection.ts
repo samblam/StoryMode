@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { supabase } from '../../lib/supabase';
-import { RateLimiter, RATE_LIMITS } from '../../utils/rateLimit';
+import { RateLimiter, RATE_LIMITS, rateLimitMiddleware } from '../../utils/rateLimit';
 
 export const GET: APIRoute = async ({ request }) => {
   const headers = {
@@ -9,27 +9,12 @@ export const GET: APIRoute = async ({ request }) => {
   };
 
   try {
-    // Get client IP
-    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0] || 
-                    request.headers.get('x-real-ip') || 
-                    'unknown';
-    
-    // Check rate limit
-    const rateLimitKey = RateLimiter.getKey(clientIp, 'test-connection');
-    const rateLimitResult = RateLimiter.check(rateLimitKey, RATE_LIMITS.CONTACT);
-
-    // Add rate limit headers
-    Object.assign(headers, RateLimiter.getHeaders(rateLimitResult));
-
-    if (!rateLimitResult.success) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Too many connection test attempts. Please try again later.'
-      }), {
-        status: 429,
-        headers
-      });
+    // Apply rate limiting middleware
+    const rateLimitResponse = await rateLimitMiddleware('CONTACT')(request);
+    if (rateLimitResponse instanceof Response) {
+      return rateLimitResponse;
     }
+    Object.assign(headers, rateLimitResponse.headers);
 
     // Step 1: Test basic connection
     console.log('Testing basic connection...');
