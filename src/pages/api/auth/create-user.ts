@@ -1,8 +1,35 @@
 import type { APIRoute } from 'astro';
 import { supabaseAdmin } from '../../../lib/supabase';
+import { RateLimiter, RATE_LIMITS } from '../../../utils/rateLimit';
 
 export const POST: APIRoute = async ({ request }) => {
+  const headers = {
+    'Content-Type': 'application/json'
+  };
+
   try {
+    // Get client IP
+    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0] || 
+                    request.headers.get('x-real-ip') || 
+                    'unknown';
+    
+    // Check rate limit
+    const rateLimitKey = RateLimiter.getKey(clientIp, 'create-user');
+    const rateLimitResult = RateLimiter.check(rateLimitKey, RATE_LIMITS.CREATE_USER);
+
+    // Add rate limit headers
+    Object.assign(headers, RateLimiter.getHeaders(rateLimitResult));
+
+    if (!rateLimitResult.success) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Too many user creation attempts. Please try again later.'
+      }), {
+        status: 429,
+        headers
+      });
+    }
+
     const { email, password, role, name, company } = await request.json();
     const normalizedEmail = email.trim().toLowerCase();
 
@@ -10,7 +37,10 @@ export const POST: APIRoute = async ({ request }) => {
     if (!normalizedEmail || !password || !role) {
       return new Response(
         JSON.stringify({ error: 'Missing required fields' }), 
-        { status: 400 }
+        { 
+          status: 400,
+          headers
+        }
       );
     }
 
@@ -18,7 +48,10 @@ export const POST: APIRoute = async ({ request }) => {
     if (!['admin', 'client'].includes(role)) {
       return new Response(
         JSON.stringify({ error: 'Invalid role' }),
-        { status: 400 }
+        { 
+          status: 400,
+          headers
+        }
       );
     }
 
@@ -26,7 +59,10 @@ export const POST: APIRoute = async ({ request }) => {
     if (role === 'client' && !name) {
       return new Response(
         JSON.stringify({ error: 'Client name is required' }),
-        { status: 400 }
+        { 
+          status: 400,
+          headers
+        }
       );
     }
 
@@ -40,7 +76,10 @@ export const POST: APIRoute = async ({ request }) => {
     if (existingUser) {
       return new Response(
         JSON.stringify({ error: 'Email already in use' }),
-        { status: 400 }
+        { 
+          status: 400,
+          headers
+        }
       );
     }
 
@@ -100,7 +139,10 @@ export const POST: APIRoute = async ({ request }) => {
 
     return new Response(
       JSON.stringify({ success: true }),
-      { status: 200 }
+      { 
+        status: 200,
+        headers
+      }
     );
 
   } catch (error) {
@@ -109,7 +151,10 @@ export const POST: APIRoute = async ({ request }) => {
       JSON.stringify({ 
         error: error instanceof Error ? error.message : 'Failed to create user'
       }),
-      { status: 500 }
+      { 
+        status: 500,
+        headers
+      }
     );
   }
 };

@@ -1,16 +1,46 @@
 import type { APIRoute } from 'astro';
 import { supabaseAdmin } from '../../../lib/supabase';
 import { uploadSound } from '../../../utils/storageUtils';
+import { RateLimiter, RATE_LIMITS } from '../../../utils/rateLimit';
 
 export const POST: APIRoute = async ({ request, cookies }) => {
+  const headers = {
+    'Content-Type': 'application/json'
+  };
+
   try {
+    // Get client IP
+    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0] || 
+                    request.headers.get('x-real-ip') || 
+                    'unknown';
+    
+    // Check rate limit
+    const rateLimitKey = RateLimiter.getKey(clientIp, 'sound-upload');
+    const rateLimitResult = RateLimiter.check(rateLimitKey, RATE_LIMITS.UPLOAD);
+
+    // Add rate limit headers
+    Object.assign(headers, RateLimiter.getHeaders(rateLimitResult));
+
+    if (!rateLimitResult.success) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Too many upload attempts. Please try again later.'
+      }), {
+        status: 429,
+        headers
+      });
+    }
+
     // Get the token from cookies
     const token = cookies.get('sb-token')?.value;
 
     if (!token) {
       return new Response(
         JSON.stringify({ error: 'Authentication token not found' }),
-        { status: 401 }
+        { 
+          status: 401,
+          headers
+        }
       );
     }
 
@@ -19,7 +49,10 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     if (authError || !user) {
       return new Response(
         JSON.stringify({ error: 'Invalid authentication token' }),
-        { status: 401 }
+        { 
+          status: 401,
+          headers
+        }
       );
     }
 
@@ -32,7 +65,10 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     if (!userData || userData.role !== 'admin') {
       return new Response(
         JSON.stringify({ error: 'Unauthorized - Admin access required' }),
-        { status: 403 }
+        { 
+          status: 403,
+          headers
+        }
       );
     }
 
@@ -46,7 +82,10 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     if (!file || !profileId || !profileSlug || !name || !description) {
       return new Response(
         JSON.stringify({ error: 'All fields are required' }),
-        { status: 400 }
+        { 
+          status: 400,
+          headers
+        }
       );
     }
 
@@ -61,13 +100,12 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     if (!isValidType) {
       return new Response(
         JSON.stringify({ error: 'Invalid file type. Please upload MP3, WAV, or OGG files only.' }),
-        { status: 400 }
+        { 
+          status: 400,
+          headers
+        }
       );
     }
-
-    // Let's trust the file extension and MIME type instead of checking file signatures
-    // Since we're already validating the extension and MIME type, and browser's File API
-    // typically provides accurate MIME types
 
     // Upload to Supabase Storage with content-type
     const { path: storagePath, signedUrl } = await uploadSound({
@@ -98,7 +136,10 @@ export const POST: APIRoute = async ({ request, cookies }) => {
         success: true,
         sound: newSound,
       }),
-      { status: 200 }
+      { 
+        status: 200,
+        headers
+      }
     );
   } catch (error) {
     console.error('Upload error:', error);
@@ -106,7 +147,10 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       JSON.stringify({
         error: error instanceof Error ? error.message : 'Upload failed'
       }),
-      { status: 500 }
+      { 
+        status: 500,
+        headers
+      }
     );
   }
 };

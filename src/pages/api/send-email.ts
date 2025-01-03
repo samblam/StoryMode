@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import nodemailer from 'nodemailer';
+import { RateLimiter, RATE_LIMITS } from '../../utils/rateLimit';
 
 interface EmailData {
   name: string;
@@ -20,7 +21,33 @@ const sanitizeInput = (input: string): string => {
 };
 
 export const POST: APIRoute = async ({ request }) => {
+  const headers = {
+    'Content-Type': 'application/json'
+  };
+
   try {
+    // Get client IP
+    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0] || 
+                    request.headers.get('x-real-ip') || 
+                    'unknown';
+    
+    // Check rate limit
+    const rateLimitKey = RateLimiter.getKey(clientIp, 'send-email');
+    const rateLimitResult = RateLimiter.check(rateLimitKey, RATE_LIMITS.CONTACT);
+
+    // Add rate limit headers
+    Object.assign(headers, RateLimiter.getHeaders(rateLimitResult));
+
+    if (!rateLimitResult.success) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Too many email attempts. Please try again later.'
+      }), {
+        status: 429,
+        headers
+      });
+    }
+
     const data = await request.json() as EmailData;
     const { name, email, message } = data;
 
@@ -35,9 +62,7 @@ export const POST: APIRoute = async ({ request }) => {
         error: 'All fields are required'
       }), {
         status: 400,
-        headers: {
-          'Content-Type': 'application/json'
-        }
+        headers
       });
     }
 
@@ -48,9 +73,7 @@ export const POST: APIRoute = async ({ request }) => {
         error: 'Invalid email format'
       }), {
         status: 400,
-        headers: {
-          'Content-Type': 'application/json'
-        }
+        headers
       });
     }
 
@@ -61,9 +84,7 @@ export const POST: APIRoute = async ({ request }) => {
         error: 'Email service not configured'
       }), {
         status: 500,
-        headers: {
-          'Content-Type': 'application/json'
-        }
+        headers
       });
     }
 
@@ -89,9 +110,7 @@ export const POST: APIRoute = async ({ request }) => {
           error: `SMTP verification failed: ${verificationError instanceof Error ? verificationError.message : 'Unknown error'}`
         }), {
           status: 500,
-          headers: {
-            'Content-Type': 'application/json'
-          }
+          headers
         });
       }
 
@@ -122,9 +141,7 @@ export const POST: APIRoute = async ({ request }) => {
       messageId: info.messageId
     }), {
       status: 200,
-      headers: {
-        'Content-Type': 'application/json'
-      }
+      headers
     });
   } catch (error) {
     console.error('Email error:', error);
@@ -134,9 +151,7 @@ export const POST: APIRoute = async ({ request }) => {
       error: errorMessage
     }), {
       status: 500,
-      headers: {
-        'Content-Type': 'application/json'
-      }
+      headers
     });
   }
 };

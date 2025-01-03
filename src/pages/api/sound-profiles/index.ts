@@ -1,8 +1,35 @@
 import type { APIRoute } from 'astro';
 import { supabaseAdmin } from '../../../lib/supabase';
+import { RateLimiter, RATE_LIMITS } from '../../../utils/rateLimit';
 
 export const POST: APIRoute = async ({ request, locals, cookies }) => {
+  const headers = {
+    'Content-Type': 'application/json'
+  };
+
   try {
+    // Get client IP
+    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0] || 
+                    request.headers.get('x-real-ip') || 
+                    'unknown';
+    
+    // Check rate limit
+    const rateLimitKey = RateLimiter.getKey(clientIp, 'profile-create');
+    const rateLimitResult = RateLimiter.check(rateLimitKey, RATE_LIMITS.PROFILE_CREATE);
+
+    // Add rate limit headers
+    Object.assign(headers, RateLimiter.getHeaders(rateLimitResult));
+
+    if (!rateLimitResult.success) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Too many profile creation attempts. Please try again later.'
+      }), {
+        status: 429,
+        headers
+      });
+    }
+
     const data = await request.json();
     const { user } = locals;
 
@@ -17,7 +44,10 @@ export const POST: APIRoute = async ({ request, locals, cookies }) => {
       console.log('Unauthorized: No user in locals');
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401 }
+        { 
+          status: 401,
+          headers
+        }
       );
     }
 
@@ -25,7 +55,10 @@ export const POST: APIRoute = async ({ request, locals, cookies }) => {
       console.log('Validation failed:', { data });
       return new Response(
         JSON.stringify({ error: 'Title and description are required' }),
-        { status: 400 }
+        { 
+          status: 400,
+          headers
+        }
       );
     }
 
@@ -78,6 +111,7 @@ export const POST: APIRoute = async ({ request, locals, cookies }) => {
       { 
         status: 201,
         headers: {
+          ...headers,
           'Set-Cookie': `sb-token=${token?.value}; Path=/; HttpOnly; Secure; SameSite=Lax` 
         }
       }
@@ -89,28 +123,62 @@ export const POST: APIRoute = async ({ request, locals, cookies }) => {
         error: error instanceof Error ? error.message : 'Failed to create profile',
         details: error instanceof Error ? error.stack : undefined
       }),
-      { status: 500 }
+      { 
+        status: 500,
+        headers
+      }
     );
   }
 };
 
-
 export const PUT: APIRoute = async ({ request, locals, cookies }) => {
+  const headers = {
+    'Content-Type': 'application/json'
+  };
+
   try {
+    // Get client IP
+    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0] || 
+                    request.headers.get('x-real-ip') || 
+                    'unknown';
+    
+    // Check rate limit
+    const rateLimitKey = RateLimiter.getKey(clientIp, 'profile-update');
+    const rateLimitResult = RateLimiter.check(rateLimitKey, RATE_LIMITS.PROFILE_UPDATE);
+
+    // Add rate limit headers
+    Object.assign(headers, RateLimiter.getHeaders(rateLimitResult));
+
+    if (!rateLimitResult.success) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Too many profile update attempts. Please try again later.'
+      }), {
+        status: 429,
+        headers
+      });
+    }
+
     const data = await request.json();
     const { user } = locals;
 
     if (!user) {
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401 }
+        { 
+          status: 401,
+          headers
+        }
       );
     }
 
     if (!data.id || !data.title || !data.description) {
       return new Response(
         JSON.stringify({ error: 'ID, title, and description are required' }),
-        { status: 400 }
+        { 
+          status: 400,
+          headers
+        }
       );
     }
 
@@ -124,7 +192,10 @@ export const PUT: APIRoute = async ({ request, locals, cookies }) => {
     if (fetchError || !existingProfile) {
       return new Response(
         JSON.stringify({ error: 'Profile not found' }),
-        { status: 404 }
+        { 
+          status: 404,
+          headers
+        }
       );
     }
 
@@ -132,7 +203,10 @@ export const PUT: APIRoute = async ({ request, locals, cookies }) => {
     if (user.role === 'client' && existingProfile.client_id !== user.clientId) {
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
-        { status: 403 }
+        { 
+          status: 403,
+          headers
+        }
       );
     }
 
@@ -167,6 +241,7 @@ export const PUT: APIRoute = async ({ request, locals, cookies }) => {
       { 
         status: 200,
         headers: {
+          ...headers,
           'Set-Cookie': `sb-token=${token?.value}; Path=/; HttpOnly; Secure; SameSite=Lax`
         }
       }
@@ -177,7 +252,10 @@ export const PUT: APIRoute = async ({ request, locals, cookies }) => {
       JSON.stringify({
         error: error instanceof Error ? error.message : 'Failed to update profile',
       }),
-      { status: 500 }
+      { 
+        status: 500,
+        headers
+      }
     );
   }
 };

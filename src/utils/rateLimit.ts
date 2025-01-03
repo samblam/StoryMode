@@ -38,6 +38,8 @@ type RateLimitConfig = {
     // File Operations
     UPLOAD: { windowMs: 60 * 60 * 1000, maxAttempts: 50 },   // 50 uploads per hour
     DELETE: { windowMs: 60 * 60 * 1000, maxAttempts: 30 },   // 30 deletions per hour
+    PROFILE_CREATE: { windowMs: 60 * 60 * 1000, maxAttempts: 20 }, // 20 profile creations per hour
+    PROFILE_UPDATE: { windowMs: 60 * 60 * 1000, maxAttempts: 30 }, // 30 profile updates per hour
     
     // Public APIs
     CONTACT: { windowMs: 60 * 60 * 1000, maxAttempts: 5 },   // 5 contact emails per hour
