@@ -1,9 +1,10 @@
 // src/pages/api/auth/login.ts
 import type { APIRoute } from 'astro';
 import { createClient } from '@supabase/supabase-js';
-import { supabaseAdmin } from '../../../lib/supabase';
+import { supabase, supabaseAdmin } from '../../../lib/supabase';
 import type { Database } from '../../../types/database';
 import { RateLimiter, RATE_LIMITS, rateLimitMiddleware } from '../../../utils/rateLimit';
+import { AppError, AuthError, ValidationError, apiErrorHandler } from '../../../utils/errorHandler';
 
 export const POST: APIRoute = async ({ request, cookies }) => {
   const headers = {
@@ -23,11 +24,8 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     // Normalize email and validate format
     const normalizedEmail = email.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
-      return new Response(JSON.stringify({ 
-        error: 'Please enter a valid email address' 
-      }), { 
-        status: 400,
-        headers 
+      throw new ValidationError('Please enter a valid email address', {
+        email: normalizedEmail
       });
     }
 
@@ -51,30 +49,18 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     });
 
     if (authError || !authData.user) {
-      return new Response(JSON.stringify({ 
-        success: false,
-        error: authError?.message || 'Authentication failed' 
-      }), { 
-        status: 401,
-        headers 
-      });
+      throw new AuthError(authError?.message || 'Authentication failed');
     }
 
     // Step 2: Get user data
-    const { data: userData, error: userError } = await supabaseAdmin
+    const { data: userData, error: userError } = await supabase
       .from('users')
       .select('*')
       .eq('id', authData.user.id)
       .single();
 
     if (userError || !userData) {
-      return new Response(JSON.stringify({ 
-        success: false,
-        error: 'User data not found' 
-      }), { 
-        status: 404,
-        headers 
-      });
+      throw new AppError(404, 'User data not found', 'notFound');
     }
 
     // Step 3: Get client data if applicable
@@ -113,14 +99,10 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       headers 
     });
 
-  } catch (error) {
-    console.error('Login process error:', error);
-    return new Response(JSON.stringify({
-      success: false,
-      error: 'Authentication failed'
-    }), { 
-      status: 500,
-      headers 
-    });
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      return apiErrorHandler(error, { request, cookies });
+    }
+    return apiErrorHandler(new Error('Unknown error occurred'), { request, cookies });
   }
 };

@@ -7,8 +7,7 @@
         "start": "astro dev --host",
         "build": "astro build",
         "preview": "astro preview",
-        "astro": "astro",
-        "test": "node -r dotenv/config node_modules/jest/bin/jest.js"
+        "astro": "astro"
     },
     "dependencies": {
         "@astrojs/mdx": "^4.0.3",
@@ -17,6 +16,7 @@
         "@astrojs/vercel": "^8.0.1",
         "@supabase/supabase-js": "^2.39.3",
         "astro": "^5.1.1",
+        "dotenv": "^16.4.7",
         "howler": "^2.2.4",
         "multer": "^1.4.5-lts.1",
         "nodemailer": "^6.9.9",
@@ -25,17 +25,8 @@
     },
     "devDependencies": {
         "@types/howler": "^2.2.12",
-        "@types/jest": "^29.5.14",
         "@types/nodemailer": "^6.4.17",
-        "@types/supertest": "^6.0.2",
         "@types/uuid": "^10.0.0",
-        "dotenv": "^16.4.7",
-        "esbuild-jest": "^0.5.0",
-        "jest": "^29.7.0",
-        "jest-environment-jsdom": "^29.7.0",
-        "supabase": "^2.2.1",
-        "supertest": "^7.0.0",
-        "ts-jest": "^29.2.5",
-        "ts-node": "^10.9.2"
+        "supabase": "^2.2.1"
     }
 }
