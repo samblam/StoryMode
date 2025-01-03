@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import { R as RateLimiter, a as RATE_LIMITS } from '../../chunks/rateLimit_D-TMYXgA.mjs';
 export { renderers } from '../../renderers.mjs';
 
 const validateEmail = (email) => {
@@ -9,7 +10,23 @@ const sanitizeInput = (input) => {
   return input.trim().replace(/[<>]/g, "").slice(0, 1e3);
 };
 const POST = async ({ request }) => {
+  const headers = {
+    "Content-Type": "application/json"
+  };
   try {
+    const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0] || request.headers.get("x-real-ip") || "unknown";
+    const rateLimitKey = RateLimiter.getKey(clientIp, "send-email");
+    const rateLimitResult = RateLimiter.check(rateLimitKey, RATE_LIMITS.CONTACT);
+    Object.assign(headers, RateLimiter.getHeaders(rateLimitResult));
+    if (!rateLimitResult.success) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: "Too many email attempts. Please try again later."
+      }), {
+        status: 429,
+        headers
+      });
+    }
     const data = await request.json();
     const { name, email, message } = data;
     const sanitizedName = sanitizeInput(name);
@@ -20,9 +37,7 @@ const POST = async ({ request }) => {
         error: "All fields are required"
       }), {
         status: 400,
-        headers: {
-          "Content-Type": "application/json"
-        }
+        headers
       });
     }
     if (!validateEmail(email)) {
@@ -31,9 +46,7 @@ const POST = async ({ request }) => {
         error: "Invalid email format"
       }), {
         status: 400,
-        headers: {
-          "Content-Type": "application/json"
-        }
+        headers
       });
     }
     if (false) ;
@@ -57,9 +70,7 @@ const POST = async ({ request }) => {
         error: `SMTP verification failed: ${verificationError instanceof Error ? verificationError.message : "Unknown error"}`
       }), {
         status: 500,
-        headers: {
-          "Content-Type": "application/json"
-        }
+        headers
       });
     }
     const ccRecipients = "sam@storymode.ca,nick@storymode.ca,ben@storymode.ca"?.split(",").filter(Boolean) || [];
@@ -86,9 +97,7 @@ const POST = async ({ request }) => {
       messageId: info.messageId
     }), {
       status: 200,
-      headers: {
-        "Content-Type": "application/json"
-      }
+      headers
     });
   } catch (error) {
     console.error("Email error:", error);
@@ -98,9 +107,7 @@ const POST = async ({ request }) => {
       error: errorMessage
     }), {
       status: 500,
-      headers: {
-        "Content-Type": "application/json"
-      }
+      headers
     });
   }
 };

@@ -1,10 +1,6 @@
 import type { APIRoute } from 'astro';
 import { supabaseAdmin } from '../../../lib/supabase';
-
-// In-memory rate limit store (replace with Redis or similar in production)
-const rateLimitStore = new Map<string, { count: number; lastReset: number }>();
-const MAX_ATTEMPTS = 5; // Max attempts per window
-const WINDOW_MS = 60 * 60 * 1000; // 1-hour window (in milliseconds)
+import { rateLimitMiddleware } from '../../../utils/rateLimit';
 
 function validateInput(email: string, code: string, password: string) {
   if (!email || !code || !password) {
@@ -16,53 +12,21 @@ function validateInput(email: string, code: string, password: string) {
   return null;
 }
 
-// Function to check if a key (email or IP) is rate-limited
-function isRateLimited(key: string): boolean {
-  const record = rateLimitStore.get(key);
-  if (!record) return false;
+export const POST: APIRoute = async ({ request }) => {
+  const headers = {
+    'Content-Type': 'application/json'
+  };
 
-  const now = Date.now();
-  if (now - record.lastReset > WINDOW_MS) {
-    // Window expired, reset the count
-    record.count = 0;
-    record.lastReset = now;
-    return false;
-  }
-
-  return record.count >= MAX_ATTEMPTS;
-}
-
-// Function to increment the rate limit counter for a key
-function incrementRateLimit(key: string): void {
-  const record = rateLimitStore.get(key);
-  const now = Date.now();
-
-  if (!record) {
-    rateLimitStore.set(key, { count: 1, lastReset: now });
-  } else if (now - record.lastReset > WINDOW_MS) {
-    // Window expired, reset
-    record.count = 1;
-    record.lastReset = now;
-  } else {
-    record.count++;
-  }
-}
-
-export const POST: APIRoute = async ({ request, clientAddress }) => {
   try {
+    // Apply rate limiting middleware
+    const rateLimitResponse = await rateLimitMiddleware('PASSWORD_RESET')(request);
+    if (rateLimitResponse instanceof Response) {
+      return rateLimitResponse;
+    }
+    Object.assign(headers, rateLimitResponse.headers);
+
     const { email, code, password } = await request.json();
     const normalizedEmail = email.trim().toLowerCase();
-
-    // --- RATE LIMITING ---
-    const emailKey = `email:${normalizedEmail}`;
-    const ipKey = `ip:${clientAddress}`;
-
-    if (isRateLimited(emailKey) || isRateLimited(ipKey)) {
-      return new Response(
-        JSON.stringify({ error: 'Too many requests, please try again later.' }),
-        { status: 429 }
-      );
-    }
 
     // --- Input Validation ---
     const validationError = validateInput(normalizedEmail, code, password);
@@ -122,10 +86,6 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
     if (updateCodeError) {
       throw updateCodeError;
     }
-
-    // --- Increment rate limit counters AFTER password update ---
-    incrementRateLimit(emailKey);
-    incrementRateLimit(ipKey);
 
     return new Response(
       JSON.stringify({ success: true }),

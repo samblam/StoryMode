@@ -1,8 +1,20 @@
 import type { APIRoute } from 'astro';
 import { supabaseAdmin } from '../../../lib/supabase';
+import { RateLimiter, RATE_LIMITS, rateLimitMiddleware } from '../../../utils/rateLimit';
 
 export const POST: APIRoute = async ({ request }) => {
+  const headers = {
+    'Content-Type': 'application/json'
+  };
+
   try {
+    // Apply rate limiting middleware
+    const rateLimitResponse = await rateLimitMiddleware('CREATE_USER')(request);
+    if (rateLimitResponse instanceof Response) {
+      return rateLimitResponse;
+    }
+    Object.assign(headers, rateLimitResponse.headers);
+
     const { email, password, role, name, company } = await request.json();
     const normalizedEmail = email.trim().toLowerCase();
 
@@ -10,7 +22,10 @@ export const POST: APIRoute = async ({ request }) => {
     if (!normalizedEmail || !password || !role) {
       return new Response(
         JSON.stringify({ error: 'Missing required fields' }), 
-        { status: 400 }
+        { 
+          status: 400,
+          headers
+        }
       );
     }
 
@@ -18,7 +33,10 @@ export const POST: APIRoute = async ({ request }) => {
     if (!['admin', 'client'].includes(role)) {
       return new Response(
         JSON.stringify({ error: 'Invalid role' }),
-        { status: 400 }
+        { 
+          status: 400,
+          headers
+        }
       );
     }
 
@@ -26,7 +44,10 @@ export const POST: APIRoute = async ({ request }) => {
     if (role === 'client' && !name) {
       return new Response(
         JSON.stringify({ error: 'Client name is required' }),
-        { status: 400 }
+        { 
+          status: 400,
+          headers
+        }
       );
     }
 
@@ -40,7 +61,10 @@ export const POST: APIRoute = async ({ request }) => {
     if (existingUser) {
       return new Response(
         JSON.stringify({ error: 'Email already in use' }),
-        { status: 400 }
+        { 
+          status: 400,
+          headers
+        }
       );
     }
 
@@ -100,7 +124,10 @@ export const POST: APIRoute = async ({ request }) => {
 
     return new Response(
       JSON.stringify({ success: true }),
-      { status: 200 }
+      { 
+        status: 200,
+        headers
+      }
     );
 
   } catch (error) {
@@ -109,7 +136,10 @@ export const POST: APIRoute = async ({ request }) => {
       JSON.stringify({ 
         error: error instanceof Error ? error.message : 'Failed to create user'
       }),
-      { status: 500 }
+      { 
+        status: 500,
+        headers
+      }
     );
   }
 };

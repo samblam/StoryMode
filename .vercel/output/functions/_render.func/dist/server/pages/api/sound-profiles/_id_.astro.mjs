@@ -1,14 +1,43 @@
 import { supabaseAdmin } from '../../../chunks/supabase_D4M8dM3h.mjs';
+import { R as RateLimiter, a as RATE_LIMITS } from '../../../chunks/rateLimit_D-TMYXgA.mjs';
 export { renderers } from '../../../renderers.mjs';
 
-const DELETE = async ({ params, locals }) => {
+const DELETE = async ({ params, locals, request }) => {
+  const headers = {
+    "Content-Type": "application/json"
+  };
   try {
+    const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0] || request.headers.get("x-real-ip") || "unknown";
+    const rateLimitKey = RateLimiter.getKey(clientIp, "profile-delete");
+    const rateLimitResult = RateLimiter.check(rateLimitKey, RATE_LIMITS.DELETE);
+    Object.assign(headers, RateLimiter.getHeaders(rateLimitResult));
+    if (!rateLimitResult.success) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: "Too many delete attempts. Please try again later."
+      }), {
+        status: 429,
+        headers
+      });
+    }
     if (!locals.user || locals.user.role !== "admin") {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        {
+          status: 401,
+          headers
+        }
+      );
     }
     const { id } = params;
     if (!id) {
-      return new Response(JSON.stringify({ error: "Profile ID is required" }), { status: 400 });
+      return new Response(
+        JSON.stringify({ error: "Profile ID is required" }),
+        {
+          status: 400,
+          headers
+        }
+      );
     }
     const { data: sounds, error: fetchError } = await supabaseAdmin.from("sounds").select("storage_path").eq("profile_id", id);
     if (fetchError) {
@@ -35,12 +64,21 @@ const DELETE = async ({ params, locals }) => {
       console.error("Profile deletion error:", profileDeleteError);
       throw new Error("Failed to delete profile");
     }
-    return new Response(JSON.stringify({ success: true }), { status: 200 });
+    return new Response(
+      JSON.stringify({ success: true }),
+      {
+        status: 200,
+        headers
+      }
+    );
   } catch (error) {
     console.error("Delete error:", error);
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : "Delete failed" }),
-      { status: 500 }
+      {
+        status: 500,
+        headers
+      }
     );
   }
 };

@@ -1,28 +1,54 @@
 import { supabaseAdmin } from '../../../chunks/supabase_D4M8dM3h.mjs';
 import { u as uploadSound } from '../../../chunks/storageUtils_BVHAiK5w.mjs';
+import { R as RateLimiter, a as RATE_LIMITS } from '../../../chunks/rateLimit_D-TMYXgA.mjs';
 export { renderers } from '../../../renderers.mjs';
 
 const POST = async ({ request, cookies }) => {
+  const headers = {
+    "Content-Type": "application/json"
+  };
   try {
+    const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0] || request.headers.get("x-real-ip") || "unknown";
+    const rateLimitKey = RateLimiter.getKey(clientIp, "sound-upload");
+    const rateLimitResult = RateLimiter.check(rateLimitKey, RATE_LIMITS.UPLOAD);
+    Object.assign(headers, RateLimiter.getHeaders(rateLimitResult));
+    if (!rateLimitResult.success) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: "Too many upload attempts. Please try again later."
+      }), {
+        status: 429,
+        headers
+      });
+    }
     const token = cookies.get("sb-token")?.value;
     if (!token) {
       return new Response(
         JSON.stringify({ error: "Authentication token not found" }),
-        { status: 401 }
+        {
+          status: 401,
+          headers
+        }
       );
     }
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
     if (authError || !user) {
       return new Response(
         JSON.stringify({ error: "Invalid authentication token" }),
-        { status: 401 }
+        {
+          status: 401,
+          headers
+        }
       );
     }
     const { data: userData } = await supabaseAdmin.from("users").select("role").eq("id", user.id).single();
     if (!userData || userData.role !== "admin") {
       return new Response(
         JSON.stringify({ error: "Unauthorized - Admin access required" }),
-        { status: 403 }
+        {
+          status: 403,
+          headers
+        }
       );
     }
     const formData = await request.formData();
@@ -34,7 +60,10 @@ const POST = async ({ request, cookies }) => {
     if (!file || !profileId || !profileSlug || !name || !description) {
       return new Response(
         JSON.stringify({ error: "All fields are required" }),
-        { status: 400 }
+        {
+          status: 400,
+          headers
+        }
       );
     }
     const validTypes = ["audio/mpeg", "audio/mp3", "audio/wav", "audio/ogg"];
@@ -44,7 +73,10 @@ const POST = async ({ request, cookies }) => {
     if (!isValidType) {
       return new Response(
         JSON.stringify({ error: "Invalid file type. Please upload MP3, WAV, or OGG files only." }),
-        { status: 400 }
+        {
+          status: 400,
+          headers
+        }
       );
     }
     const { path: storagePath, signedUrl } = await uploadSound({
@@ -68,7 +100,10 @@ const POST = async ({ request, cookies }) => {
         success: true,
         sound: newSound
       }),
-      { status: 200 }
+      {
+        status: 200,
+        headers
+      }
     );
   } catch (error) {
     console.error("Upload error:", error);
@@ -76,7 +111,10 @@ const POST = async ({ request, cookies }) => {
       JSON.stringify({
         error: error instanceof Error ? error.message : "Upload failed"
       }),
-      { status: 500 }
+      {
+        status: 500,
+        headers
+      }
     );
   }
 };

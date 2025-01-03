@@ -1,13 +1,25 @@
 import type { APIRoute } from 'astro';
 import { supabaseAdmin } from '../../../lib/supabase';
+import { rateLimitMiddleware } from '../../../utils/rateLimit';
 
 export const POST: APIRoute = async ({ request, cookies }): Promise<Response> => {
+  const headers = {
+    'Content-Type': 'application/json'
+  };
+
+  // Apply rate limiting middleware
+  const rateLimitResponse = await rateLimitMiddleware('API')(request);
+  if (rateLimitResponse instanceof Response) {
+    return rateLimitResponse;
+  }
+  Object.assign(headers, rateLimitResponse.headers);
+
   const token = cookies.get('sb-token')?.value;
 
   if (!token) {
     return new Response(JSON.stringify({ error: 'No session found' }), {
       status: 401,
-      headers: { 'Content-Type': 'application/json' }
+      headers
     });
   }
 
@@ -18,7 +30,7 @@ export const POST: APIRoute = async ({ request, cookies }): Promise<Response> =>
       cookies.delete('sb-token', { path: '/' });
       return new Response(JSON.stringify({ error: 'Invalid session' }), {
         status: 401,
-        headers: { 'Content-Type': 'application/json' }
+        headers
       });
     }
 
@@ -33,7 +45,7 @@ export const POST: APIRoute = async ({ request, cookies }): Promise<Response> =>
       cookies.delete('sb-token', { path: '/' });
       return new Response(JSON.stringify({ error: 'User data not found' }), {
         status: 401,
-        headers: { 'Content-Type': 'application/json' }
+        headers
       });
     }
 
@@ -70,7 +82,7 @@ export const POST: APIRoute = async ({ request, cookies }): Promise<Response> =>
     cookies.delete('sb-token', { path: '/' });
     return new Response(JSON.stringify({ error: 'Session verification failed' }), {
       status: 401,
-      headers: { 'Content-Type': 'application/json' }
+      headers
     });
   }
 };
