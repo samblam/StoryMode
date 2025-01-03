@@ -3,7 +3,7 @@ import { c as createComponent, r as renderTemplate, m as maybeRenderHead, a as a
 import 'kleur/colors';
 import { $ as $$Layout } from '../chunks/Layout_gjCW3zoU.mjs';
 import { a as $$SoundList, $ as $$ProfileCard } from '../chunks/ProfileCard_DekPeNQx.mjs';
-import { supabaseAdmin } from '../chunks/supabase_CUwi8gWR.mjs';
+import { supabaseAdmin } from '../chunks/supabase_D4M8dM3h.mjs';
 /* empty css                                  */
 export { renderers } from '../renderers.mjs';
 

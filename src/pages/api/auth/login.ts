@@ -3,6 +3,7 @@ import type { APIRoute } from 'astro';
 import { createClient } from '@supabase/supabase-js';
 import { supabaseAdmin } from '../../../lib/supabase';
 import type { Database } from '../../../types/database';
+import { RateLimiter, RATE_LIMITS } from '../../../utils/rateLimit';
 
 export const POST: APIRoute = async ({ request, cookies }) => {
   const headers = {
@@ -10,17 +11,41 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   };
 
   try {
+    // Get client IP
+    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0] || 
+                    request.headers.get('x-real-ip') || 
+                    'unknown';
+    
+    // Check rate limit
+    const rateLimitKey = RateLimiter.getKey(clientIp, 'login');
+    const rateLimitResult = RateLimiter.check(rateLimitKey, RATE_LIMITS.LOGIN);
+
+    // Add rate limit headers to response
+    const rateLimitHeaders = RateLimiter.getHeaders(rateLimitResult);
+    Object.assign(headers, rateLimitHeaders);
+
+    if (!rateLimitResult.success) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Too many login attempts. Please try again later.'
+      }), {
+        status: 429,
+        headers
+      });
+    }
+
     const { email, password } = await request.json();
+    
     // Normalize email and validate format
-const normalizedEmail = email.trim().toLowerCase();
-if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
-  return new Response(JSON.stringify({ 
-    error: 'Please enter a valid email address' 
-  }), { 
-    status: 400,
-    headers 
-  });
-}
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      return new Response(JSON.stringify({ 
+        error: 'Please enter a valid email address' 
+      }), { 
+        status: 400,
+        headers 
+      });
+    }
 
     // Create a new Supabase client for this request
     const supabaseAuth = createClient<Database>(
@@ -79,13 +104,13 @@ if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
       clientData = client;
     }
 
-    // Set the auth cookie
+    // Set the auth cookie with security flags
     cookies.set('sb-token', authData.session.access_token, {
       path: '/',
       httpOnly: true,
       secure: import.meta.env.PROD,
       sameSite: 'lax',
-      maxAge: authData.session.expires_in
+      maxAge: authData.session.expires_in,
     });
 
     // Return success response

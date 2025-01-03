@@ -1,7 +1,7 @@
 import 'es-module-lexer';
-import './chunks/astro-designed-error-pages_CndApGeL.mjs';
+import './chunks/astro-designed-error-pages_DoCOnal4.mjs';
 import 'cookie';
-import { s as sequence } from './chunks/index_Ch48lLGS.mjs';
+import { s as sequence } from './chunks/index_D_wZw1_T.mjs';
 
 const onRequest$1 = async ({ request, locals, cookies }, next) => {
   try {
@@ -9,7 +9,7 @@ const onRequest$1 = async ({ request, locals, cookies }, next) => {
     console.log("Middleware running - Token:", token?.value);
     if (token?.value) {
       try {
-        const { supabaseAdmin } = await import('./chunks/supabase_CUwi8gWR.mjs');
+        const { supabaseAdmin } = await import('./chunks/supabase_D4M8dM3h.mjs');
         const { data: { user: authUser }, error: authError } = await supabaseAdmin.auth.getUser(token.value);
         if (authError) {
           console.error("Auth error in middleware:", authError);

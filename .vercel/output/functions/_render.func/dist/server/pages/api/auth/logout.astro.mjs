@@ -1,4 +1,4 @@
-import { supabase } from '../../../chunks/supabase_CUwi8gWR.mjs';
+import { supabase } from '../../../chunks/supabase_D4M8dM3h.mjs';
 export { renderers } from '../../../renderers.mjs';
 
 const POST = async ({ cookies }) => {

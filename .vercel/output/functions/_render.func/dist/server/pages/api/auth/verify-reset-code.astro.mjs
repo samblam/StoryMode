@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '../../../chunks/supabase_CUwi8gWR.mjs';
+import { supabaseAdmin } from '../../../chunks/supabase_D4M8dM3h.mjs';
 export { renderers } from '../../../renderers.mjs';
 
 const rateLimitStore = /* @__PURE__ */ new Map();

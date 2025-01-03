@@ -2,7 +2,7 @@
 import { c as createComponent, r as renderTemplate, d as renderComponent, g as createAstro, m as maybeRenderHead } from '../../../chunks/astro/server_COeGrUW_.mjs';
 import 'kleur/colors';
 import { $ as $$Layout } from '../../../chunks/Layout_gjCW3zoU.mjs';
-import { $ as $$ProfileForm } from '../../../chunks/ProfileForm_J91DcKA0.mjs';
+import { $ as $$ProfileForm } from '../../../chunks/ProfileForm_C8eyLnv2.mjs';
 export { renderers } from '../../../renderers.mjs';
 
 const $$Astro = createAstro();
