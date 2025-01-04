@@ -1,14 +1,14 @@
 import { supabaseAdmin } from '../../../chunks/supabase_D4M8dM3h.mjs';
 import { r as rateLimitMiddleware } from '../../../chunks/rateLimit_C37W6zoK.mjs';
-import { g as getCurrentUser } from '../../../chunks/authUtils_mOm6JoyM.mjs';
+import { g as getCurrentUser } from '../../../chunks/authUtils_D70sxQ4g.mjs';
 export { renderers } from '../../../renderers.mjs';
 
-const POST = async ({ request }) => {
+const POST = async ({ request, cookies }) => {
   const headers = {
     "Content-Type": "application/json"
   };
   try {
-    const currentUser = await getCurrentUser();
+    const currentUser = await getCurrentUser(cookies);
     if (!currentUser || currentUser.role !== "admin") {
       console.error("Unauthorized: User is not admin", { currentUser });
       return new Response(JSON.stringify({
@@ -19,6 +19,7 @@ const POST = async ({ request }) => {
         headers
       });
     }
+    console.log("Admin user verified:", { userId: currentUser.id, role: currentUser.role });
     const rateLimitResponse = await rateLimitMiddleware("CREATE_USER")(request);
     if (rateLimitResponse instanceof Response) {
       return rateLimitResponse;

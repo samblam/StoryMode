@@ -3,14 +3,14 @@ import { supabase, supabaseAdmin } from '../../../lib/supabase';
 import { RateLimiter, RATE_LIMITS, rateLimitMiddleware } from '../../../utils/rateLimit';
 import { getCurrentUser } from '../../../utils/authUtils';
 
-export const POST: APIRoute = async ({ request }): Promise<Response> => {
+export const POST: APIRoute = async ({ request, cookies }): Promise<Response> => {
   const headers = {
     'Content-Type': 'application/json'
   };
 
   try {
-    // Get current user from session to verify admin status
-    const currentUser = await getCurrentUser();
+    // Get current user from session to verify admin status, passing cookies
+    const currentUser = await getCurrentUser(cookies);
     
     if (!currentUser || currentUser.role !== 'admin') {
       console.error('Unauthorized: User is not admin', { currentUser });
@@ -22,6 +22,8 @@ export const POST: APIRoute = async ({ request }): Promise<Response> => {
         headers
       });
     }
+
+    console.log('Admin user verified:', { userId: currentUser.id, role: currentUser.role });
 
     // Apply rate limiting middleware
     const rateLimitResponse = await rateLimitMiddleware('CREATE_USER')(request);

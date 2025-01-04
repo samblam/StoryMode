@@ -1,6 +1,6 @@
 import { supabaseAdmin, supabase } from '../../../chunks/supabase_D4M8dM3h.mjs';
 import { v as verifyAuthorization, i as isRLSError, h as handleRLSError } from '../../../chunks/accessControl_LK_GUcbK.mjs';
-import { g as getCurrentUser } from '../../../chunks/authUtils_mOm6JoyM.mjs';
+import { g as getCurrentUser } from '../../../chunks/authUtils_D70sxQ4g.mjs';
 export { renderers } from '../../../renderers.mjs';
 
 const POST = async ({ request, cookies }) => {

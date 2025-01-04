@@ -1,6 +1,7 @@
 import { supabase, supabaseAdmin } from '../lib/supabase';
 import type { User, AuthError } from '../types/auth';
 import { isRLSError, handleRLSError } from './accessControl';
+import type { AstroCookies } from 'astro';
 
 /**
  * Normalizes an email address by trimming whitespace and converting to lowercase
@@ -10,19 +11,64 @@ function normalizeEmail(email: string): string {
 }
 
 /**
- * Gets the current authenticated user
- */
-/**
  * Gets the current authenticated user with RLS support
  * @returns User object or null if not authenticated
  * @throws RLSError if RLS policy prevents access
  */
-export async function getCurrentUser(): Promise<User | null> {
+export async function getCurrentUser(cookies?: AstroCookies): Promise<User | null> {
   try {
-    const {
-      data: { session },
-      error: sessionError,
-    } = await supabase.auth.getSession();
+    // Try to get token from cookies if provided
+    const token = cookies?.get('sb-token')?.value;
+    
+    if (token) {
+      // If we have a token, verify it first
+      const { data: { user: authUser }, error: authError } = 
+        await supabaseAdmin.auth.getUser(token);
+
+      if (authError || !authUser) {
+        console.error('Auth error or no user found:', authError);
+        return null;
+      }
+
+      // Get user data with admin client to bypass RLS
+      const { data: userData, error: userError } = await supabaseAdmin
+        .from('users')
+        .select(`
+          *,
+          clients!client_id (
+            id,
+            name,
+            email,
+            active
+          )
+        `)
+        .eq('id', authUser.id)
+        .single();
+
+      if (userError) {
+        console.error('Error fetching user data:', userError);
+        return null;
+      }
+
+      return {
+        id: userData.id,
+        email: userData.email,
+        role: userData.role,
+        clientId: userData.client_id,
+        client: userData.clients ? {
+          id: userData.clients.id,
+          name: userData.clients.name,
+          email: userData.clients.email,
+          active: userData.clients.active
+        } : null,
+        createdAt: authUser.created_at || '',
+      };
+    }
+
+    // Rest of the file remains the same...
+
+    // If no token or no cookies provided, try session
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
     if (sessionError || !session?.user) {
       return null;
@@ -43,7 +89,18 @@ export async function getCurrentUser(): Promise<User | null> {
           .select('*')
           .eq('id', session.user.id)
           .single();
-        return adminData;
+        
+        if (!adminData) {
+          return null;
+        }
+
+        return {
+          id: adminData.id,
+          email: adminData.email,
+          role: adminData.role,
+          clientId: adminData.client_id,
+          createdAt: adminData.created_at,
+        };
       }
       throw userError;
     }
@@ -79,9 +136,6 @@ export function isUserAuthorized(user: User | undefined, requiredRole: string): 
   return user.role === requiredRole || user.role === 'admin';
 }
 
-/**
- * Signs in a user with email and password
- */
 /**
  * Signs in a user with RLS support
  * @param email - User's email address
