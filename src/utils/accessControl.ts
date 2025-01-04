@@ -1,5 +1,5 @@
 import { supabase, supabaseAdmin } from '../lib/supabase';
-import type { User, ClientInfo } from '../types/auth';
+import type { User, ClientInfo, AuthErrorCode } from '../types/auth';
 import type { Database } from '../types/database';
 
 /**
@@ -39,6 +39,59 @@ export async function handleRLSError(error: unknown): Promise<Response> {
     error: 'Internal server error',
     code: 'INTERNAL_ERROR'
   }), { status: 500 });
+}
+
+/**
+ * Verifies user authorization for a specific operation
+ * @param user - The user to verify
+ * @param requiredRole - The required role for the operation
+ * @param operationType - Type of operation being performed
+ * @returns Promise resolving to authorization status and optional error
+ */
+export async function verifyAuthorization(
+  user: User | undefined,
+  requiredRole: string,
+  operationType: 'read' | 'write' | 'admin'
+): Promise<{
+  authorized: boolean;
+  error?: {
+    code: AuthErrorCode;
+    message: string;
+  }
+}> {
+  if (!user) {
+    return {
+      authorized: false,
+      error: {
+        code: 'USER_NOT_FOUND',
+        message: 'User not authenticated'
+      }
+    };
+  }
+
+  // Admin operations require admin role
+  if (operationType === 'admin' && !isAdmin(user)) {
+    return {
+      authorized: false,
+      error: {
+        code: 'ADMIN_REQUIRED',
+        message: 'Admin privileges required'
+      }
+    };
+  }
+
+  // Check if user has required role or is admin
+  if (!isUserAuthorized(user, requiredRole)) {
+    return {
+      authorized: false,
+      error: {
+        code: 'PERMISSION_DENIED',
+        message: 'Insufficient permissions'
+      }
+    };
+  }
+
+  return { authorized: true };
 }
 
 /**

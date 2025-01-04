@@ -31,4 +31,11 @@ export type AuthErrorCode =
   | 'USER_NOT_FOUND'
   | 'PERMISSION_DENIED'
   | 'INTERNAL_ERROR'
-  | 'ADMIN_REQUIRED';
+  | 'ADMIN_REQUIRED'
+  | 'RLS_VIOLATION';
+
+export interface AuthResponse {
+  success: boolean;
+  error?: AuthError;
+  data?: unknown;
+}

@@ -8,6 +8,12 @@ declare module 'astro' {
       email: string;
       role: 'admin' | 'client';
       clientId?: string | null;
+      client?: {
+        id: string;
+        name: string;
+        email: string;
+        active: boolean;
+      } | null;
       createdAt: string;
     };
   }
@@ -16,53 +22,68 @@ declare module 'astro' {
 export const onRequest: MiddlewareHandler = async ({ request, locals, cookies }, next) => {
   try {
     const token = cookies.get('sb-token');
-    console.log('Middleware running - Token:', token?.value);
+    if (!token?.value) {
+      return next();
+    }
 
-    if (token?.value) {
-      try {
-        const { supabaseAdmin } = await import('./lib/supabase');
-        
-        // Verify token with error logging
-        const { data: { user: authUser }, error: authError } = await supabaseAdmin.auth.getUser(token.value);
-        
-        if (authError) {
-          console.error('Auth error in middleware:', authError);
-          return next();
-        }
+    try {
+      // Step 1: Verify token
+      const { supabaseAdmin } = await import('./lib/supabase');
+      const { data: { user: authUser }, error: authError } =
+        await supabaseAdmin.auth.getUser(token.value);
+      
+      if (authError) {
+        cookies.delete('sb-token', { path: '/' });
+        return next();
+      }
 
-        if (authUser) {
-          // Get user data with error logging
-          const { data: userData, error: userError } = await supabaseAdmin
+      if (authUser) {
+        // Step 2: Set minimal user data
+        locals.user = {
+          id: authUser.id,
+          email: authUser.email || '',
+          role: 'client', // Default role
+          createdAt: authUser.created_at || ''
+        };
+
+        // Step 3: Try to get additional user data
+        try {
+          const { data: userData } = await supabaseAdmin
             .from('users')
-            .select('*')
+            .select(`
+              role,
+              client_id,
+              clients!client_id(
+                id,
+                name,
+                email,
+                active
+              )
+            `)
             .eq('id', authUser.id)
-            .single();
-
-          if (userError) {
-            console.error('User data error in middleware:', userError);
-            return next();
-          }
+            .single()
+            .throwOnError();
 
           if (userData) {
             locals.user = {
-              id: userData.id,
-              email: userData.email,
+              ...locals.user,
               role: userData.role,
               clientId: userData.client_id,
-              createdAt: userData.created_at
+              client: userData.clients?.length ? {
+                id: userData.clients[0].id,
+                name: userData.clients[0].name,
+                active: userData.clients[0].active
+              } : undefined
             };
-            console.log('User data set in middleware:', locals.user);
           }
+        } catch (error) {
+          console.warn('Error fetching additional user data:', error);
+          // Continue with minimal user data
         }
-      } catch (error) {
-        console.error('Middleware error:', error);
-        // Log the error stack trace if available
-        if (error instanceof Error) {
-          console.error('Error stack:', error.stack);
-        }
-        // Continue the request instead of crashing
-        return next();
       }
+    } catch (error) {
+      console.error('Auth error in middleware:', error);
+      cookies.delete('sb-token', { path: '/' });
     }
 
     return next();

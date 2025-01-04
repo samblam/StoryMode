@@ -1,7 +1,8 @@
 import type { APIRoute } from 'astro';
 import { supabase, supabaseAdmin } from '../../../lib/supabase';
-import { isRLSError, handleRLSError } from '../../../utils/accessControl';
-import { getCurrentUser, isUserAuthorized } from '../../../utils/authUtils';
+import { isRLSError, handleRLSError, verifyAuthorization } from '../../../utils/accessControl';
+import { getCurrentUser } from '../../../utils/authUtils';
+import type { AuthResponse, AuthError } from '../../../types/auth';
 
 export const POST: APIRoute = async ({ request, cookies }) => {
   // Get current user from session
@@ -20,14 +21,23 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       }
     );
   }
-  
+
   // Check if requester is authorized to test tokens (requires admin role)
-  const authorized = isUserAuthorized(currentUser, 'admin');
+  const { authorized, error: authError } = await verifyAuthorization(
+    currentUser,
+    'admin',
+    'admin'
+  );
+
   if (!authorized) {
     return new Response(
       JSON.stringify({
-        error: 'Unauthorized',
-        code: 'ADMIN_REQUIRED'
+        success: false,
+        error: {
+          message: authError?.message || 'Unauthorized',
+          code: authError?.code || 'ADMIN_REQUIRED',
+          status: 403
+        }
       }),
       {
         status: 403,

@@ -1,7 +1,8 @@
 import type { APIRoute } from 'astro';
 import { supabase, supabaseAdmin } from '../../../lib/supabase';
 import { rateLimitMiddleware } from '../../../utils/rateLimit';
-import { isRLSError, handleRLSError } from '../../../utils/accessControl';
+import { isRLSError, handleRLSError, verifyAuthorization } from '../../../utils/accessControl';
+import type { AuthResponse, AuthError } from '../../../types/auth';
 
 export const POST: APIRoute = async ({ request, cookies }): Promise<Response> => {
   const headers = {
