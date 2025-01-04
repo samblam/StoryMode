@@ -1,8 +1,17 @@
 import type { APIRoute } from 'astro';
 import { supabaseAdmin } from '../../../lib/supabase';
 import { getSignedUrl } from '../../../utils/storageUtils';
+import { rateLimitMiddleware } from '../../../utils/rateLimit';
 
 export const POST: APIRoute = async ({ request }) => {
+  const rateLimitResponse = await rateLimitMiddleware('SOUND_DOWNLOAD', {
+    includeIP: true,
+    includeUser: true
+  })(request);
+  
+  if (rateLimitResponse instanceof Response) {
+    return rateLimitResponse;
+  }
   try {
     const { soundId } = await request.json();
 

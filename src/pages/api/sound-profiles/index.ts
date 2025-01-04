@@ -2,6 +2,50 @@ import type { APIRoute } from 'astro';
 import { supabaseAdmin } from '../../../lib/supabase';
 import { RateLimiter, RATE_LIMITS, rateLimitMiddleware } from '../../../utils/rateLimit';
 
+export const GET: APIRoute = async ({ request }) => {
+  const headers = {
+    'Content-Type': 'application/json'
+  };
+
+  try {
+    // Apply rate limiting middleware
+    const rateLimitResponse = await rateLimitMiddleware('PROFILE_VIEW', {
+      includeIP: true
+    })(request);
+    
+    if (rateLimitResponse instanceof Response) {
+      return rateLimitResponse;
+    }
+    Object.assign(headers, rateLimitResponse.headers);
+
+    const { data: profiles, error } = await supabaseAdmin
+      .from('sound_profiles')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      throw error;
+    }
+
+    return new Response(
+      JSON.stringify(profiles),
+      {
+        status: 200,
+        headers
+      }
+    );
+  } catch (error) {
+    console.error('Profile list error:', error);
+    return new Response(
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Failed to fetch profiles' }),
+      {
+        status: 500,
+        headers
+      }
+    );
+  }
+};
+
 export const POST: APIRoute = async ({ request, locals, cookies }) => {
   const headers = {
     'Content-Type': 'application/json'

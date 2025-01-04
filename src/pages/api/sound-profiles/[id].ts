@@ -2,6 +2,68 @@ import type { APIRoute } from 'astro';
 import { supabaseAdmin } from '../../../lib/supabase';
 import { RateLimiter, RATE_LIMITS, rateLimitMiddleware } from '../../../utils/rateLimit';
 
+export const GET: APIRoute = async ({ params, request }) => {
+  const headers = {
+    'Content-Type': 'application/json'
+  };
+
+  try {
+    // Apply rate limiting middleware
+    const rateLimitResponse = await rateLimitMiddleware('PROFILE_VIEW', {
+      includeIP: true
+    })(request);
+    
+    if (rateLimitResponse instanceof Response) {
+      return rateLimitResponse;
+    }
+    Object.assign(headers, rateLimitResponse.headers);
+
+    const { id } = params;
+    if (!id) {
+      return new Response(
+        JSON.stringify({ error: 'Profile ID is required' }),
+        {
+          status: 400,
+          headers
+        }
+      );
+    }
+
+    const { data: profile, error } = await supabaseAdmin
+      .from('sound_profiles')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error || !profile) {
+      return new Response(
+        JSON.stringify({ error: 'Profile not found' }),
+        {
+          status: 404,
+          headers
+        }
+      );
+    }
+
+    return new Response(
+      JSON.stringify(profile),
+      {
+        status: 200,
+        headers
+      }
+    );
+  } catch (error) {
+    console.error('Profile view error:', error);
+    return new Response(
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Failed to fetch profile' }),
+      {
+        status: 500,
+        headers
+      }
+    );
+  }
+};
+
 export const DELETE: APIRoute = async ({ params, locals, request }) => {
   const headers = {
     'Content-Type': 'application/json'
