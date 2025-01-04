@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
-import { supabaseAdmin } from '../../../lib/supabase';
+import { supabase, supabaseAdmin } from '../../../lib/supabase';
 import { rateLimitMiddleware } from '../../../utils/rateLimit';
+import { isRLSError, handleRLSError } from '../../../utils/accessControl';
 
 export const POST: APIRoute = async ({ request, cookies }): Promise<Response> => {
   const headers = {
@@ -34,16 +35,47 @@ export const POST: APIRoute = async ({ request, cookies }): Promise<Response> =>
       });
     }
 
-    // Get user data
-    const { data: userData, error: userError } = await supabaseAdmin
+    // Get user data - try with regular client first
+    let userData = null;
+    const { data: regularData, error: regularError } = await supabase
       .from('users')
       .select('*')
       .eq('id', user.id)
       .single();
 
-    if (userError || !userData) {
+    if (regularError) {
+      if (isRLSError(regularError)) {
+        // Fall back to admin client if RLS blocks access
+        const { data: adminData, error: adminError } = await supabaseAdmin
+          .from('users')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+        
+        if (adminError || !adminData) {
+          cookies.delete('sb-token', { path: '/' });
+          return new Response(JSON.stringify({
+            error: 'User data not found',
+            code: 'USER_NOT_FOUND'
+          }), {
+            status: 401,
+            headers
+          });
+        }
+        userData = adminData;
+      } else {
+        return handleRLSError(regularError);
+      }
+    } else {
+      userData = regularData;
+    }
+
+    if (!userData) {
       cookies.delete('sb-token', { path: '/' });
-      return new Response(JSON.stringify({ error: 'User data not found' }), {
+      return new Response(JSON.stringify({
+        error: 'User data not found',
+        code: 'USER_NOT_FOUND'
+      }), {
         status: 401,
         headers
       });

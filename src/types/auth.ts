@@ -23,4 +23,12 @@ export interface User {
 export interface AuthError {
   message: string;
   status: number;
+  code?: string;
 }
+
+export type AuthErrorCode =
+  | 'AUTH_ERROR'
+  | 'USER_NOT_FOUND'
+  | 'PERMISSION_DENIED'
+  | 'INTERNAL_ERROR'
+  | 'ADMIN_REQUIRED';

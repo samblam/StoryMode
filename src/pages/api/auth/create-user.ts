@@ -1,8 +1,44 @@
 import type { APIRoute } from 'astro';
-import { supabaseAdmin } from '../../../lib/supabase';
+import { supabase, supabaseAdmin } from '../../../lib/supabase';
 import { RateLimiter, RATE_LIMITS, rateLimitMiddleware } from '../../../utils/rateLimit';
+import { isRLSError, handleRLSError } from '../../../utils/accessControl';
+import { getCurrentUser, isUserAuthorized } from '../../../utils/authUtils';
 
-export const POST: APIRoute = async ({ request }) => {
+export const POST: APIRoute = async ({ request, cookies }) => {
+  // Get current user from session
+  const currentUser = await getCurrentUser();
+  if (!currentUser) {
+    return new Response(
+      JSON.stringify({
+        error: 'Unauthorized',
+        code: 'UNAUTHORIZED'
+      }),
+      {
+        status: 401,
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+  }
+  
+  // Check if requester is authorized to create users (requires admin role)
+  const authorized = isUserAuthorized(currentUser, 'admin');
+  if (!authorized) {
+    return new Response(
+      JSON.stringify({
+        error: 'Unauthorized',
+        code: 'ADMIN_REQUIRED'
+      }),
+      {
+        status: 403,
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+  }
+
   const headers = {
     'Content-Type': 'application/json'
   };
@@ -75,8 +111,15 @@ export const POST: APIRoute = async ({ request }) => {
       email_confirm: true
     });
 
-    if (authError) throw new Error(`Auth creation failed: ${authError.message}`);
-    if (!authData.user) throw new Error('No user returned from auth creation');
+    if (authError) {
+      return handleRLSError(authError);
+    }
+    if (!authData.user) {
+      return new Response(JSON.stringify({
+        error: 'No user returned from auth creation',
+        code: 'INTERNAL_ERROR'
+      }), { status: 500, headers });
+    }
 
     const userId = authData.user.id;
 
@@ -97,7 +140,7 @@ export const POST: APIRoute = async ({ request }) => {
       if (clientError) {
         // Cleanup auth user if client creation fails
         await supabaseAdmin.auth.admin.deleteUser(userId);
-        throw new Error(`Client creation failed: ${clientError.message}`);
+        return handleRLSError(clientError);
       }
 
       clientId = clientData.id;
@@ -119,7 +162,7 @@ export const POST: APIRoute = async ({ request }) => {
       if (clientId) {
         await supabaseAdmin.from('clients').delete().eq('id', clientId);
       }
-      throw new Error(`User record creation failed: ${userError.message}`);
+      return handleRLSError(userError);
     }
 
     return new Response(

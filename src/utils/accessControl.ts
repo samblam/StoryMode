@@ -1,12 +1,70 @@
-import { supabaseAdmin } from '../lib/supabase';
+import { supabase, supabaseAdmin } from '../lib/supabase';
 import type { User, ClientInfo } from '../types/auth';
 import type { Database } from '../types/database';
+
+/**
+ * Error type for Row Level Security (RLS) violations
+ */
+export interface RLSError extends Error {
+  code: string;
+  details?: string;
+}
+
+/**
+ * Type guard to check if an error is an RLSError
+ * @param error - The error to check
+ * @returns boolean indicating if the error is an RLSError
+ */
+export function isRLSError(error: unknown): error is RLSError {
+  return error instanceof Error &&
+         'code' in error &&
+         (error as any).code === 'PGRST301';
+}
+
+/**
+ * Handles RLS errors and returns an appropriate response
+ * @param error - The error to handle
+ * @returns Response object with error details
+ */
+export async function handleRLSError(error: unknown): Promise<Response> {
+  if (isRLSError(error)) {
+    return new Response(JSON.stringify({
+      error: 'Access denied',
+      code: 'PERMISSION_DENIED'
+    }), { status: 403 });
+  }
+  
+  // Handle other errors
+  return new Response(JSON.stringify({
+    error: 'Internal server error',
+    code: 'INTERNAL_ERROR'
+  }), { status: 500 });
+}
+
+/**
+ * Checks if a user has admin privileges
+ * @param user - The user to check
+ * @returns boolean indicating admin status
+ */
+export function isAdmin(user: User | undefined): boolean {
+  return user?.role === 'admin';
+}
+
+/**
+ * Checks if a user is authorized for an operation
+ * @param user - The user to check
+ * @param requiredRole - The required role for the operation
+ * @returns boolean indicating authorization status
+ */
+export function isUserAuthorized(user: User | undefined, requiredRole: string): boolean {
+  if (!user) return false;
+  return user.role === requiredRole || isAdmin(user);
+}
 
 type SoundProfileWithClient = Database['public']['Tables']['sound_profiles']['Row'] & {
   client?: Database['public']['Tables']['clients']['Row'] | null;
   sounds: Database['public']['Tables']['sounds']['Row'][];
 };
-
 
 
 export async function getAccessibleSoundProfiles(user: User | undefined): Promise<SoundProfileWithClient[]> {

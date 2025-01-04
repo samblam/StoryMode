@@ -1,9 +1,10 @@
 // src/pages/api/auth/login.ts
 import type { APIRoute } from 'astro';
 import { createClient } from '@supabase/supabase-js';
-import { supabaseAdmin } from '../../../lib/supabase';
+import { supabase, supabaseAdmin } from '../../../lib/supabase';
 import type { Database } from '../../../types/database';
 import { RateLimiter, RATE_LIMITS, rateLimitMiddleware } from '../../../utils/rateLimit';
+import { isRLSError, handleRLSError } from '../../../utils/accessControl';
 
 export const POST: APIRoute = async ({ request, cookies }) => {
   const headers = {
@@ -60,32 +61,80 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       });
     }
 
-    // Step 2: Get user data
-    const { data: userData, error: userError } = await supabaseAdmin
+    // Step 2: Get user data - try with regular client first
+    let userData = null;
+    let userError = null;
+    
+    // First try with regular client
+    const { data: regularData, error: regularError } = await supabase
       .from('users')
       .select('*')
       .eq('id', authData.user.id)
       .single();
 
-    if (userError || !userData) {
-      return new Response(JSON.stringify({ 
+    if (regularError) {
+      if (isRLSError(regularError)) {
+        // Fall back to admin client if RLS blocks access
+        const { data: adminData, error: adminError } = await supabaseAdmin
+          .from('users')
+          .select('*')
+          .eq('id', authData.user.id)
+          .single();
+        
+        if (adminError || !adminData) {
+          return new Response(JSON.stringify({
+            success: false,
+            error: 'User data not found',
+            code: 'USER_NOT_FOUND'
+          }), {
+            status: 404,
+            headers
+          });
+        }
+        userData = adminData;
+      } else {
+        return handleRLSError(regularError);
+      }
+    } else {
+      userData = regularData;
+    }
+
+    if (!userData) {
+      return new Response(JSON.stringify({
         success: false,
-        error: 'User data not found' 
-      }), { 
+        error: 'User data not found',
+        code: 'USER_NOT_FOUND'
+      }), {
         status: 404,
-        headers 
+        headers
       });
     }
 
-    // Step 3: Get client data if applicable
+    // Step 3: Get client data if applicable - with RLS support
     let clientData = null;
     if (userData.client_id) {
-      const { data: client } = await supabaseAdmin
+      // First try with regular client
+      const { data: regularClient, error: clientError } = await supabase
         .from('clients')
         .select('*')
         .eq('id', userData.client_id)
         .single();
-      clientData = client;
+
+      if (clientError) {
+        if (isRLSError(clientError)) {
+          // Fall back to admin client if RLS blocks access
+          const { data: adminClient } = await supabaseAdmin
+            .from('clients')
+            .select('*')
+            .eq('id', userData.client_id)
+            .single();
+          clientData = adminClient;
+        } else {
+          console.error('Error fetching client data:', clientError);
+        }
+      } else {
+        clientData = regularClient;
+      }
     }
 
     // Set the auth cookie with security flags
