@@ -9,8 +9,11 @@ interface ErrorResponse {
   message: string;
   type: ErrorType;
   requestId?: string;
+  timestamp?: string;
   stack?: string;
   details?: Record<string, unknown>;
+  userAgent?: string;
+  cause?: string;
 }
 
 export class AppError extends Error {
@@ -79,17 +82,38 @@ export const handleError = (
   // Ensure requestId is always a string
   const finalRequestId = xRequestId || requestId || 'unknown';
  
-   const errorResponse = {
+   const errorResponse: ErrorResponse = {
      statusCode: err instanceof AppError ? err.statusCode : 500,
      message: err instanceof AppError ? err.message : (isProduction ? 'Internal Server Error' : err.message),
      type: err instanceof AppError ? err.type : 'server',
      requestId: finalRequestId,
      timestamp: new Date().toISOString(),
-     stack: isProduction ? undefined : err.stack,
-     details: isProduction ? undefined : (err instanceof AppError ? (err as AppError).details : undefined),
-     userAgent: isProduction ? undefined : userAgent,
+     // Always exclude stack traces in production
+     stack: undefined,
+     // Standardize detail formatting
+     details: err instanceof AppError ? {
+       ...(err.details || {}),
+       // Include FileError specific details
+       ...(err instanceof FileError ? { filePath: err.details?.filePath } : {})
+     } : undefined,
+     userAgent: isProduction ? undefined : userAgent || undefined,
      cause: err.cause ? (isProduction && !(err instanceof AppError && err.isOperational) ? 'Internal error' : err.cause.toString()) : undefined,
    };
+
+   // Only include development-specific fields if not in production
+   if (!isProduction) {
+     errorResponse.stack = err.stack;
+     if (err instanceof AppError) {
+       errorResponse.details = {
+         ...errorResponse.details,
+         // Include additional debug information for FileError
+         ...(err instanceof FileError ? {
+           fileSize: err.details?.fileSize,
+           operation: err.details?.operation
+         } : {})
+       };
+     }
+   }
  
    // Log errors appropriately
    if (!isProduction) {

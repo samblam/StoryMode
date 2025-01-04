@@ -33,6 +33,21 @@ describe('Error Handling', () => {
       expect(error.details).toEqual(details);
     });
 
+    test('FileError includes file-specific details', () => {
+      const details = { filePath: '/uploads/test.txt', fileSize: 1024 };
+      const error = new FileError('File operation failed', details);
+      expect(error.statusCode).toBe(500);
+      expect(error.type).toBe('file');
+      expect(error.details).toEqual(details);
+    });
+
+    test('FileError handles missing details', () => {
+      const error = new FileError('File operation failed');
+      expect(error.statusCode).toBe(500);
+      expect(error.type).toBe('file');
+      expect(error.details).toBeUndefined();
+    });
+
     test('ValidationError includes multiple fields', () => {
       const details = {
         fields: {
@@ -277,11 +292,70 @@ describe('Error Handling', () => {
       const response = handleError(error, { request: mockRequest });
       const responseData = await response.json();
 
+      expect(consoleSpy).toHaveBeenCalled();
       expect(responseData.details).toBeUndefined();
       expect(responseData.message).not.toContain('secretPassword');
       expect(responseData.message).not.toContain('test@example.com');
-      expect(responseData.message).not.toContain('test@example.com');
       expect(responseData.message).not.toContain('sensitiveToken');
+      expect(responseData.stack).toBeUndefined();
+    });
+
+    test('maintains consistent error response format across environments', async () => {
+      const error = new FileError('File upload failed', { filePath: 'test.txt' });
+      const mockRequest = new Request('http://localhost');
+      
+      // Test in development
+      process.env.NODE_ENV = 'development';
+      const devResponse = handleError(error, { request: mockRequest });
+      const devData = await devResponse.json();
+      
+      // Test in production
+      process.env.NODE_ENV = 'production';
+      const prodResponse = handleError(error, { request: mockRequest });
+      const prodData = await prodResponse.json();
+      
+      // Common fields
+      expect(devData).toMatchObject({
+        statusCode: expect.any(Number),
+        message: expect.any(String),
+        type: expect.any(String),
+        timestamp: expect.any(String),
+        requestId: expect.any(String)
+      });
+      
+      expect(prodData).toMatchObject({
+        statusCode: expect.any(Number),
+        message: expect.any(String),
+        type: expect.any(String),
+        timestamp: expect.any(String),
+        requestId: expect.any(String)
+      });
+      
+      // Environment-specific differences
+      expect(devData.details).toBeDefined();
+      expect(prodData.details).toBeUndefined();
+      expect(devData.stack).toBeDefined();
+      expect(prodData.stack).toBeUndefined();
+    });
+
+    test('includes file-specific details in development', async () => {
+      process.env.NODE_ENV = 'development';
+      const error = new FileError('File operation failed', {
+        filePath: 'test.txt',
+        fileSize: 1024,
+        operation: 'upload'
+      });
+      const mockRequest = new Request('http://localhost');
+      
+      const response = handleError(error, { request: mockRequest });
+      const responseData = await response.json();
+      
+      expect(responseData.details).toEqual({
+        filePath: 'test.txt',
+        fileSize: 1024,
+        operation: 'upload'
+      });
+      expect(responseData.stack).toBeDefined();
     });
 
     test('handles non-Error cause in error details', async () => {
