@@ -7,3 +7,14 @@ export interface AppLocals {
     user: User | null;
   };
 }
+
+export interface ValidationError {
+  field: string;
+  message: string;
+}
+
+export interface ValidationResponse {
+  success: boolean;
+  errors?: ValidationError[];
+  error?: string;  // For general errors
+}

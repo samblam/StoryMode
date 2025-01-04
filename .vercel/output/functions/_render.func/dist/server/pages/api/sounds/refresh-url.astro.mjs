@@ -1,8 +1,39 @@
-import { supabaseAdmin } from '../../../chunks/supabase_D4M8dM3h.mjs';
-import { g as getSignedUrl } from '../../../chunks/storageUtils_BVHAiK5w.mjs';
+import { supabaseAdmin } from '../../../chunks/supabase_C0n-HHBb.mjs';
+import { r as rateLimitMiddleware } from '../../../chunks/rateLimit_FwDC2vWM.mjs';
 export { renderers } from '../../../renderers.mjs';
 
+class StorageError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "StorageError";
+  }
+}
+async function getSignedUrl(path) {
+  try {
+    const { data, error } = await supabaseAdmin.storage.from("sounds").createSignedUrl(path, 60 * 60, {
+      download: false,
+      transform: {
+        format: "origin"
+      }
+    });
+    if (error) throw error;
+    if (!data?.signedUrl) throw new Error("No signed URL returned");
+    return data.signedUrl;
+  } catch (error) {
+    throw new StorageError(
+      `Failed to get signed URL: ${error instanceof Error ? error.message : "Unknown error"}`
+    );
+  }
+}
+
 const POST = async ({ request }) => {
+  const rateLimitResponse = await rateLimitMiddleware("SOUND_DOWNLOAD", {
+    includeIP: true,
+    includeUser: true
+  })(request);
+  if (rateLimitResponse instanceof Response) {
+    return rateLimitResponse;
+  }
   try {
     const { soundId } = await request.json();
     if (!soundId) {

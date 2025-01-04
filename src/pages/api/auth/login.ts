@@ -1,13 +1,9 @@
 // src/pages/api/auth/login.ts
 import type { APIRoute } from 'astro';
-import { createClient } from '@supabase/supabase-js';
-import { supabase, supabaseAdmin } from '../../../lib/supabase';
-import type { Database } from '../../../types/database';
-import { RateLimiter, RATE_LIMITS, rateLimitMiddleware } from '../../../utils/rateLimit';
-import { isRLSError, handleRLSError, verifyAuthorization } from '../../../utils/accessControl';
-import type { AuthResponse, AuthError } from '../../../types/auth';
+import { supabase } from '../../../lib/supabase';
+import { rateLimitMiddleware } from '../../../utils/rateLimit';
 
-export const POST: APIRoute = async ({ request, cookies }) => {
+export const POST: APIRoute = async ({ request, cookies }): Promise<Response> => {
   const headers = {
     'Content-Type': 'application/json'
   };
@@ -21,33 +17,10 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     Object.assign(headers, rateLimitResponse.headers);
 
     const { email, password } = await request.json();
-    
-    // Normalize email and validate format
     const normalizedEmail = email.trim().toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
-      return new Response(JSON.stringify({ 
-        error: 'Please enter a valid email address' 
-      }), { 
-        status: 400,
-        headers 
-      });
-    }
-
-    // Create a new Supabase client for this request
-    const supabaseAuth = createClient<Database>(
-      import.meta.env.PUBLIC_SUPABASE_URL,
-      import.meta.env.PUBLIC_SUPABASE_ANON_KEY,
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-          detectSessionInUrl: false,
-        },
-      }
-    );
 
     // Step 1: Initial Authentication
-    const { data: authData, error: authError } = await supabaseAuth.auth.signInWithPassword({
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
       email: normalizedEmail,
       password,
     });
@@ -72,43 +45,37 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       });
     }
 
-    // Step 2: Set Auth Cookie
-    cookies.set('sb-token', authData.session.access_token, {
-      path: '/',
-      httpOnly: true,
-      secure: import.meta.env.PROD,
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 7, // 1 week
+    // Step 2: Get user data with auth token
+    const getUserResponse = await fetch(`${import.meta.env.PUBLIC_SUPABASE_URL}/rest/v1/rpc/get_authenticated_user`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${authData.session.access_token}`,
+        'apikey': import.meta.env.PUBLIC_SUPABASE_ANON_KEY,
+        'Content-Type': 'application/json'
+      }
     });
 
-    // Step 3: Get User Data
-    const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select(`
-        id,
-        email,
-        role,
-        client_id,
-        client:clients(
-          id,
-          name,
-          email,
-          active
-        )
-      `)
-      .eq('id', authData.user.id)
-      .single();
-
-    if (userError) {
-      console.error('Error fetching user data:', userError);
+    if (!getUserResponse.ok) {
+      console.error('Error fetching user data:', await getUserResponse.text());
       return new Response(JSON.stringify({
         success: false,
-        error: 'Failed to fetch user data'
+        error: 'Error fetching user data'
       }), {
         status: 500,
         headers
       });
     }
+
+    const userData = await getUserResponse.json();
+
+    // Step 3: Set auth cookie only after successful data fetch
+    cookies.set('sb-token', authData.session.access_token, {
+      path: '/',
+      httpOnly: true,
+      secure: import.meta.env.PROD,
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 7 // 1 week
+    });
 
     return new Response(JSON.stringify({
       success: true,
@@ -124,6 +91,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       status: 200,
       headers
     });
+
   } catch (error) {
     console.error('Login process error:', error);
     return new Response(JSON.stringify({

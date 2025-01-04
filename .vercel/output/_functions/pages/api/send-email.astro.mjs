@@ -1,14 +1,8 @@
 import nodemailer from 'nodemailer';
-import { r as rateLimitMiddleware } from '../../chunks/rateLimit_C37W6zoK.mjs';
+import { r as rateLimitMiddleware } from '../../chunks/rateLimit_FwDC2vWM.mjs';
+import { v as validateBody } from '../../chunks/validationMiddleware_-_YZoV9A.mjs';
 export { renderers } from '../../renderers.mjs';
 
-const validateEmail = (email) => {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
-};
-const sanitizeInput = (input) => {
-  return input.trim().replace(/[<>]/g, "").slice(0, 1e3);
-};
 const POST = async ({ request }) => {
   const headers = {
     "Content-Type": "application/json"
@@ -19,28 +13,15 @@ const POST = async ({ request }) => {
       return rateLimitResponse;
     }
     Object.assign(headers, rateLimitResponse.headers);
-    const data = await request.json();
-    const { name, email, message } = data;
-    const sanitizedName = sanitizeInput(name);
-    const sanitizedMessage = sanitizeInput(message);
-    if (!sanitizedName || !email || !sanitizedMessage) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: "All fields are required"
-      }), {
-        status: 400,
-        headers
-      });
+    const validation = await validateBody({
+      name: "name",
+      email: "email",
+      message: "description"
+    })(request);
+    if (validation instanceof Response) {
+      return validation;
     }
-    if (!validateEmail(email)) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: "Invalid email format"
-      }), {
-        status: 400,
-        headers
-      });
-    }
+    const { body } = validation;
     if (false) ;
     const transporter = nodemailer.createTransport({
       host: "smtp.purelymail.com",
@@ -72,15 +53,15 @@ const POST = async ({ request }) => {
       to: "info@storymode.ca",
       cc: ccRecipients,
       subject: "New Contact Form Submission - Story Mode",
-      text: sanitizedMessage,
+      text: body.message,
       html: `
         <h2>New Contact Form Submission</h2>
-        <p><strong>Name:</strong> ${sanitizedName}</p>
-        <p><strong>Email:</strong> ${email}</p>
+        <p><strong>Name:</strong> ${body.name}</p>
+        <p><strong>Email:</strong> ${body.email}</p>
         <p><strong>Message:</strong></p>
-        <p>${sanitizedMessage.replace(/\n/g, "<br>")}</p>
+        <p>${body.message.replace(/\n/g, "<br>")}</p>
       `,
-      replyTo: email
+      replyTo: body.email
       // Set the user's email as the reply-to address
     });
     console.log("Email Sent Info:", info);

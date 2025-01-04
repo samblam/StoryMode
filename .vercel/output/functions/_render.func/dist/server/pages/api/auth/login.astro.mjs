@@ -1,6 +1,5 @@
-import { createClient } from '@supabase/supabase-js';
-import { supabase } from '../../../chunks/supabase_D4M8dM3h.mjs';
-import { r as rateLimitMiddleware } from '../../../chunks/rateLimit_C37W6zoK.mjs';
+import { supabase } from '../../../chunks/supabase_C0n-HHBb.mjs';
+import { r as rateLimitMiddleware } from '../../../chunks/rateLimit_FwDC2vWM.mjs';
 export { renderers } from '../../../renderers.mjs';
 
 const POST = async ({ request, cookies }) => {
@@ -15,26 +14,7 @@ const POST = async ({ request, cookies }) => {
     Object.assign(headers, rateLimitResponse.headers);
     const { email, password } = await request.json();
     const normalizedEmail = email.trim().toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
-      return new Response(JSON.stringify({
-        error: "Please enter a valid email address"
-      }), {
-        status: 400,
-        headers
-      });
-    }
-    const supabaseAuth = createClient(
-      "https://iubzudsaueifxrwrqfjw.supabase.co",
-      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml1Ynp1ZHNhdWVpZnhyd3JxZmp3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzM3Njc2NzQsImV4cCI6MjA0OTM0MzY3NH0.SNXX_0_NMSJqOKSMMxM5WP6sfR3zokgCgdJkH4s-xfg",
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-          detectSessionInUrl: false
-        }
-      }
-    );
-    const { data: authData, error: authError } = await supabaseAuth.auth.signInWithPassword({
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
       email: normalizedEmail,
       password
     });
@@ -56,6 +36,25 @@ const POST = async ({ request, cookies }) => {
         headers
       });
     }
+    const getUserResponse = await fetch(`${"https://iubzudsaueifxrwrqfjw.supabase.co"}/rest/v1/rpc/get_authenticated_user`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${authData.session.access_token}`,
+        "apikey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml1Ynp1ZHNhdWVpZnhyd3JxZmp3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzM3Njc2NzQsImV4cCI6MjA0OTM0MzY3NH0.SNXX_0_NMSJqOKSMMxM5WP6sfR3zokgCgdJkH4s-xfg",
+        "Content-Type": "application/json"
+      }
+    });
+    if (!getUserResponse.ok) {
+      console.error("Error fetching user data:", await getUserResponse.text());
+      return new Response(JSON.stringify({
+        success: false,
+        error: "Error fetching user data"
+      }), {
+        status: 500,
+        headers
+      });
+    }
+    const userData = await getUserResponse.json();
     cookies.set("sb-token", authData.session.access_token, {
       path: "/",
       httpOnly: true,
@@ -64,34 +63,6 @@ const POST = async ({ request, cookies }) => {
       maxAge: 60 * 60 * 24 * 7
       // 1 week
     });
-    const { data: userData, error: userError } = await supabase.from("users").select(`
-        id,
-        email,
-        role,
-        client_id,
-        client:clients(
-          id,
-          name,
-          email,
-          active
-        )
-      `).eq("id", authData.user.id).single();
-    if (userError) {
-      console.error("Error fetching user data:", userError);
-      return new Response(JSON.stringify({
-        success: true,
-        user: {
-          id: authData.user.id,
-          email: authData.user.email,
-          role: "client",
-          // Default role
-          createdAt: authData.user.created_at
-        }
-      }), {
-        status: 200,
-        headers
-      });
-    }
     return new Response(JSON.stringify({
       success: true,
       user: {

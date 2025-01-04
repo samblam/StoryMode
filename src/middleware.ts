@@ -52,24 +52,41 @@ export const onRequest: MiddlewareHandler = async ({ request, locals, cookies },
           createdAt: authUser.created_at || ''
         };
 
-        // Step 3: Try to get additional user data
+        // Step 3: Try to get additional user data with retries
         try {
           console.log('Middleware - Fetching additional user data');
-          const { data: userData } = await supabaseAdmin
-            .from('users')
-            .select(`
-              role,
-              client_id,
-              clients!client_id(
-                id,
-                name,
-                email,
-                active
-              )
-            `)
-            .eq('id', authUser.id)
-            .single()
-            .throwOnError();
+          
+          let retryCount = 0;
+          const maxRetries = 3;
+          let userData = null;
+
+          while (retryCount < maxRetries) {
+            const { data, error } = await supabaseAdmin
+              .from('users')
+              .select(`
+                role,
+                client_id,
+                clients!client_id(
+                  id,
+                  name,
+                  email,
+                  active
+                )
+              `)
+              .eq('id', authUser.id)
+              .single()
+              .throwOnError();
+
+            if (data) {
+              userData = data;
+              break;
+            }
+
+            retryCount++;
+            if (retryCount < maxRetries) {
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+          }
 
           if (userData) {
             console.log('Middleware - Additional user data found:', {
@@ -96,6 +113,8 @@ export const onRequest: MiddlewareHandler = async ({ request, locals, cookies },
               client: clientData,
               createdAt: authUser.created_at || ''
             };
+          } else {
+            console.log('Middleware - No additional user data found after retries');
           }
         } catch (error) {
           console.error('Middleware - Error fetching additional user data:', error);

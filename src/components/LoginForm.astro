@@ -13,9 +13,11 @@
       type="email"
       id="email"
       name="email"
+      data-rule="email"
       required
       class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-400"
       placeholder="you@example.com"
+      autocomplete="email"
     />
   </div>
 
@@ -25,10 +27,12 @@
       type="password"
       id="password"
       name="password"
+      data-rule="password"
       required
       minlength="8"
       class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-400"
       placeholder="••••••••"
+      autocomplete="current-password"
     />
   </div>
 
@@ -48,40 +52,87 @@
 </form>
 
 <script>
-  interface SubmitResponse {
-    success: boolean;
-    error?: string;
+  import type { ValidationError } from '../types/app';
+  import { ValidationRules, validateInput } from '../utils/validation';
+  import { setupValidation } from '../utils/clientValidation';
+
+  interface FormErrors {
+    [key: string]: string;
   }
 
+  let errors: FormErrors = {};
   const form = document.getElementById('login-form') as HTMLFormElement;
-  const formStatus = document.getElementById('form-status');
-  const errorMessage = formStatus?.querySelector('.error');
+  
+  // Initialize validation
+  setupValidation(validateInput);
 
-  interface FormDataObject {
-    email: string;
-    password: string;
+  function updateErrorDisplay() {
+    // Clear all existing error messages
+    document.querySelectorAll('.error-message').forEach(el => el.remove());
+    
+    // Display new error messages
+    Object.entries(errors).forEach(([field, message]) => {
+      const input = document.querySelector(`[name="${field}"]`) as HTMLInputElement;
+      if (input) {
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'error-message text-red-600 text-sm mt-1';
+        errorDiv.textContent = message;
+        input.parentNode?.appendChild(errorDiv);
+      }
+    });
+
+    // Show general errors at the top of the form
+    const formStatus = document.getElementById('form-status');
+    const errorElement = formStatus?.querySelector('.error');
+    if (formStatus && errorElement) {
+      if (errors.general) {
+        formStatus.classList.remove('hidden');
+        errorElement.classList.remove('hidden');
+        errorElement.textContent = errors.general;
+      } else {
+        formStatus.classList.add('hidden');
+        errorElement.classList.add('hidden');
+      }
+    }
   }
 
-  const validateForm = (formData: FormDataObject): string | null => {
-    const email = formData.email || '';
-    const password = formData.password || '';
+  // Add real-time validation
+  const inputs = form?.querySelectorAll('input');
+  inputs?.forEach(input => {
+    const fieldInput = input as HTMLInputElement;
+    fieldInput.addEventListener('blur', () => {
+      const field = fieldInput.getAttribute('name');
+      if (!field) return;
+      
+      const rule = fieldInput.getAttribute('data-rule') as keyof typeof ValidationRules;
+      if (!rule) return;
+      
+      try {
+        const error = validateInput(fieldInput.value, rule);
+        if (error) {
+          errors[field] = error;
+        } else {
+          delete errors[field];
+        }
+        updateErrorDisplay();
+      } catch (error) {
+        console.error('Validation error:', error);
+      }
+    });
+  });
 
-    const emailError = window.validateInput(email, 'email');
-    if (emailError) return emailError;
-
-    const passwordError = window.validateInput(password, 'password');
-    if (passwordError) return passwordError;
-
-    return null;
-  };
+  let isSubmitting = false;
 
   form?.addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    // Reset error message
-    formStatus?.classList.add('hidden');
-    errorMessage?.classList.add('hidden');
+    if (isSubmitting) return;
+    isSubmitting = true;
 
+    // Reset errors
+    errors = {};
+    updateErrorDisplay();
+    
     // Disable submit button
     const submitButton = form.querySelector('button[type="submit"]') as HTMLButtonElement;
     submitButton.disabled = true;
@@ -94,9 +145,15 @@
         password: formData.get('password')?.toString() || ''
       };
 
-      const validationError = validateForm(data);
-      if (validationError) {
-        throw new Error(validationError);
+      // Validate before submitting
+      const emailError = validateInput(data.email, 'email');
+      const passwordError = validateInput(data.password, 'password');
+
+      if (emailError || passwordError) {
+        if (emailError) errors.email = emailError;
+        if (passwordError) errors.password = passwordError;
+        updateErrorDisplay();
+        return;
       }
 
       const response = await fetch('/api/auth/login', {
@@ -107,26 +164,36 @@
         body: JSON.stringify(data),
       });
 
-      const result = await response.json() as SubmitResponse;
+      const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || `HTTP error! status: ${response.status}`);
+        if (result.errors) {
+          result.errors.forEach((error: ValidationError) => {
+            errors[error.field] = error.message;
+          });
+        } else if (result.error) {
+          errors.general = result.error;
+        }
+        updateErrorDisplay();
+        return;
       }
 
       if (result.success) {
-        // Redirect to home page or intended page
+        // Clear any existing errors
+        errors = {};
+        updateErrorDisplay();
+
+        // Redirect to home page
         window.location.href = '/';
       } else {
-        throw new Error(result.error || 'Login failed');
+        errors.general = result.error || 'Login failed. Please try again.';
+        updateErrorDisplay();
       }
     } catch (error: any) {
-      console.error('Login error:', error);
-      formStatus?.classList.remove('hidden');
-      if (errorMessage && error instanceof Error) {
-        errorMessage.textContent = error.message;
-      }
+      errors.general = 'An unexpected error occurred. Please try again.';
+      updateErrorDisplay();
     } finally {
-      // Re-enable submit button
+      isSubmitting = false;
       submitButton.disabled = false;
       submitButton.textContent = 'Sign In';
     }

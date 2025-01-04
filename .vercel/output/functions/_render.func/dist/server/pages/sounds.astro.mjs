@@ -1,10 +1,10 @@
 /* empty css                                 */
 import { c as createComponent, r as renderTemplate, d as renderComponent, m as maybeRenderHead } from '../chunks/astro/server_COeGrUW_.mjs';
 import 'kleur/colors';
-import { $ as $$Layout } from '../chunks/Layout_gjCW3zoU.mjs';
+import { $ as $$Layout } from '../chunks/Layout_Y_cjXtYi.mjs';
 import { $ as $$ProfileCard } from '../chunks/ProfileCard_DekPeNQx.mjs';
-import { g as getSoundProfiles } from '../chunks/profileUtils_BmAPKBfM.mjs';
-import { supabase } from '../chunks/supabase_D4M8dM3h.mjs';
+import { g as getSoundProfiles } from '../chunks/profileUtils_CBK7Xq14.mjs';
+import { supabase } from '../chunks/supabase_C0n-HHBb.mjs';
 export { renderers } from '../renderers.mjs';
 
 async function getSounds() {
