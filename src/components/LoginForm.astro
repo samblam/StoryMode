@@ -36,32 +36,20 @@
     <p class="error hidden text-red-600 bg-red-50 p-3 rounded-lg"></p>
   </div>
 
-  <button
-    type="submit"
-    class="w-full bg-green-400 text-white px-8 py-3 rounded-lg text-lg hover:bg-green-500 transition-colors"
-  >
-    Sign In
-  </button>
+  <div>
+    <button type="submit" class="w-full py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-opacity-75">
+      Sign In
+    </button>
+  </div>
 
-  <div class="text-center">
-    <a href="/reset-password" class="text-blue-600 hover:underline">Forgot your password?</a>
+  <div class="text-sm text-gray-600 text-center">
+    <a href="/reset-password" class="hover:underline">Forgot your password?</a>
   </div>
 </form>
 
 <script>
-  interface LoginResponse {
+  interface SubmitResponse {
     success: boolean;
-    user?: {
-      id: string;
-      email: string;
-      role: 'admin' | 'client';
-      clientId?: string;
-      client?: {
-        id: string;
-        name: string;
-        active: boolean;
-      };
-    };
     error?: string;
   }
 
@@ -69,21 +57,47 @@
   const formStatus = document.getElementById('form-status');
   const errorMessage = formStatus?.querySelector('.error');
 
+  interface FormDataObject {
+    email: string;
+    password: string;
+  }
+
+  const validateForm = (formData: FormDataObject): string | null => {
+    const email = formData.email || '';
+    const password = formData.password || '';
+
+    const emailError = window.validateInput(email, 'email');
+    if (emailError) return emailError;
+
+    const passwordError = window.validateInput(password, 'password');
+    if (passwordError) return passwordError;
+
+    return null;
+  };
+
   form?.addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    // Reset status messages
+    // Reset error message
     formStatus?.classList.add('hidden');
     errorMessage?.classList.add('hidden');
 
-    // Disable submit button while processing
+    // Disable submit button
     const submitButton = form.querySelector('button[type="submit"]') as HTMLButtonElement;
     submitButton.disabled = true;
-    submitButton.textContent = 'Signing in...';
+    submitButton.textContent = 'Signing In...';
 
     try {
       const formData = new FormData(form);
-      const data = Object.fromEntries(formData);
+      const data = {
+        email: formData.get('email')?.toString() || '',
+        password: formData.get('password')?.toString() || ''
+      };
+
+      const validationError = validateForm(data);
+      if (validationError) {
+        throw new Error(validationError);
+      }
 
       const response = await fetch('/api/auth/login', {
         method: 'POST',
@@ -91,26 +105,27 @@
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(data),
-        credentials: 'include'
       });
 
-      const result = await response.json() as LoginResponse;
+      const result = await response.json() as SubmitResponse;
 
-      if (!result.success) {
+      if (!response.ok) {
+        throw new Error(result.error || `HTTP error! status: ${response.status}`);
+      }
+
+      if (result.success) {
+        // Redirect to home page or intended page
+        window.location.href = '/';
+      } else {
         throw new Error(result.error || 'Login failed');
       }
-
-      // Use window.location.href instead of replace to ensure clean navigation
-      window.location.href = '/sounds';
-
-    } catch (error) {
+    } catch (error: any) {
       console.error('Login error:', error);
       formStatus?.classList.remove('hidden');
-      errorMessage?.classList.remove('hidden');
-      if (errorMessage) {
-        errorMessage.textContent = error instanceof Error ? error.message : 'Login failed';
+      if (errorMessage && error instanceof Error) {
+        errorMessage.textContent = error.message;
       }
-      
+    } finally {
       // Re-enable submit button
       submitButton.disabled = false;
       submitButton.textContent = 'Sign In';

@@ -99,25 +99,17 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       .eq('id', authData.user.id)
       .single();
 
-    // Don't fail completely if user data fetch fails
     if (userError) {
       console.error('Error fetching user data:', userError);
-      // Return minimal user data from auth
       return new Response(JSON.stringify({
-        success: true,
-        user: {
-          id: authData.user.id,
-          email: authData.user.email,
-          role: 'client', // Default role
-          createdAt: authData.user.created_at
-        }
+        success: false,
+        error: 'Failed to fetch user data'
       }), {
-        status: 200,
+        status: 500,
         headers
       });
     }
 
-    // Return success response
     return new Response(JSON.stringify({
       success: true,
       user: {
@@ -132,7 +124,6 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       status: 200,
       headers
     });
-
   } catch (error) {
     console.error('Login process error:', error);
     return new Response(JSON.stringify({

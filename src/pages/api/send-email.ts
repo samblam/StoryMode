@@ -1,24 +1,7 @@
 import type { APIRoute } from 'astro';
 import nodemailer from 'nodemailer';
 import { RateLimiter, RATE_LIMITS, rateLimitMiddleware } from '../../utils/rateLimit';
-
-interface EmailData {
-  name: string;
-  email: string;
-  message: string;
-}
-
-const validateEmail = (email: string): boolean => {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
-};
-
-const sanitizeInput = (input: string): string => {
-  return input
-    .trim()
-    .replace(/[<>]/g, '')
-    .slice(0, 1000);
-};
+import { validateBody } from '../../utils/validationMiddleware';
 
 export const POST: APIRoute = async ({ request }) => {
   const headers = {
@@ -33,34 +16,17 @@ export const POST: APIRoute = async ({ request }) => {
     }
     Object.assign(headers, rateLimitResponse.headers);
 
-    const data = await request.json() as EmailData;
-    const { name, email, message } = data;
+    const validation = await validateBody({
+      name: 'name',
+      email: 'email',
+      message: 'description'
+    })(request);
 
-    // Validate and sanitize inputs
-    const sanitizedName = sanitizeInput(name);
-    const sanitizedMessage = sanitizeInput(message);
-
-    // Validate required fields
-    if (!sanitizedName || !email || !sanitizedMessage) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'All fields are required'
-      }), {
-        status: 400,
-        headers
-      });
+    if (validation instanceof Response) {
+      return validation;
     }
 
-    // Validate email format
-    if (!validateEmail(email)) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Invalid email format'
-      }), {
-        status: 400,
-        headers
-      });
-    }
+    const { body } = validation;
 
     // Check if SMTP credentials are configured
     if (!import.meta.env.SMTP_USER || !import.meta.env.SMTP_PASS) {
@@ -108,15 +74,15 @@ export const POST: APIRoute = async ({ request }) => {
       to: import.meta.env.SMTP_TO,
       cc: ccRecipients,
       subject: "New Contact Form Submission - Story Mode",
-      text: sanitizedMessage,
+      text: body.message,
       html: `
         <h2>New Contact Form Submission</h2>
-        <p><strong>Name:</strong> ${sanitizedName}</p>
-        <p><strong>Email:</strong> ${email}</p>
+        <p><strong>Name:</strong> ${body.name}</p>
+        <p><strong>Email:</strong> ${body.email}</p>
         <p><strong>Message:</strong></p>
-        <p>${sanitizedMessage.replace(/\n/g, '<br>')}</p>
+        <p>${body.message.replace(/\n/g, '<br>')}</p>
       `,
-      replyTo: email, // Set the user's email as the reply-to address
+      replyTo: body.email, // Set the user's email as the reply-to address
     });
 
     console.log("Email Sent Info:", info);

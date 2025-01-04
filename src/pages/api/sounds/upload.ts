@@ -1,165 +1,85 @@
-import type { APIRoute } from 'astro';
-import { supabaseAdmin } from '../../../lib/supabase';
-import { uploadSound } from '../../../utils/storageUtils';
-import { RateLimiter, RATE_LIMITS, rateLimitMiddleware } from '../../../utils/rateLimit';
+import type { APIRoute, APIContext } from 'astro';
+import { getClient } from '../../../lib/supabase';
+import { put } from '@vercel/blob';
+import { validateBody } from '../../../utils/validationMiddleware';
+import { validateFile, sanitizeInput, normalizeFileName } from '../../../utils/validation';
+import type { User } from '../../../types/auth';
+import type { AppLocals } from 'src/types/app';
 
-export const POST: APIRoute = async ({ request, cookies }) => {
-  const headers = {
-    'Content-Type': 'application/json'
-  };
+export const POST: APIRoute = async ({ request, locals }: APIContext & { locals: AppLocals }) => {
+  const supabaseClient = getClient();
+  const authUser = locals?.auth?.user as User;
+
+  if (!authUser) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
 
   try {
-    // Apply rate limiting middleware
-    const rateLimitResponse = await rateLimitMiddleware('UPLOAD')(request);
-    if (rateLimitResponse instanceof Response) {
-      return rateLimitResponse;
-    }
-    Object.assign(headers, rateLimitResponse.headers);
-
-    // Get the token from cookies
-    const token = cookies.get('sb-token')?.value;
-
-    if (!token) {
-      return new Response(
-        JSON.stringify({ error: 'Authentication token not found' }),
-        { 
-          status: 401,
-          headers
-        }
-      );
-    }
-
-    // Verify admin user
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
-    if (authError || !user) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid authentication token' }),
-        { 
-          status: 401,
-          headers
-        }
-      );
-    }
-
-    const { data: userData } = await supabaseAdmin
-      .from('users')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-
-    if (!userData || userData.role !== 'admin') {
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized - Admin access required' }),
-        { 
-          status: 403,
-          headers
-        }
-      );
-    }
-
     const formData = await request.formData();
     const file = formData.get('sound') as File;
-    const profileId = formData.get('profileId') as string;
-    const profileSlug = formData.get('profileSlug') as string;
-    const name = formData.get('name') as string;
-    const description = formData.get('description') as string;
 
-    if (!file || !profileId || !profileSlug || !name || !description) {
+    const fileError = validateFile(file);
+    if (fileError) {
       return new Response(
-        JSON.stringify({ error: 'All fields are required' }),
-        { 
-          status: 400,
-          headers
-        }
+        JSON.stringify({ success: false, error: fileError }),
+        { status: 400 }
       );
     }
 
-    // Validate file type and extension
-    const validTypes = ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg'];
-    const validExtensions = ['.mp3', '.wav', '.ogg'];
-    const fileExtension = `.${file.name.split('.').pop()?.toLowerCase()}`;
-    
-    const isValidType = validTypes.includes(file.type) || 
-                       validExtensions.includes(fileExtension);
+    const validation = await validateBody({
+      name: 'name',
+      description: 'description'
+    })(request);
 
-    if (!isValidType) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid file type. Please upload MP3, WAV, or OGG files only.' }),
-        { 
-          status: 400,
-          headers
-        }
-      );
+    if (validation instanceof Response) {
+      return validation;
     }
 
-    let storagePath: string | undefined;
-    try {
-      // Upload to Supabase Storage with content-type
-      const { path, signedUrl } = await uploadSound({
-        file,
-        profileSlug,
-        contentType: file.type || 'audio/mpeg' // Default to audio/mpeg if type is empty
-      });
-      storagePath = path;
+    const { body } = validation;
+    const name = sanitizeInput(body.name);
+    const description = sanitizeInput(body.description);
+    const normalizedFileName = normalizeFileName(file.name);
+    const userId = authUser.id;
+    const filePath = `sounds/${userId}/${normalizedFileName}`;
 
-      // Create database entry
-      const { data: newSound, error: dbError } = await supabaseAdmin
-        .from('sounds')
-        .insert({
-          name,
-          description,
-          file_path: signedUrl,
-          storage_path: storagePath,
-          profile_id: profileId,
-        })
-        .select()
-        .single();
+    const { data, error } = await supabaseClient
+      .from('sounds')
+      .insert([{ 
+        name, 
+        description,
+        file_path: filePath,
+        user_id: userId
+      }]);
 
-      if (dbError) {
-        throw dbError;
-      }
-
-      return new Response(
-        JSON.stringify({
-          success: true,
-          sound: newSound,
-        }),
-        {
-          status: 200,
-          headers
-        }
-      );
-    } catch (error) {
-      // Clean up uploaded file if it exists and there was an error
-      if (storagePath) {
-        try {
-          await supabaseAdmin.storage.from('sounds').remove([storagePath]);
-        } catch (cleanupError) {
-          console.error('Failed to cleanup uploaded file:', cleanupError);
-        }
-      }
-
-      console.error('Upload error:', error);
-      return new Response(
-        JSON.stringify({
-          error: error instanceof Error ? error.message : 'Upload failed'
-        }),
-        {
-          status: 500,
-          headers
-        }
-      );
-    }
-  } catch (error) {
-    console.error('Error:', error);
-    return new Response(
-      JSON.stringify({
-        error: error instanceof Error ? error.message : 'Request failed'
-      }),
-      {
+    if (error) {
+      console.error("Supabase insert error:", error);
+      return new Response(JSON.stringify({ success: false, error: 'Failed to save sound metadata.' }), {
         status: 500,
-        headers
-      }
-    );
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    const blobResult = await put(filePath, file, {
+      access: 'public',
+    });
+
+    return new Response(JSON.stringify({ 
+      success: true, 
+      blobUrl: blobResult.url,
+      supabaseData: data
+    }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+
+  } catch (error) {
+    console.error("Upload error:", error);
+    return new Response(JSON.stringify({ success: false, error: 'Failed to upload sound.' }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 };
