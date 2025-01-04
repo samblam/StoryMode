@@ -1,8 +1,9 @@
 import type { APIRoute } from 'astro';
 import { supabaseAdmin } from '../../../lib/supabase';
 import { RateLimiter, RATE_LIMITS, rateLimitMiddleware } from '../../../utils/rateLimit';
+import { ValidationError, AuthError, DatabaseError, apiErrorHandler } from '../../../utils/errorHandler';
 
-export const POST: APIRoute = async ({ request }) => {
+export const POST: APIRoute = async ({ request, cookies }) => {
   const headers = {
     'Content-Type': 'application/json'
   };
@@ -20,35 +21,29 @@ export const POST: APIRoute = async ({ request }) => {
 
     // Validate required fields
     if (!normalizedEmail || !password || !role) {
-      return new Response(
-        JSON.stringify({ error: 'Missing required fields' }), 
-        { 
-          status: 400,
-          headers
+      throw new ValidationError('Missing required fields', {
+        fields: {
+          email: !!normalizedEmail,
+          password: !!password,
+          role: !!role
         }
-      );
+      });
     }
 
     // Validate role
     if (!['admin', 'client'].includes(role)) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid role' }),
-        { 
-          status: 400,
-          headers
-        }
-      );
+      throw new ValidationError('Invalid role', {
+        validRoles: ['admin', 'client'],
+        providedRole: role
+      });
     }
 
     // If client role, validate client name
     if (role === 'client' && !name) {
-      return new Response(
-        JSON.stringify({ error: 'Client name is required' }),
-        { 
-          status: 400,
-          headers
-        }
-      );
+      throw new ValidationError('Client name is required', {
+        requiredForRole: 'client',
+        missingField: 'name'
+      });
     }
 
     // Check if email already exists
@@ -59,13 +54,10 @@ export const POST: APIRoute = async ({ request }) => {
       .maybeSingle();
 
     if (existingUser) {
-      return new Response(
-        JSON.stringify({ error: 'Email already in use' }),
-        { 
-          status: 400,
-          headers
-        }
-      );
+      throw new ValidationError('Email already in use', {
+        email: normalizedEmail,
+        existingUserId: existingUser.id
+      });
     }
 
     // 1. Create auth user
@@ -75,8 +67,18 @@ export const POST: APIRoute = async ({ request }) => {
       email_confirm: true
     });
 
-    if (authError) throw new Error(`Auth creation failed: ${authError.message}`);
-    if (!authData.user) throw new Error('No user returned from auth creation');
+    if (authError) {
+      throw new AuthError('Auth creation failed', {
+        error: authError.message,
+        email: normalizedEmail,
+        errorCode: authError.code
+      });
+    }
+    if (!authData.user) {
+      throw new AuthError('No user returned from auth creation', {
+        email: normalizedEmail
+      });
+    }
 
     const userId = authData.user.id;
 
@@ -97,7 +99,12 @@ export const POST: APIRoute = async ({ request }) => {
       if (clientError) {
         // Cleanup auth user if client creation fails
         await supabaseAdmin.auth.admin.deleteUser(userId);
-        throw new Error(`Client creation failed: ${clientError.message}`);
+        throw new DatabaseError('Client creation failed', {
+          error: clientError.message,
+          clientName: name,
+          company,
+          errorCode: clientError.code
+        });
       }
 
       clientId = clientData.id;
@@ -119,7 +126,12 @@ export const POST: APIRoute = async ({ request }) => {
       if (clientId) {
         await supabaseAdmin.from('clients').delete().eq('id', clientId);
       }
-      throw new Error(`User record creation failed: ${userError.message}`);
+      throw new DatabaseError('User record creation failed', {
+        error: userError.message,
+        userId,
+        clientId,
+        errorCode: userError.code
+      });
     }
 
     return new Response(
@@ -130,16 +142,10 @@ export const POST: APIRoute = async ({ request }) => {
       }
     );
 
-  } catch (error) {
-    console.error('Create user error:', error);
-    return new Response(
-      JSON.stringify({ 
-        error: error instanceof Error ? error.message : 'Failed to create user'
-      }),
-      { 
-        status: 500,
-        headers
-      }
-    );
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      return apiErrorHandler(error, { request, cookies });
+    }
+    return apiErrorHandler(new Error('Failed to create user'), { request, cookies });
   }
 };

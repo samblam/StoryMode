@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import { supabase, supabaseAdmin } from '../../../lib/supabase';
 import type { Database } from '../../../types/database';
 import { RateLimiter, RATE_LIMITS, rateLimitMiddleware } from '../../../utils/rateLimit';
-import { AppError, AuthError, ValidationError, apiErrorHandler } from '../../../utils/errorHandler';
+import { AppError, AuthError, ValidationError, DatabaseError, apiErrorHandler } from '../../../utils/errorHandler';
 
 export const POST: APIRoute = async ({ request, cookies }) => {
   const headers = {
@@ -66,11 +66,18 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     // Step 3: Get client data if applicable
     let clientData = null;
     if (userData.client_id) {
-      const { data: client } = await supabaseAdmin
+      const { data: client, error: clientError } = await supabaseAdmin
         .from('clients')
         .select('*')
         .eq('id', userData.client_id)
         .single();
+      
+      if (clientError) {
+        throw new DatabaseError('Failed to retrieve client data', {
+          clientId: userData.client_id,
+          error: clientError.message
+        });
+      }
       clientData = client;
     }
 

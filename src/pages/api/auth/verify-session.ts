@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
-import { supabaseAdmin } from '../../../lib/supabase';
+import { supabase, supabaseAdmin } from '../../../lib/supabase';
 import { rateLimitMiddleware } from '../../../utils/rateLimit';
+import { AuthError, DatabaseError, apiErrorHandler } from '../../../utils/errorHandler';
 
 export const POST: APIRoute = async ({ request, cookies }): Promise<Response> => {
   const headers = {
@@ -17,10 +18,7 @@ export const POST: APIRoute = async ({ request, cookies }): Promise<Response> =>
   const token = cookies.get('sb-token')?.value;
 
   if (!token) {
-    return new Response(JSON.stringify({ error: 'No session found' }), {
-      status: 401,
-      headers
-    });
+    throw new AuthError('No session found');
   }
 
   try {
@@ -28,14 +26,13 @@ export const POST: APIRoute = async ({ request, cookies }): Promise<Response> =>
 
     if (error || !user) {
       cookies.delete('sb-token', { path: '/' });
-      return new Response(JSON.stringify({ error: 'Invalid session' }), {
-        status: 401,
-        headers
+      throw new AuthError('Invalid session', {
+        token
       });
     }
 
     // Get user data
-    const { data: userData, error: userError } = await supabaseAdmin
+    const { data: userData, error: userError } = await supabase
       .from('users')
       .select('*')
       .eq('id', user.id)
@@ -43,9 +40,8 @@ export const POST: APIRoute = async ({ request, cookies }): Promise<Response> =>
 
     if (userError || !userData) {
       cookies.delete('sb-token', { path: '/' });
-      return new Response(JSON.stringify({ error: 'User data not found' }), {
-        status: 401,
-        headers
+      throw new DatabaseError('User data not found', {
+        userId: user.id
       });
     }
 
@@ -77,12 +73,11 @@ export const POST: APIRoute = async ({ request, cookies }): Promise<Response> =>
       }
     });
 
-  } catch (error) {
-    console.error('Session verification error:', error);
+  } catch (error: unknown) {
     cookies.delete('sb-token', { path: '/' });
-    return new Response(JSON.stringify({ error: 'Session verification failed' }), {
-      status: 401,
-      headers
-    });
+    if (error instanceof Error) {
+      return apiErrorHandler(error, { request, cookies });
+    }
+    return apiErrorHandler(new Error('Session verification failed'), { request, cookies });
   }
 };

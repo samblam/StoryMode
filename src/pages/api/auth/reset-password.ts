@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
-import { supabaseAdmin } from '../../../lib/supabase';
+import { supabase, supabaseAdmin } from '../../../lib/supabase';
 import { rateLimitMiddleware } from '../../../utils/rateLimit';
+import { ValidationError, AuthError, DatabaseError, apiErrorHandler } from '../../../utils/errorHandler';
 
 export const POST: APIRoute = async ({ request }) => {
   const headers = {
@@ -19,14 +20,14 @@ export const POST: APIRoute = async ({ request }) => {
     const normalizedEmail = email.trim().toLowerCase();
 
     if (!normalizedEmail) {
-      return new Response(
-        JSON.stringify({ error: 'Email is required' }),
-        { status: 400 }
-      );
+      throw new ValidationError('Email is required', {
+        field: 'email',
+        value: email
+      });
     }
 
     // Verify the user exists before sending reset email
-    const { data: userData, error: userError } = await supabaseAdmin
+    const { data: userData, error: userError } = await supabase
       .from('users')
       .select('id')
       .eq('email', normalizedEmail)
@@ -37,10 +38,9 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     if (!userData) {
-      return new Response(
-        JSON.stringify({ error: 'No account found with this email' }),
-        { status: 404 }
-      );
+      throw new AuthError('No account found with this email', {
+        email: normalizedEmail
+      });
     }
 
     // Send password reset email through Supabase
@@ -56,13 +56,10 @@ export const POST: APIRoute = async ({ request }) => {
       JSON.stringify({ success: true }),
       { status: 200 }
     );
-  } catch (error) {
-    console.error('Password reset error:', error);
-    return new Response(
-      JSON.stringify({
-        error: error instanceof Error ? error.message : 'Failed to send reset link',
-      }),
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      return apiErrorHandler(error, { request });
+    }
+    return apiErrorHandler(new Error('Failed to send reset link'), { request });
   }
 };

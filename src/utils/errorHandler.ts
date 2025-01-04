@@ -8,7 +8,6 @@ interface ErrorResponse {
   statusCode: number;
   message: string;
   type: ErrorType;
-  error?: string;
   requestId?: string;
   stack?: string;
   details?: Record<string, unknown>;
@@ -19,7 +18,8 @@ export class AppError extends Error {
     public statusCode: number,
     public message: string,
     public type: ErrorType,
-    public isOperational: boolean = true
+    public isOperational: boolean = true,
+    public details?: Record<string, unknown>
   ) {
     super(message);
     Object.setPrototypeOf(this, new.target.prototype);
@@ -28,26 +28,26 @@ export class AppError extends Error {
 }
 
 export class ValidationError extends AppError {
-  constructor(message: string, public details?: Record<string, unknown>) {
-    super(400, message, 'validation');
+  constructor(message: string, details?: Record<string, unknown>) {
+    super(400, message, 'validation', true, details);
   }
 }
 
 export class AuthError extends AppError {
-  constructor(message: string) {
-    super(401, message, 'auth');
+  constructor(message: string, details?: Record<string, unknown>) {
+    super(401, message, 'auth', true, details);
   }
 }
 
 export class DatabaseError extends AppError {
-  constructor(message: string) {
-    super(500, message, 'database');
+  constructor(message: string, details?: Record<string, unknown>) {
+    super(500, message, 'database', true, details);
   }
 }
 
 export class FileError extends AppError {
-  constructor(message: string) {
-    super(500, message, 'file');
+  constructor(message: string, details?: Record<string, unknown>) {
+    super(500, message, 'file', true, details);
   }
 }
 
@@ -59,51 +59,71 @@ export const handleError = (
     requestId?: string;
     isProduction?: boolean;
   }
-): ErrorResponse => {
+): Response => {
   const isProduction = context?.isProduction ?? process.env.NODE_ENV === 'production';
   const requestId = context?.requestId;
 
-  // Handle known error types
-  if (err instanceof AppError) {
-    return {
-      statusCode: err.statusCode,
+  // Log error in development
+  if (!isProduction) {
+    console.error('[Error]', {
       message: err.message,
-      type: err.type,
-      requestId,
-      stack: isProduction ? undefined : err.stack,
-      details: err instanceof ValidationError ? (err as ValidationError).details : undefined
-    };
+      stack: err.stack,
+      details: err instanceof AppError ? (err as AppError).details : undefined
+    });
   }
 
-  // Handle unknown errors
-  return {
-    statusCode: 500,
-    message: isProduction ? 'Internal Server Error' : err.message,
-    type: 'server',
-    requestId,
-    stack: isProduction ? undefined : err.stack
-  };
-};
+  // Extract request context
+  const userAgent = context?.request?.headers.get('user-agent');
+  const xRequestId = context?.request?.headers.get('x-request-id');
 
-import type { APIContext } from 'astro';
-
-export const apiErrorHandler = (err: Error, context: APIContext) => {
-  const response = handleError(err, {
-    requestId: context.request.headers.get('x-request-id') ?? undefined,
-    isProduction: process.env.NODE_ENV === 'production'
-  });
-
-  return new Response(JSON.stringify({
-    error: {
-      message: response.message,
-      type: response.type,
-      ...(response.details && { details: response.details }),
-      ...(response.requestId && { requestId: response.requestId })
-    }
-  }), {
-    status: response.statusCode,
-    headers: {
-      'Content-Type': 'application/json'
-    }
-  });
-};
+  // Ensure requestId is always a string
+  const finalRequestId = xRequestId || requestId || 'unknown';
+ 
+   const errorResponse = {
+     statusCode: err instanceof AppError ? err.statusCode : 500,
+     message: err instanceof AppError ? err.message : (isProduction ? 'Internal Server Error' : err.message),
+     type: err instanceof AppError ? err.type : 'server',
+     requestId: finalRequestId,
+     timestamp: new Date().toISOString(),
+     stack: isProduction ? undefined : err.stack,
+     details: isProduction ? undefined : (err instanceof AppError ? (err as AppError).details : undefined),
+     userAgent: isProduction ? undefined : userAgent,
+     cause: err.cause ? (isProduction && !(err instanceof AppError && err.isOperational) ? 'Internal error' : err.cause.toString()) : undefined,
+   };
+ 
+   // Log errors appropriately
+   if (!isProduction) {
+     console.error(
+       `[Error] ${err.message} - Details: ${JSON.stringify({
+         stack: err.stack,
+         details: err instanceof AppError ? err.details : undefined,
+         requestId: finalRequestId,
+       })}`
+     );
+   } else if (err instanceof AppError && err.isOperational) {
+     console.error(`[Operational Error] ${err.message}`, {
+       requestId: finalRequestId,
+       type: err.type,
+       cause: err.cause?.toString(),
+     });
+   }
+ 
+   return new Response(JSON.stringify(errorResponse), {
+     status: errorResponse.statusCode,
+     headers: {
+       'Content-Type': 'application/json'
+     }
+   });
+ };
+ 
+ export const apiErrorHandler = (
+   err: Error,
+   context?: {
+     request?: Request;
+     cookies?: AstroCookies;
+     requestId?: string;
+     isProduction?: boolean;
+   }
+ ): Response => {
+   return handleError(err, context);
+ };

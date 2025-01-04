@@ -3,6 +3,7 @@ import { supabaseAdmin } from '../../../lib/supabase';
 import nodemailer from 'nodemailer';
 import { randomInt } from 'crypto';
 import { RateLimiter, RATE_LIMITS, rateLimitMiddleware } from '../../../utils/rateLimit';
+import { ValidationError, AuthError, DatabaseError, apiErrorHandler } from '../../../utils/errorHandler';
 
 function generateResetCode(): string {
   return randomInt(100000, 999999).toString();
@@ -25,13 +26,10 @@ export const POST: APIRoute = async ({ request }) => {
     const normalizedEmail = email.trim().toLowerCase();
 
     if (!normalizedEmail) {
-      return new Response(
-        JSON.stringify({ error: 'Email is required' }),
-        { 
-          status: 400,
-          headers
-        }
-      );
+      throw new ValidationError('Email is required', {
+        field: 'email',
+        value: email
+      });
     }
 
     // Verify the user exists
@@ -42,13 +40,9 @@ export const POST: APIRoute = async ({ request }) => {
       .single();
 
     if (userError || !userData) {
-      return new Response(
-        JSON.stringify({ error: 'No account found with this email' }),
-        { 
-          status: 404,
-          headers
-        }
-      );
+      throw new AuthError('No account found with this email', {
+        email: normalizedEmail
+      });
     }
 
     // Generate and store reset code
@@ -92,14 +86,9 @@ export const POST: APIRoute = async ({ request }) => {
         `,
       });
     } catch (error) {
-      console.error('Failed to send password reset email:', error);
-      return new Response(
-        JSON.stringify({ error: 'Failed to send password reset email. Please try again later.' }),
-        { 
-          status: 500,
-          headers
-        }
-      );
+      throw new Error('Failed to send password reset email', {
+        cause: error
+      });
     }
 
     return new Response(
@@ -109,16 +98,10 @@ export const POST: APIRoute = async ({ request }) => {
         headers
       }
     );
-  } catch (error) {
-    console.error('Password reset error:', error);
-    return new Response(
-      JSON.stringify({
-        error: error instanceof Error ? error.message : 'Failed to send reset code',
-      }),
-      { 
-        status: 500,
-        headers
-      }
-    );
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      return apiErrorHandler(error, { request });
+    }
+    return apiErrorHandler(new Error('Failed to send reset code'), { request });
   }
 };

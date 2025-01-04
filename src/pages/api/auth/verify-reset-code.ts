@@ -1,13 +1,22 @@
 import type { APIRoute } from 'astro';
 import { supabaseAdmin } from '../../../lib/supabase';
 import { rateLimitMiddleware } from '../../../utils/rateLimit';
-
+import { ValidationError, AuthError, DatabaseError, apiErrorHandler } from '../../../utils/errorHandler';
 function validateInput(email: string, code: string, password: string) {
   if (!email || !code || !password) {
-    return { error: 'Email, code, and password are required', status: 400 };
+    throw new ValidationError('Email, code, and password are required', {
+      fields: {
+        email: !!email,
+        code: !!code,
+        password: !!password
+      }
+    });
   }
   if (!/^\d{6}$/.test(code)) {
-    return { error: 'Invalid code format', status: 400 };
+    throw new ValidationError('Invalid code format', {
+      code,
+      expectedFormat: '6 digits'
+    });
   }
   return null;
 }
@@ -29,12 +38,7 @@ export const POST: APIRoute = async ({ request }) => {
     const normalizedEmail = email.trim().toLowerCase();
 
     // --- Input Validation ---
-    const validationError = validateInput(normalizedEmail, code, password);
-    if (validationError) {
-      return new Response(JSON.stringify({ error: validationError.error }), {
-        status: validationError.status,
-      });
-    }
+    validateInput(normalizedEmail, code, password);
 
     // --- Get user by email ---
     const { data: userData, error: userError } = await supabaseAdmin
@@ -44,10 +48,9 @@ export const POST: APIRoute = async ({ request }) => {
       .single();
 
     if (userError || !userData) {
-      return new Response(
-        JSON.stringify({ error: 'User not found' }),
-        { status: 404 }
-      );
+      throw new AuthError('User not found', {
+        email: normalizedEmail
+      });
     }
 
     // --- Verify reset code ---
@@ -61,10 +64,10 @@ export const POST: APIRoute = async ({ request }) => {
       .single();
 
     if (resetError || !resetData) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid or expired reset code' }),
-        { status: 400 }
-      );
+      throw new AuthError('Invalid or expired reset code', {
+        code,
+        userId: userData.id
+      });
     }
 
     // --- Update password FIRST ---
@@ -91,13 +94,10 @@ export const POST: APIRoute = async ({ request }) => {
       JSON.stringify({ success: true }),
       { status: 200 }
     );
-  } catch (error) {
-    console.error('Password reset verification error:', error);
-    return new Response(
-      JSON.stringify({
-        error: error instanceof Error ? error.message : 'Failed to verify reset code',
-      }),
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      return apiErrorHandler(error, { request });
+    }
+    return apiErrorHandler(new Error('Failed to verify reset code'), { request });
   }
 };

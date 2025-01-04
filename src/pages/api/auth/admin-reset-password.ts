@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { supabaseAdmin } from '../../../lib/supabase';
 import { RateLimiter, RATE_LIMITS } from '../../../utils/rateLimit';
+import { ValidationError, AuthError, DatabaseError, apiErrorHandler } from '../../../utils/errorHandler';
 
 export const POST: APIRoute = async ({ request }) => {
   const headers = {
@@ -34,13 +35,12 @@ export const POST: APIRoute = async ({ request }) => {
     const normalizedEmail = email.trim().toLowerCase();
 
     if (!normalizedEmail || !password) {
-      return new Response(
-        JSON.stringify({ error: 'Email and password are required' }),
-        { 
-          status: 400,
-          headers
+      throw new ValidationError('Email and password are required', {
+        fields: {
+          email: !!normalizedEmail,
+          password: !!password
         }
-      );
+      });
     }
 
     // First, verify the user exists using normalized email
@@ -51,13 +51,9 @@ export const POST: APIRoute = async ({ request }) => {
       .single();
 
     if (userError || !userData) {
-      return new Response(
-        JSON.stringify({ error: 'User not found' }),
-        { 
-          status: 404,
-          headers
-        }
-      );
+      throw new AuthError('User not found', {
+        email: normalizedEmail
+      });
     }
 
     // Reset the password
@@ -77,16 +73,10 @@ export const POST: APIRoute = async ({ request }) => {
         headers
       }
     );
-  } catch (error) {
-    console.error('Password reset error:', error);
-    return new Response(
-      JSON.stringify({
-        error: error instanceof Error ? error.message : 'Failed to reset password'
-      }),
-      { 
-        status: 500,
-        headers
-      }
-    );
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      return apiErrorHandler(error, { request });
+    }
+    return apiErrorHandler(new Error('Failed to reset password'), { request });
   }
 };

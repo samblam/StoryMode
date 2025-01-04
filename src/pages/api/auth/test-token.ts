@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { supabaseAdmin } from '../../../lib/supabase';
+import { AuthError, DatabaseError, apiErrorHandler } from '../../../utils/errorHandler';
 
 export const POST: APIRoute = async ({ request, cookies }) => {
   const headers = {
@@ -11,19 +12,15 @@ export const POST: APIRoute = async ({ request, cookies }) => {
         const token = cookies.get('sb-token')?.value;
 
         if (!token) {
-            return new Response(JSON.stringify({ error: 'No token found in cookie' }), {
-                status: 401,
-                headers
-            });
+            throw new AuthError('No token found in cookie');
         }
         
     // Verify the token
     const { data: { user: authUser }, error: authError } = await supabaseAdmin.auth.getUser(token);
     
     if (authError || !authUser) {
-      return new Response(JSON.stringify({ error: 'Invalid authentication token' }), {
-        status: 401,
-        headers
+      throw new AuthError('Invalid authentication token', {
+        token
       });
     }
 
@@ -34,7 +31,9 @@ export const POST: APIRoute = async ({ request, cookies }) => {
           .single();
       
         if (userError || !userData) {
-             throw new Error('No user found');
+              throw new DatabaseError('No user found', {
+                userId: authUser.id
+              });
         }
 
 
@@ -52,13 +51,10 @@ export const POST: APIRoute = async ({ request, cookies }) => {
         headers
     });
     
-  } catch (error) {
-    console.error('Error during user check:', error);
-    return new Response(JSON.stringify({
-        error: error instanceof Error ? error.message : "User check failed",
-    }), {
-      status: 500,
-        headers
-    });
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      return apiErrorHandler(error, { request, cookies });
+    }
+    return apiErrorHandler(new Error('User check failed'), { request, cookies });
   }
 };
