@@ -1,8 +1,17 @@
 import { supabaseAdmin } from '../../../chunks/supabase_D4M8dM3h.mjs';
+import { r as rateLimitMiddleware } from '../../../chunks/rateLimit_C37W6zoK.mjs';
 export { renderers } from '../../../renderers.mjs';
 
 const POST = async ({ request }) => {
+  const headers = {
+    "Content-Type": "application/json"
+  };
   try {
+    const rateLimitResponse = await rateLimitMiddleware("PASSWORD_RESET")(request);
+    if (rateLimitResponse instanceof Response) {
+      return rateLimitResponse;
+    }
+    Object.assign(headers, rateLimitResponse.headers);
     const { email } = await request.json();
     const normalizedEmail = email.trim().toLowerCase();
     if (!normalizedEmail) {

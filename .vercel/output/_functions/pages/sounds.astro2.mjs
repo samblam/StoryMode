@@ -3,6 +3,7 @@ import { c as createComponent, r as renderTemplate, m as maybeRenderHead, a as a
 import 'kleur/colors';
 import { $ as $$Layout } from '../chunks/Layout_gjCW3zoU.mjs';
 import { a as $$SoundList, $ as $$ProfileCard } from '../chunks/ProfileCard_DekPeNQx.mjs';
+import { g as getAccessibleSoundProfiles, o as organizeProfilesByClient } from '../chunks/accessControl_LK_GUcbK.mjs';
 import { supabaseAdmin } from '../chunks/supabase_D4M8dM3h.mjs';
 /* empty css                                  */
 export { renderers } from '../renderers.mjs';
@@ -18,41 +19,6 @@ Download All Sounds
 Delete Profile
 </button>`} </div> </div> ${sounds.length > 0 ? renderTemplate`${renderComponent($$result, "SoundList", $$SoundList, { "sounds": sounds, "profileId": profileId, "isAdmin": isAdmin })}` : renderTemplate`<p class="text-gray-600 italic">No sounds added to this profile yet.</p>`} </div> ${renderScript($$result, "C:/Users/samue/repos/StoryMode/src/components/SoundProfile.astro?astro&type=script&index=0&lang.ts")}`;
 }, "C:/Users/samue/repos/StoryMode/src/components/SoundProfile.astro", void 0);
-
-async function getAccessibleSoundProfiles(user) {
-  if (!user) {
-    return [];
-  }
-  try {
-    let query = supabaseAdmin.from("sound_profiles").select(`
-        *,
-        client:clients(*),
-        sounds(*)
-      `).order("created_at", { ascending: false });
-    if (user.role === "client" && user.clientId) {
-      query = query.eq("client_id", user.clientId);
-    }
-    const { data, error } = await query;
-    if (error) {
-      console.error("Error fetching sound profiles:", error);
-      return [];
-    }
-    return data || [];
-  } catch (error) {
-    console.error("Error fetching sound profiles:", error);
-    return [];
-  }
-}
-function organizeProfilesByClient(profiles) {
-  return profiles.reduce((acc, profile) => {
-    const clientName = profile.client?.name || "No Client";
-    if (!acc[clientName]) {
-      acc[clientName] = [];
-    }
-    acc[clientName].push(profile);
-    return acc;
-  }, {});
-}
 
 const $$Astro = createAstro();
 const $$Sounds = createComponent(async ($$result, $$props, $$slots) => {

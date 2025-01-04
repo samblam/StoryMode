@@ -1,5 +1,5 @@
 import { supabaseAdmin } from '../../chunks/supabase_D4M8dM3h.mjs';
-import { R as RateLimiter, a as RATE_LIMITS } from '../../chunks/rateLimit_D-TMYXgA.mjs';
+import { r as rateLimitMiddleware } from '../../chunks/rateLimit_C37W6zoK.mjs';
 export { renderers } from '../../renderers.mjs';
 
 const POST = async ({ request, locals, cookies }) => {
@@ -7,19 +7,11 @@ const POST = async ({ request, locals, cookies }) => {
     "Content-Type": "application/json"
   };
   try {
-    const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0] || request.headers.get("x-real-ip") || "unknown";
-    const rateLimitKey = RateLimiter.getKey(clientIp, "profile-create");
-    const rateLimitResult = RateLimiter.check(rateLimitKey, RATE_LIMITS.PROFILE_CREATE);
-    Object.assign(headers, RateLimiter.getHeaders(rateLimitResult));
-    if (!rateLimitResult.success) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: "Too many profile creation attempts. Please try again later."
-      }), {
-        status: 429,
-        headers
-      });
+    const rateLimitResponse = await rateLimitMiddleware("PROFILE_CREATE")(request);
+    if (rateLimitResponse instanceof Response) {
+      return rateLimitResponse;
     }
+    Object.assign(headers, rateLimitResponse.headers);
     const data = await request.json();
     const { user } = locals;
     console.log("Profile Creation Debug:", {
@@ -104,19 +96,11 @@ const PUT = async ({ request, locals, cookies }) => {
     "Content-Type": "application/json"
   };
   try {
-    const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0] || request.headers.get("x-real-ip") || "unknown";
-    const rateLimitKey = RateLimiter.getKey(clientIp, "profile-update");
-    const rateLimitResult = RateLimiter.check(rateLimitKey, RATE_LIMITS.PROFILE_UPDATE);
-    Object.assign(headers, RateLimiter.getHeaders(rateLimitResult));
-    if (!rateLimitResult.success) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: "Too many profile update attempts. Please try again later."
-      }), {
-        status: 429,
-        headers
-      });
+    const rateLimitResponse = await rateLimitMiddleware("PROFILE_UPDATE")(request);
+    if (rateLimitResponse instanceof Response) {
+      return rateLimitResponse;
     }
+    Object.assign(headers, rateLimitResponse.headers);
     const data = await request.json();
     const { user } = locals;
     if (!user) {

@@ -1,5 +1,5 @@
 import { supabaseAdmin } from '../../../chunks/supabase_D4M8dM3h.mjs';
-import { R as RateLimiter, a as RATE_LIMITS } from '../../../chunks/rateLimit_D-TMYXgA.mjs';
+import { r as rateLimitMiddleware } from '../../../chunks/rateLimit_C37W6zoK.mjs';
 export { renderers } from '../../../renderers.mjs';
 
 const DELETE = async ({ params, locals, request }) => {
@@ -7,19 +7,11 @@ const DELETE = async ({ params, locals, request }) => {
     "Content-Type": "application/json"
   };
   try {
-    const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0] || request.headers.get("x-real-ip") || "unknown";
-    const rateLimitKey = RateLimiter.getKey(clientIp, "profile-delete");
-    const rateLimitResult = RateLimiter.check(rateLimitKey, RATE_LIMITS.DELETE);
-    Object.assign(headers, RateLimiter.getHeaders(rateLimitResult));
-    if (!rateLimitResult.success) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: "Too many delete attempts. Please try again later."
-      }), {
-        status: 429,
-        headers
-      });
+    const rateLimitResponse = await rateLimitMiddleware("DELETE")(request);
+    if (rateLimitResponse instanceof Response) {
+      return rateLimitResponse;
     }
+    Object.assign(headers, rateLimitResponse.headers);
     if (!locals.user || locals.user.role !== "admin") {
       return new Response(
         JSON.stringify({ error: "Unauthorized" }),

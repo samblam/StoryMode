@@ -1,6 +1,6 @@
 import { supabaseAdmin } from '../../../chunks/supabase_D4M8dM3h.mjs';
 import { u as uploadSound } from '../../../chunks/storageUtils_BVHAiK5w.mjs';
-import { R as RateLimiter, a as RATE_LIMITS } from '../../../chunks/rateLimit_D-TMYXgA.mjs';
+import { r as rateLimitMiddleware } from '../../../chunks/rateLimit_C37W6zoK.mjs';
 export { renderers } from '../../../renderers.mjs';
 
 const POST = async ({ request, cookies }) => {
@@ -8,19 +8,11 @@ const POST = async ({ request, cookies }) => {
     "Content-Type": "application/json"
   };
   try {
-    const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0] || request.headers.get("x-real-ip") || "unknown";
-    const rateLimitKey = RateLimiter.getKey(clientIp, "sound-upload");
-    const rateLimitResult = RateLimiter.check(rateLimitKey, RATE_LIMITS.UPLOAD);
-    Object.assign(headers, RateLimiter.getHeaders(rateLimitResult));
-    if (!rateLimitResult.success) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: "Too many upload attempts. Please try again later."
-      }), {
-        status: 429,
-        headers
-      });
+    const rateLimitResponse = await rateLimitMiddleware("UPLOAD")(request);
+    if (rateLimitResponse instanceof Response) {
+      return rateLimitResponse;
     }
+    Object.assign(headers, rateLimitResponse.headers);
     const token = cookies.get("sb-token")?.value;
     if (!token) {
       return new Response(
@@ -79,37 +71,59 @@ const POST = async ({ request, cookies }) => {
         }
       );
     }
-    const { path: storagePath, signedUrl } = await uploadSound({
-      file,
-      profileSlug,
-      contentType: file.type || "audio/mpeg"
-      // Default to audio/mpeg if type is empty
-    });
-    const { data: newSound, error: dbError } = await supabaseAdmin.from("sounds").insert({
-      name,
-      description,
-      file_path: signedUrl,
-      storage_path: storagePath,
-      profile_id: profileId
-    }).select().single();
-    if (dbError) {
-      throw dbError;
-    }
-    return new Response(
-      JSON.stringify({
-        success: true,
-        sound: newSound
-      }),
-      {
-        status: 200,
-        headers
+    let storagePath;
+    try {
+      const { path, signedUrl } = await uploadSound({
+        file,
+        profileSlug,
+        contentType: file.type || "audio/mpeg"
+        // Default to audio/mpeg if type is empty
+      });
+      storagePath = path;
+      const { data: newSound, error: dbError } = await supabaseAdmin.from("sounds").insert({
+        name,
+        description,
+        file_path: signedUrl,
+        storage_path: storagePath,
+        profile_id: profileId
+      }).select().single();
+      if (dbError) {
+        throw dbError;
       }
-    );
+      return new Response(
+        JSON.stringify({
+          success: true,
+          sound: newSound
+        }),
+        {
+          status: 200,
+          headers
+        }
+      );
+    } catch (error) {
+      if (storagePath) {
+        try {
+          await supabaseAdmin.storage.from("sounds").remove([storagePath]);
+        } catch (cleanupError) {
+          console.error("Failed to cleanup uploaded file:", cleanupError);
+        }
+      }
+      console.error("Upload error:", error);
+      return new Response(
+        JSON.stringify({
+          error: error instanceof Error ? error.message : "Upload failed"
+        }),
+        {
+          status: 500,
+          headers
+        }
+      );
+    }
   } catch (error) {
-    console.error("Upload error:", error);
+    console.error("Error:", error);
     return new Response(
       JSON.stringify({
-        error: error instanceof Error ? error.message : "Upload failed"
+        error: error instanceof Error ? error.message : "Request failed"
       }),
       {
         status: 500,

@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
-import { supabaseAdmin } from '../../../chunks/supabase_D4M8dM3h.mjs';
-import { R as RateLimiter, a as RATE_LIMITS } from '../../../chunks/rateLimit_D-TMYXgA.mjs';
+import { supabase } from '../../../chunks/supabase_D4M8dM3h.mjs';
+import { r as rateLimitMiddleware } from '../../../chunks/rateLimit_C37W6zoK.mjs';
 export { renderers } from '../../../renderers.mjs';
 
 const POST = async ({ request, cookies }) => {
@@ -8,20 +8,11 @@ const POST = async ({ request, cookies }) => {
     "Content-Type": "application/json"
   };
   try {
-    const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0] || request.headers.get("x-real-ip") || "unknown";
-    const rateLimitKey = RateLimiter.getKey(clientIp, "login");
-    const rateLimitResult = RateLimiter.check(rateLimitKey, RATE_LIMITS.LOGIN);
-    const rateLimitHeaders = RateLimiter.getHeaders(rateLimitResult);
-    Object.assign(headers, rateLimitHeaders);
-    if (!rateLimitResult.success) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: "Too many login attempts. Please try again later."
-      }), {
-        status: 429,
-        headers
-      });
+    const rateLimitResponse = await rateLimitMiddleware("LOGIN")(request);
+    if (rateLimitResponse instanceof Response) {
+      return rateLimitResponse;
     }
+    Object.assign(headers, rateLimitResponse.headers);
     const { email, password } = await request.json();
     const normalizedEmail = email.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
@@ -47,37 +38,60 @@ const POST = async ({ request, cookies }) => {
       email: normalizedEmail,
       password
     });
-    if (authError || !authData.user) {
+    if (authError) {
       return new Response(JSON.stringify({
         success: false,
-        error: authError?.message || "Authentication failed"
+        error: authError.message
       }), {
         status: 401,
         headers
       });
     }
-    const { data: userData, error: userError } = await supabaseAdmin.from("users").select("*").eq("id", authData.user.id).single();
-    if (userError || !userData) {
+    if (!authData.session) {
       return new Response(JSON.stringify({
         success: false,
-        error: "User data not found"
+        error: "No session created"
       }), {
-        status: 404,
+        status: 401,
         headers
       });
-    }
-    let clientData = null;
-    if (userData.client_id) {
-      const { data: client } = await supabaseAdmin.from("clients").select("*").eq("id", userData.client_id).single();
-      clientData = client;
     }
     cookies.set("sb-token", authData.session.access_token, {
       path: "/",
       httpOnly: true,
       secure: true,
       sameSite: "lax",
-      maxAge: authData.session.expires_in
+      maxAge: 60 * 60 * 24 * 7
+      // 1 week
     });
+    const { data: userData, error: userError } = await supabase.from("users").select(`
+        id,
+        email,
+        role,
+        client_id,
+        client:clients(
+          id,
+          name,
+          email,
+          active
+        )
+      `).eq("id", authData.user.id).single();
+    if (userError) {
+      console.error("Error fetching user data:", userError);
+      return new Response(JSON.stringify({
+        success: true,
+        user: {
+          id: authData.user.id,
+          email: authData.user.email,
+          role: "client",
+          // Default role
+          createdAt: authData.user.created_at
+        }
+      }), {
+        status: 200,
+        headers
+      });
+    }
     return new Response(JSON.stringify({
       success: true,
       user: {
@@ -85,8 +99,8 @@ const POST = async ({ request, cookies }) => {
         email: userData.email,
         role: userData.role,
         clientId: userData.client_id,
-        client: clientData,
-        createdAt: userData.created_at
+        client: userData.client,
+        createdAt: authData.user.created_at
       }
     }), {
       status: 200,

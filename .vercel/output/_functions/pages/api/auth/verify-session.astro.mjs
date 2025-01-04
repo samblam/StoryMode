@@ -1,12 +1,22 @@
-import { supabaseAdmin } from '../../../chunks/supabase_D4M8dM3h.mjs';
+import { supabaseAdmin, supabase } from '../../../chunks/supabase_D4M8dM3h.mjs';
+import { r as rateLimitMiddleware } from '../../../chunks/rateLimit_C37W6zoK.mjs';
+import { i as isRLSError, h as handleRLSError } from '../../../chunks/accessControl_LK_GUcbK.mjs';
 export { renderers } from '../../../renderers.mjs';
 
 const POST = async ({ request, cookies }) => {
+  const headers = {
+    "Content-Type": "application/json"
+  };
+  const rateLimitResponse = await rateLimitMiddleware("API")(request);
+  if (rateLimitResponse instanceof Response) {
+    return rateLimitResponse;
+  }
+  Object.assign(headers, rateLimitResponse.headers);
   const token = cookies.get("sb-token")?.value;
   if (!token) {
     return new Response(JSON.stringify({ error: "No session found" }), {
       status: 401,
-      headers: { "Content-Type": "application/json" }
+      headers
     });
   }
   try {
@@ -15,15 +25,39 @@ const POST = async ({ request, cookies }) => {
       cookies.delete("sb-token", { path: "/" });
       return new Response(JSON.stringify({ error: "Invalid session" }), {
         status: 401,
-        headers: { "Content-Type": "application/json" }
+        headers
       });
     }
-    const { data: userData, error: userError } = await supabaseAdmin.from("users").select("*").eq("id", user.id).single();
-    if (userError || !userData) {
+    let userData = null;
+    const { data: regularData, error: regularError } = await supabase.from("users").select("*").eq("id", user.id).single();
+    if (regularError) {
+      if (isRLSError(regularError)) {
+        const { data: adminData, error: adminError } = await supabaseAdmin.from("users").select("*").eq("id", user.id).single();
+        if (adminError || !adminData) {
+          cookies.delete("sb-token", { path: "/" });
+          return new Response(JSON.stringify({
+            error: "User data not found",
+            code: "USER_NOT_FOUND"
+          }), {
+            status: 401,
+            headers
+          });
+        }
+        userData = adminData;
+      } else {
+        return handleRLSError(regularError);
+      }
+    } else {
+      userData = regularData;
+    }
+    if (!userData) {
       cookies.delete("sb-token", { path: "/" });
-      return new Response(JSON.stringify({ error: "User data not found" }), {
+      return new Response(JSON.stringify({
+        error: "User data not found",
+        code: "USER_NOT_FOUND"
+      }), {
         status: 401,
-        headers: { "Content-Type": "application/json" }
+        headers
       });
     }
     const cookieOptions = {
@@ -55,7 +89,7 @@ const POST = async ({ request, cookies }) => {
     cookies.delete("sb-token", { path: "/" });
     return new Response(JSON.stringify({ error: "Session verification failed" }), {
       status: 401,
-      headers: { "Content-Type": "application/json" }
+      headers
     });
   }
 };

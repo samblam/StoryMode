@@ -1,5 +1,5 @@
 import nodemailer from 'nodemailer';
-import { R as RateLimiter, a as RATE_LIMITS } from '../../chunks/rateLimit_D-TMYXgA.mjs';
+import { r as rateLimitMiddleware } from '../../chunks/rateLimit_C37W6zoK.mjs';
 export { renderers } from '../../renderers.mjs';
 
 const validateEmail = (email) => {
@@ -14,19 +14,11 @@ const POST = async ({ request }) => {
     "Content-Type": "application/json"
   };
   try {
-    const clientIp = request.headers.get("x-forwarded-for")?.split(",")[0] || request.headers.get("x-real-ip") || "unknown";
-    const rateLimitKey = RateLimiter.getKey(clientIp, "send-email");
-    const rateLimitResult = RateLimiter.check(rateLimitKey, RATE_LIMITS.CONTACT);
-    Object.assign(headers, RateLimiter.getHeaders(rateLimitResult));
-    if (!rateLimitResult.success) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: "Too many email attempts. Please try again later."
-      }), {
-        status: 429,
-        headers
-      });
+    const rateLimitResponse = await rateLimitMiddleware("CONTACT")(request);
+    if (rateLimitResponse instanceof Response) {
+      return rateLimitResponse;
     }
+    Object.assign(headers, rateLimitResponse.headers);
     const data = await request.json();
     const { name, email, message } = data;
     const sanitizedName = sanitizeInput(name);

@@ -1,9 +1,7 @@
 import { supabaseAdmin } from '../../../chunks/supabase_D4M8dM3h.mjs';
+import { r as rateLimitMiddleware } from '../../../chunks/rateLimit_C37W6zoK.mjs';
 export { renderers } from '../../../renderers.mjs';
 
-const rateLimitStore = /* @__PURE__ */ new Map();
-const MAX_ATTEMPTS = 5;
-const WINDOW_MS = 60 * 60 * 1e3;
 function validateInput(email, code, password) {
   if (!email || !code || !password) {
     return { error: "Email, code, and password are required", status: 400 };
@@ -13,41 +11,18 @@ function validateInput(email, code, password) {
   }
   return null;
 }
-function isRateLimited(key) {
-  const record = rateLimitStore.get(key);
-  if (!record) return false;
-  const now = Date.now();
-  if (now - record.lastReset > WINDOW_MS) {
-    record.count = 0;
-    record.lastReset = now;
-    return false;
-  }
-  return record.count >= MAX_ATTEMPTS;
-}
-function incrementRateLimit(key) {
-  const record = rateLimitStore.get(key);
-  const now = Date.now();
-  if (!record) {
-    rateLimitStore.set(key, { count: 1, lastReset: now });
-  } else if (now - record.lastReset > WINDOW_MS) {
-    record.count = 1;
-    record.lastReset = now;
-  } else {
-    record.count++;
-  }
-}
-const POST = async ({ request, clientAddress }) => {
+const POST = async ({ request }) => {
+  const headers = {
+    "Content-Type": "application/json"
+  };
   try {
+    const rateLimitResponse = await rateLimitMiddleware("PASSWORD_RESET")(request);
+    if (rateLimitResponse instanceof Response) {
+      return rateLimitResponse;
+    }
+    Object.assign(headers, rateLimitResponse.headers);
     const { email, code, password } = await request.json();
     const normalizedEmail = email.trim().toLowerCase();
-    const emailKey = `email:${normalizedEmail}`;
-    const ipKey = `ip:${clientAddress}`;
-    if (isRateLimited(emailKey) || isRateLimited(ipKey)) {
-      return new Response(
-        JSON.stringify({ error: "Too many requests, please try again later." }),
-        { status: 429 }
-      );
-    }
     const validationError = validateInput(normalizedEmail, code, password);
     if (validationError) {
       return new Response(JSON.stringify({ error: validationError.error }), {
@@ -79,8 +54,6 @@ const POST = async ({ request, clientAddress }) => {
     if (updateCodeError) {
       throw updateCodeError;
     }
-    incrementRateLimit(emailKey);
-    incrementRateLimit(ipKey);
     return new Response(
       JSON.stringify({ success: true }),
       { status: 200 }

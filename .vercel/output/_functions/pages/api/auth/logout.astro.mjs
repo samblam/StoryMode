@@ -1,8 +1,17 @@
 import { supabase } from '../../../chunks/supabase_D4M8dM3h.mjs';
+import { r as rateLimitMiddleware } from '../../../chunks/rateLimit_C37W6zoK.mjs';
 export { renderers } from '../../../renderers.mjs';
 
-const POST = async ({ cookies }) => {
+const POST = async ({ request, cookies }) => {
+  const headers = {
+    "Content-Type": "application/json"
+  };
   try {
+    const rateLimitResponse = await rateLimitMiddleware("API")(request);
+    if (rateLimitResponse instanceof Response) {
+      return rateLimitResponse;
+    }
+    Object.assign(headers, rateLimitResponse.headers);
     await supabase.auth.signOut();
     cookies.delete("sb-token", {
       path: "/"
@@ -11,9 +20,7 @@ const POST = async ({ cookies }) => {
       success: true
     }), {
       status: 200,
-      headers: {
-        "Content-Type": "application/json"
-      }
+      headers
     });
   } catch (error) {
     console.error("Logout error:", error);
@@ -22,9 +29,7 @@ const POST = async ({ cookies }) => {
       error: error instanceof Error ? error.message : "Logout failed"
     }), {
       status: 500,
-      headers: {
-        "Content-Type": "application/json"
-      }
+      headers
     });
   }
 };

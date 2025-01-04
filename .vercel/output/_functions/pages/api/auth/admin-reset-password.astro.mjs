@@ -1,5 +1,5 @@
 import { supabaseAdmin } from '../../../chunks/supabase_D4M8dM3h.mjs';
-import { R as RateLimiter, a as RATE_LIMITS } from '../../../chunks/rateLimit_D-TMYXgA.mjs';
+import { R as RateLimiter, a as RATE_LIMITS } from '../../../chunks/rateLimit_C37W6zoK.mjs';
 export { renderers } from '../../../renderers.mjs';
 
 const POST = async ({ request }) => {

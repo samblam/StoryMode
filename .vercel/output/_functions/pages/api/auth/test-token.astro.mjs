@@ -1,7 +1,45 @@
-import { supabaseAdmin } from '../../../chunks/supabase_D4M8dM3h.mjs';
+import { supabaseAdmin, supabase } from '../../../chunks/supabase_D4M8dM3h.mjs';
+import { v as verifyAuthorization, i as isRLSError, h as handleRLSError } from '../../../chunks/accessControl_LK_GUcbK.mjs';
+import { g as getCurrentUser } from '../../../chunks/authUtils_mOm6JoyM.mjs';
 export { renderers } from '../../../renderers.mjs';
 
 const POST = async ({ request, cookies }) => {
+  const currentUser = await getCurrentUser();
+  if (!currentUser) {
+    return new Response(
+      JSON.stringify({
+        error: "Unauthorized",
+        code: "UNAUTHORIZED"
+      }),
+      {
+        status: 401,
+        headers: {
+          "Content-Type": "application/json"
+        }
+      }
+    );
+  }
+  const { authorized, error: authError } = await verifyAuthorization(
+    currentUser,
+    "admin");
+  if (!authorized) {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: {
+          message: authError?.message || "Unauthorized",
+          code: authError?.code || "ADMIN_REQUIRED",
+          status: 403
+        }
+      }),
+      {
+        status: 403,
+        headers: {
+          "Content-Type": "application/json"
+        }
+      }
+    );
+  }
   const headers = {
     "Content-Type": "application/json",
     "Access-Control-Allow-Origin": "*"
@@ -14,16 +52,45 @@ const POST = async ({ request, cookies }) => {
         headers
       });
     }
-    const { data: { user: authUser }, error: authError } = await supabaseAdmin.auth.getUser(token);
-    if (authError || !authUser) {
+    const { data: { user: authUser }, error: authError2 } = await supabaseAdmin.auth.getUser(token);
+    if (authError2 || !authUser) {
       return new Response(JSON.stringify({ error: "Invalid authentication token" }), {
         status: 401,
         headers
       });
     }
-    const { data: userData, error: userError } = await supabaseAdmin.from("users").select("*").eq("id", authUser.id).single();
-    if (userError || !userData) {
-      throw new Error("No user found");
+    const { data: regularData, error: regularError } = await supabase.from("users").select("*").eq("id", authUser.id).single();
+    let userData = null;
+    if (regularError) {
+      if (isRLSError(regularError)) {
+        const { data: adminData, error: adminError } = await supabaseAdmin.from("users").select("*").eq("id", authUser.id).single();
+        if (adminError) {
+          return handleRLSError(adminError);
+        }
+        if (!adminData) {
+          return new Response(JSON.stringify({
+            error: "User data not found",
+            code: "USER_NOT_FOUND"
+          }), {
+            status: 404,
+            headers
+          });
+        }
+        userData = adminData;
+      } else {
+        return handleRLSError(regularError);
+      }
+    } else {
+      userData = regularData;
+    }
+    if (!userData) {
+      return new Response(JSON.stringify({
+        error: "User data not found",
+        code: "USER_NOT_FOUND"
+      }), {
+        status: 404,
+        headers
+      });
     }
     return new Response(JSON.stringify({
       success: true,
