@@ -14,7 +14,7 @@ export const GET: APIRoute = async ({ request }) => {
     const rateLimitResponse = await rateLimitMiddleware('PROFILE_VIEW', {
       includeIP: true
     })(request);
-    
+
     if (rateLimitResponse instanceof Response) {
       return rateLimitResponse;
     }
@@ -65,13 +65,13 @@ export const POST: APIRoute = async ({ request, locals }: APIContext & { locals:
       title: 'profileTitle',
       description: 'description'
     })(request);
-    
+
     if (validation instanceof Response) {
       return validation;
     }
 
     const { body } = validation;
-    const { user } = locals?.auth || {};
+    const user = locals.user;
 
     // Debug logging
     console.log('Profile Creation Debug:', {
@@ -168,7 +168,7 @@ export const PUT: APIRoute = async ({ request, locals }: APIContext & { locals: 
     Object.assign(headers, rateLimitResponse.headers);
 
     const data = await request.json();
-    const { user } = locals?.auth || {};
+    const user = locals.user;
 
     if (!user) {
       return new Response(
@@ -240,7 +240,7 @@ export const PUT: APIRoute = async ({ request, locals }: APIContext & { locals: 
     if (error) {
       throw error;
     }
-    
+
     return new Response(
       JSON.stringify(updatedProfile),
       {
