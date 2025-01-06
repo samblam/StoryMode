@@ -3,6 +3,11 @@ import Layout from '../../../../layouts/Layout.astro';
 import { getCurrentUser } from '../../../../utils/authUtils';
 import { verifyAuthorization } from '../../../../utils/accessControl';
 import { supabase } from '../../../../lib/supabase';
+import AnalyticsDashboard from '../../../../components/AnalyticsDashboard.astro';
+import ReportGenerator from '../../../../components/ReportGenerator.astro';
+import DataExporter from '../../../../components/DataExporter.astro';
+import { calculateSuccessMetrics, performSoundPerformanceAnalysis, trackParticipantBehavior } from '../../../../utils/surveyAnalytics';
+import { processRawData, prepareGraphData, formatCSVExport, generatePDFReport } from '../../../../utils/surveyResults';
 
 // Ensure admin access
 const user = await getCurrentUser(Astro.cookies);
@@ -49,9 +54,19 @@ const { data: responses } = await supabase
   .eq('survey_id', id)
   .order('created_at', { ascending: false });
 
-// Calculate basic metrics
-const totalResponses = responses?.length || 0;
-const completedResponses = responses?.filter(r => r.status === 'completed').length || 0;
+// Process survey data using analytics utilities
+const surveyResponses = responses || [];
+const metrics = calculateSuccessMetrics(surveyResponses);
+const performanceAnalysis = performSoundPerformanceAnalysis(surveyResponses);
+const behaviorMetrics = trackParticipantBehavior(surveyResponses);
+
+// Prepare data for visualization and export
+const graphData = prepareGraphData(surveyResponses);
+const rawData = processRawData(surveyResponses);
+
+// Calculate display metrics
+const totalResponses = surveyResponses.length;
+const completedResponses = surveyResponses.filter(r => r.status === 'completed').length;
 const completionRate = totalResponses ? (completedResponses / totalResponses * 100).toFixed(1) : 0;
 
 ---
@@ -60,21 +75,31 @@ const completionRate = totalResponses ? (completedResponses / totalResponses * 1
   <div class="container mx-auto px-4 py-8">
     <div class="flex justify-between items-center mb-8">
       <h1 class="text-3xl font-bold">Survey Results: {survey.title}</h1>
-      <div class="flex space-x-4">
-        <button 
-          id="exportPDF"
-          class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
-        >
-          Export PDF
-        </button>
-        <button 
-          id="exportCSV"
-          class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded"
-        >
-          Export CSV
-        </button>
-      </div>
+      <DataExporter
+        client:load
+        surveyId={id}
+        rawData={rawData}
+        onExportPDF={() => generatePDFReport(surveyResponses)}
+        onExportCSV={() => formatCSVExport(surveyResponses)}
+      />
     </div>
+
+    <AnalyticsDashboard
+      metrics={metrics}
+      performanceAnalysis={performanceAnalysis}
+      behaviorMetrics={behaviorMetrics}
+      graphData={graphData}
+      class="mb-8"
+    />
+
+    <ReportGenerator
+      surveyData={survey}
+      responses={surveyResponses}
+      metrics={metrics}
+      performanceAnalysis={performanceAnalysis}
+      behaviorMetrics={behaviorMetrics}
+      class="mb-8"
+    />
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
       <!-- Summary Cards -->
@@ -177,65 +202,70 @@ const completionRate = totalResponses ? (completedResponses / totalResponses * 1
   </div>
 </Layout>
 
-<script>
+<script define:vars={{ graphData }}>
   import { Chart, registerables } from 'chart.js';
-  import { generateCorrelationData, generateSuccessRateData, generateErrorPatternData, generateTimelineData } from '../../../../utils/surveyVisualization';
-  
   Chart.register(...registerables);
-  
-  const surveyId = Astro.params.id;
 
-  // Fetch survey responses and matches
-  const fetchSurveyData = async () => {
-    const response = await fetch(`/api/surveys/${surveyId}/results`);
-    if (!response.ok) {
-      console.error('Failed to fetch survey data');
-      return null;
-    }
-    return await response.json();
-  };
+  // Use the server-side processed graphData
+  const { correlationData, successRateData, errorPatternData, timelineData } = graphData;
 
-  fetchSurveyData().then(data => {
-    if (!data) return;
+  // Wait for DOM to be ready
+  document.addEventListener('DOMContentLoaded', () => {
+    const chartConfig = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'bottom'
+        }
+      }
+    };
 
-    const { responses, matches } = data;
-
-    // Generate and render charts
-    const correlationData = generateCorrelationData(matches);
-    const successRateData = generateSuccessRateData(responses);
-    const errorPatternData = generateErrorPatternData(matches);
-    const timelineData = generateTimelineData(responses);
-
-    // Render charts
-    const correlationCtx = document.getElementById('correlationChart') as HTMLCanvasElement;
+    // Render correlation chart
+    const correlationCtx = document.getElementById('correlationChart');
     if (correlationCtx) {
       new Chart(correlationCtx, {
         type: 'bar',
         data: correlationData,
+        options: chartConfig
       });
     }
 
-    const successRateCtx = document.getElementById('successRateChart') as HTMLCanvasElement;
+    // Render success rate chart
+    const successRateCtx = document.getElementById('successRateChart');
     if (successRateCtx) {
       new Chart(successRateCtx, {
         type: 'line',
         data: successRateData,
+        options: {
+          ...chartConfig,
+          scales: {
+            y: {
+              beginAtZero: true,
+              max: 100
+            }
+          }
+        }
       });
     }
 
-    const timelineCtx = document.getElementById('timelineChart') as HTMLCanvasElement;
+    // Render timeline chart
+    const timelineCtx = document.getElementById('timelineChart');
     if (timelineCtx) {
       new Chart(timelineCtx, {
         type: 'line',
         data: timelineData,
+        options: chartConfig
       });
     }
 
-    const errorPatternCtx = document.getElementById('errorPatternChart') as HTMLCanvasElement;
+    // Render error pattern chart
+    const errorPatternCtx = document.getElementById('errorPatternChart');
     if (errorPatternCtx) {
       new Chart(errorPatternCtx, {
         type: 'bar',
         data: errorPatternData,
+        options: chartConfig
       });
     }
   });

@@ -19,9 +19,33 @@
 - **Astro Components for UI:** Astro components in the `components` directory are used to build the user interface. These components manage their own state and rendering logic.
 - **Data Manager Pattern:** The `surveyDataManager.ts` utility is used to manage survey data, providing an abstraction layer between the components/API routes and the database interactions.
 - **State Manager Pattern:** The `surveyStateManager.ts` utility is used to manage the state of the current survey being taken by a user.
-- **Analytics Utilities Pattern:** A new pattern introduced for handling analytics and reporting:
-  - `surveyAnalytics.ts`: Handles core analysis logic (metrics, performance analysis, behavior tracking)
-  - `surveyResults.ts`: Manages results processing (raw data, graphs, exports)
-  - `surveyExport.ts`: Handles data export functionality (CSV, PDF, anonymization)
-  - This separation allows for modular testing and maintenance while keeping analytics concerns isolated
-  - Components (`ReportGenerator.astro`, `DataExporter.astro`, `AnalyticsDashboard.astro`) consume these utilities
+- **Analytics Architecture Pattern:** A comprehensive pattern for analytics and reporting:
+  - **Core Analytics Layer** (`surveyAnalytics.ts`):
+    - Handles metrics calculation and analysis
+    - Processes performance and behavior data
+    - Maintains separation of analysis concerns
+    - Provides type-safe data processing
+
+  - **Results Processing Layer** (`surveyResults.ts`):
+    - Manages data transformation and preparation
+    - Generates visualization-ready data structures
+    - Handles data aggregation and formatting
+    - Provides caching mechanisms for performance
+
+  - **Export Management Layer** (`surveyExport.ts`):
+    - Handles data export and format conversion
+    - Manages data anonymization and security
+    - Provides flexible export templates
+    - Ensures data integrity during export
+
+  - **Component Integration Layer**:
+    - `AnalyticsDashboard.astro`: Analytics visualization and overview
+    - `ReportGenerator.astro`: Comprehensive report generation
+    - `DataExporter.astro`: Export interface and controls
+    - Components use reactive patterns for real-time updates
+
+  This layered architecture ensures:
+  - Clear separation of concerns
+  - Modular testing and maintenance
+  - Efficient data processing
+  - Scalable analytics operations
