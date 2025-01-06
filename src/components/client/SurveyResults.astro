@@ -1,0 +1,134 @@
+---
+import { supabase } from '../../lib/supabase';
+import type { SurveyWithRelations } from '../../types/database';
+
+interface Props {
+  clientId: string;
+}
+
+const { clientId } = Astro.props;
+
+// Fetch approved surveys for the client
+const { data: surveys } = await supabase
+  .from('surveys')
+  .select(`
+    *,
+    sound_profiles (
+      id,
+      title
+    ),
+    survey_responses (
+      status,
+      success_rate,
+      created_at
+    )
+  `)
+  .eq('client_id', clientId)
+  .eq('status', 'completed')
+  .order('created_at', { ascending: false }) as { data: SurveyWithRelations[] | null };
+---
+
+<div class="space-y-6">
+  <h2 class="text-2xl font-bold">Survey Results</h2>
+  
+  {surveys && surveys.length > 0 ? (
+    <div class="space-y-4">
+      {surveys.map((survey) => {
+        const responses = survey.survey_responses || [];
+        const completedResponses = responses.filter(r => r.status === 'completed');
+        const avgSuccessRate = completedResponses.length > 0
+          ? completedResponses.reduce((acc, r) => acc + (r.success_rate || 0), 0) / completedResponses.length
+          : 0;
+
+        return (
+          <div class="bg-white shadow rounded-lg p-6" data-survey={JSON.stringify(survey)}>
+            <div class="flex justify-between items-start mb-4">
+              <div>
+                <div class="flex items-center justify-between">
+                  <h3 class="text-lg font-semibold">{survey.title}</h3>
+                  <span class={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                    survey.status === 'completed' ? 'bg-green-100 text-green-800' :
+                    survey.status === 'active' ? 'bg-yellow-100 text-yellow-800' :
+                    'bg-gray-100 text-gray-800'
+                  }`}>
+                    {survey.status}
+                  </span>
+                </div>
+                <p class="text-sm text-gray-600">
+                  Sound Profile: {survey.sound_profiles?.title}
+                </p>
+              </div>
+              <a
+                href={`/surveys/${survey.id}/results`}
+                class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded text-sm"
+              >
+                View Details
+              </a>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div class="bg-gray-50 rounded p-4">
+                <p class="text-sm text-gray-600">Total Responses</p>
+                <p class="text-2xl font-bold">{responses.length}</p>
+              </div>
+              
+              <div class="bg-gray-50 rounded p-4">
+                <p class="text-sm text-gray-600">Completed</p>
+                <p class="text-2xl font-bold">{completedResponses.length}</p>
+              </div>
+              
+              <div class="bg-gray-50 rounded p-4">
+                <p class="text-sm text-gray-600">Avg. Success Rate</p>
+                <p class="text-2xl font-bold">{(avgSuccessRate * 100).toFixed(1)}%</p>
+              </div>
+            </div>
+
+            <div class="mt-4">
+              <canvas id={`chart-${survey.id}`} class="w-full h-48"></canvas>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  ) : (
+    <p class="text-gray-600">No survey results available.</p>
+  )}
+</div>
+
+<script>
+  import { Chart, registerables } from 'chart.js';
+  import { generateSuccessRateData } from '../../utils/surveyVisualization';
+  
+  Chart.register(...registerables);
+
+  // Get surveys data from the page
+  const surveysData = document.querySelectorAll('[data-survey]');
+  
+  surveysData.forEach(surveyEl => {
+    const survey = JSON.parse(surveyEl.getAttribute('data-survey') || '{}');
+    const responses = survey.survey_responses || [];
+    
+    const ctx = document.getElementById(`chart-${survey.id}`);
+    if (ctx instanceof HTMLCanvasElement) {
+      new Chart(ctx, {
+        type: 'line',
+        data: generateSuccessRateData(responses),
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: false
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              max: 100
+            }
+          }
+        }
+      });
+    }
+  });
+</script>

@@ -1,0 +1,146 @@
+---
+import SurveyLayout from '../../components/SurveyLayout.astro';
+import { supabase } from '../../lib/supabase';
+import type { User } from '../../types/auth';
+
+const { id } = Astro.params;
+const user = Astro.locals.user as User | undefined;
+
+// Redirect if not logged in
+if (!user) {
+    return Astro.redirect('/login');
+}
+
+// Get survey data
+const { data: survey, error } = await supabase
+    .from('surveys')
+    .select(`
+        *,
+        client:clients (
+            id,
+            name,
+            email
+        ),
+        survey_sounds (
+            id,
+            sound_id,
+            intended_function,
+            order_index,
+            sounds (
+                id,
+                name,
+                url
+            )
+        )
+    `)
+    .eq('id', id)
+    .single();
+
+if (error) {
+    return new Response(JSON.stringify({ error: error.message }), {
+        status: 500,
+    });
+}
+
+if (!survey) {
+    return new Response(JSON.stringify({ error: 'Survey not found' }), {
+        status: 404,
+    });
+}
+
+if (survey.status !== 'completed') {
+  return Astro.redirect(`/surveys/client-results`);
+}
+
+// Sort sounds by order_index
+const sortedSounds = survey.survey_sounds.sort((a: any, b: any) => a.order_index - b.order_index);
+---
+
+<SurveyLayout
+    title={survey.title}
+    description={survey.description}
+    currentStep={1}
+    totalSteps={sortedSounds.length}
+>
+    <div class="max-w-4xl mx-auto">
+        {survey.video_url && (
+            <div class="mb-8">
+                <video
+                    src={survey.video_url}
+                    controls
+                    class="w-full rounded-lg shadow-lg"
+                >
+                    Your browser does not support the video tag.
+                </video>
+            </div>
+        )}
+
+        <div class="space-y-8">
+            {sortedSounds.map((surveySound: any, index: number) => (
+                <div
+                    class="p-6 bg-white rounded-lg shadow-md"
+                    data-sound-id={surveySound.sound_id}
+                    data-intended-function={surveySound.intended_function}
+                >
+                    <h2 class="text-xl font-bold mb-4">Sound {index + 1}</h2>
+                    <div class="flex items-center space-x-4 mb-4">
+                        <button
+                            type="button"
+                            class="play-button px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                            data-url={surveySound.sounds.url}
+                        >
+                            Play Sound
+                        </button>
+                        <span class="text-gray-500">Click to play/pause</span>
+                    </div>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">
+                                What do you think this sound represents?
+                            </label>
+                            <input
+                                type="text"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                                placeholder="Enter your interpretation..."
+                            />
+                        </div>
+                    </div>
+                </div>
+            ))}
+        </div>
+    </div>
+</SurveyLayout>
+</SurveyLayout>
+
+<script>
+    let currentAudio: HTMLAudioElement | null = null;
+
+    document.querySelectorAll('.play-button').forEach(button => {
+        button.addEventListener('click', () => {
+            const url = (button as HTMLElement).dataset.url;
+            if (!url) return;
+
+            if (currentAudio) {
+                currentAudio.pause();
+                if (currentAudio.src === url) {
+                    currentAudio = null;
+                    return;
+                }
+            }
+
+            currentAudio = new Audio(url);
+            currentAudio.play();
+        });
+    });
+
+    // Handle survey navigation
+    window.addEventListener('survey-previous', () => {
+        // Handle previous navigation
+        console.log('Previous clicked');
+    });
+
+    window.addEventListener('survey-next', () => {
+        // Handle next navigation
+        console.log('Next clicked');
+    });
+</script>

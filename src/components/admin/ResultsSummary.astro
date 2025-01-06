@@ -1,0 +1,45 @@
+---
+interface Props {
+  surveyId: string;
+}
+
+const { surveyId } = Astro.props;
+
+// TODO: Fetch actual survey data
+const summaryData = {
+  totalParticipants: 0,
+  completionRate: 0,
+  averageScore: 0,
+  totalResponses: 0
+};
+---
+
+<div class="bg-white shadow rounded-lg p-6 mb-6">
+  <h3 class="text-xl font-semibold mb-4">Results Summary</h3>
+  
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="bg-gray-50 p-4 rounded-lg">
+      <h4 class="text-sm font-medium text-gray-500">Total Participants</h4>
+      <p class="text-2xl font-bold text-gray-900">{summaryData.totalParticipants}</p>
+    </div>
+    
+    <div class="bg-gray-50 p-4 rounded-lg">
+      <h4 class="text-sm font-medium text-gray-500">Completion Rate</h4>
+      <p class="text-2xl font-bold text-gray-900">{summaryData.completionRate}%</p>
+    </div>
+    
+    <div class="bg-gray-50 p-4 rounded-lg">
+      <h4 class="text-sm font-medium text-gray-500">Average Score</h4>
+      <p class="text-2xl font-bold text-gray-900">{summaryData.averageScore}%</p>
+    </div>
+    
+    <div class="bg-gray-50 p-4 rounded-lg">
+      <h4 class="text-sm font-medium text-gray-500">Total Responses</h4>
+      <p class="text-2xl font-bold text-gray-900">{summaryData.totalResponses}</p>
+    </div>
+  </div>
+</div>
+
+<script>
+  // TODO: Add real-time updates using survey data manager
+</script>

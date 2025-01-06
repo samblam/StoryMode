@@ -1,0 +1,147 @@
+---
+import { supabase } from '../../lib/supabase';
+import type { Database } from '../../types/database';
+
+type Client = Database['public']['Tables']['clients']['Row'];
+type ClientBasic = Pick<Client, 'id' | 'name'>;
+type SoundProfileWithClient = Database['public']['Tables']['sound_profiles']['Row'] & {
+  client?: ClientBasic | null;
+};
+
+// Fetch clients for dropdown
+const { data: clients } = await supabase
+  .from('clients')
+  .select('id, name')
+  .eq('active', true)
+  .order('name') as { data: ClientBasic[] | null };
+
+// Fetch sound profiles for selection
+const { data: soundProfiles } = await supabase
+  .from('sound_profiles')
+  .select(`
+    id,
+    title,
+    client:clients (
+      id,
+      name
+    )
+  `)
+  .order('title') as { data: SoundProfileWithClient[] | null };
+---
+
+<form id="createSurveyForm" class="space-y-6">
+  <div>
+    <label for="title" class="block text-sm font-medium text-gray-700">Title</label>
+    <input
+      type="text"
+      id="title"
+      name="title"
+      required
+      class="mt-1 block w-full border rounded-md shadow-sm px-3 py-2"
+    />
+  </div>
+
+  <div>
+    <label for="description" class="block text-sm font-medium text-gray-700">Description</label>
+    <textarea
+      id="description"
+      name="description"
+      rows="3"
+      class="mt-1 block w-full border rounded-md shadow-sm px-3 py-2"
+    ></textarea>
+  </div>
+
+  <div>
+    <label for="clientId" class="block text-sm font-medium text-gray-700">Client</label>
+    <select
+      id="clientId"
+      name="clientId"
+      required
+      class="mt-1 block w-full border rounded-md shadow-sm px-3 py-2"
+    >
+      <option value="">Select a client</option>
+      {clients?.map((client: ClientBasic) => (
+        <option value={client.id}>{client.name}</option>
+      ))}
+    </select>
+  </div>
+
+  <div>
+    <label for="soundProfileId" class="block text-sm font-medium text-gray-700">Sound Profile</label>
+    <select
+      id="soundProfileId"
+      name="soundProfileId"
+      required
+      class="mt-1 block w-full border rounded-md shadow-sm px-3 py-2"
+    >
+      <option value="">Select a sound profile</option>
+      {soundProfiles?.map((profile: SoundProfileWithClient) => (
+        <option value={profile.id}>
+          {profile.title} ({profile.client?.name || 'No Client'})
+        </option>
+      ))}
+    </select>
+  </div>
+
+  <div class="flex items-center space-x-4">
+    <button
+      type="submit"
+      class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
+    >
+      Create Survey
+    </button>
+    <button
+      type="button"
+      id="cancelButton"
+      class="text-gray-600 hover:text-gray-800"
+    >
+      Cancel
+    </button>
+  </div>
+</form>
+
+<script>
+  const form = document.getElementById('createSurveyForm') as HTMLFormElement;
+  const cancelButton = document.getElementById('cancelButton');
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const formData = new FormData(form);
+    const data = {
+      title: formData.get('title'),
+      description: formData.get('description'),
+      clientId: formData.get('clientId'),
+      soundProfileId: formData.get('soundProfileId'),
+      status: 'draft'
+    };
+
+    try {
+      const response = await fetch('/api/surveys', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (response.ok) {
+        // Close modal and refresh list
+        const modal = document.getElementById('createSurveyModal');
+        modal?.classList.add('hidden');
+        window.location.reload();
+      } else {
+        const error = await response.json();
+        alert(`Failed to create survey: ${error.message}`);
+      }
+    } catch (error) {
+      console.error('Error creating survey:', error);
+      alert('Failed to create survey. Please try again.');
+    }
+  });
+
+  cancelButton?.addEventListener('click', () => {
+    const modal = document.getElementById('createSurveyModal');
+    modal?.classList.add('hidden');
+  });
+</script>

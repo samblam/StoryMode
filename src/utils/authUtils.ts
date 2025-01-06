@@ -1,3 +1,4 @@
+import type { PostgrestError } from '@supabase/supabase-js';
 import { supabase, supabaseAdmin } from '../lib/supabase';
 import type { User, AuthError } from '../types/auth';
 import { isRLSError, handleRLSError } from './accessControl';
@@ -330,6 +331,164 @@ export function requireAuth() {
   };
 }
 
+/**
+ * Creates a new survey participant
+ * @param email - Participant's email address (optional)
+ * @returns Object containing participant ID and error information
+ */
+export async function createParticipant(
+  email?: string
+): Promise<{ participantId: string | null; error: AuthError | null }> {
+  try {
+    const { data, error } = await supabase
+      .from('participants')
+      .insert({
+        email: email ? normalizeEmail(email) : null
+      })
+      .select('id')
+      .single();
+
+    if (error) {
+      const authError: AuthError = {
+        message: error.message,
+        status: 500,
+        code: 'CREATE_PARTICIPANT_ERROR',
+      };
+      return {
+        participantId: null,
+        error: authError,
+      };
+    }
+
+    return {
+      participantId: data.id,
+      error: null,
+    };
+  } catch (error) {
+    const err = error as any;
+    const authError: AuthError = {
+      message: err.message || 'An unknown error occurred',
+      status: 500,
+      code: 'INTERNAL_ERROR',
+    };
+    return {
+      participantId: null,
+      error: authError,
+    };
+  }
+}
+
+/**
+ * Gets a participant by ID with RLS support
+ * @param participantId - The participant's ID
+ * @returns Object containing participant data and error information
+ */
+export async function getParticipantById(
+  participantId: string
+): Promise<{ participant: { id: string, email: string | null } | null; error: AuthError | null }> {
+  try {
+    const { data, error } = await supabase
+      .from('participants')
+      .select('id, email')
+      .eq('id', participantId)
+      .single();
+
+    if (error) {
+      if (isRLSError(error)) {
+        // Fall back to admin client if RLS blocks access
+        const { data: adminData } = await supabaseAdmin
+          .from('participants')
+          .select('id, email')
+          .eq('id', participantId)
+          .single();
+
+        if (!adminData) {
+          const authError: AuthError = {
+            message: 'Participant not found',
+            status: 404,
+            code: 'PARTICIPANT_NOT_FOUND',
+          };
+          return {
+            participant: null,
+            error: authError,
+          };
+        }
+
+        return {
+          participant: adminData,
+          error: null,
+        };
+      } else {
+        // Type assertion: Tell TypeScript 'error' is a PostgrestError
+        const pgError = error as PostgrestError;
+        const authError: AuthError = {
+          message: pgError.message,
+          status: 403,
+          code: 'PERMISSION_DENIED',
+        };
+        return {
+          participant: null,
+          error: authError,
+        };
+      }
+    }
+
+    return {
+      participant: data,
+      error: null,
+    };
+  } catch (error) {
+    const authError: AuthError = {
+      message: error instanceof Error ? error.message : 'An unknown error occurred',
+      status: 500,
+      code: 'INTERNAL_ERROR',
+    };
+    return {
+      participant: null,
+      error: authError,
+    };
+  }
+}
+
+/**
+ * Validates if a participant has access to a specific survey
+ * @param participantId - The participant's ID
+ * @param surveyId - The survey's ID
+ * @returns boolean indicating access status
+ */
+export async function validateParticipantAccess(
+  participantId: string,
+  surveyId: string
+): Promise<boolean> {
+  try {
+    const { data, error } = await supabase
+      .from('survey_responses')
+      .select('id')
+      .eq('participant_id', participantId)
+      .eq('survey_id', surveyId)
+      .single();
+
+    if (error) {
+      if (isRLSError(error)) {
+        // Fall back to admin client if RLS blocks access
+        const { data: adminData } = await supabaseAdmin
+          .from('survey_responses')
+          .select('id')
+          .eq('participant_id', participantId)
+          .eq('survey_id', surveyId)
+          .single();
+
+        return !!adminData;
+      }
+      return false;
+    }
+
+    return !!data;
+  } catch (error) {
+    console.error('Error validating participant access:', error);
+    return false;
+  }
+}
 /**
  * Middleware function to require admin access
  */

@@ -1,0 +1,29 @@
+---
+interface Props {
+    functions: {
+        id: string;
+        description: string;
+    }[];
+}
+
+const { functions } = Astro.props;
+---
+
+<div class="grid grid-cols-2 gap-4">
+    {functions.map((func) => (
+        <div 
+            class="function-box bg-gray-100 p-4 rounded-lg shadow-md hover:shadow-lg transition-shadow"
+            data-function-id={func.id}
+        >
+            <div class="h-full flex items-center justify-center">
+                <p class="text-gray-700 text-center">{func.description}</p>
+            </div>
+        </div>
+    ))}
+</div>
+
+<style>
+    .function-box {
+        min-height: 100px;
+    }
+</style>

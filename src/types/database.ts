@@ -9,6 +9,61 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
+      survey_responses: {
+        Row: {
+          id: string;
+          created_at: string;
+          survey_id: string;
+          participant_id: string;
+          status: 'started' | 'completed' | 'abandoned';
+          success_rate: number | null;
+          time_taken: number | null;
+        };
+        Insert: {
+          id?: string;
+          created_at?: string;
+          survey_id: string;
+          participant_id: string;
+          status?: 'started' | 'completed' | 'abandoned';
+          success_rate?: number | null;
+          time_taken?: number | null;
+        };
+        Update: {
+          id?: string;
+          created_at?: string;
+          survey_id?: string;
+          participant_id?: string;
+          status?: 'started' | 'completed' | 'abandoned';
+          success_rate?: number | null;
+          time_taken?: number | null;
+        };
+      };
+      sound_matches: {
+        Row: {
+          id: string;
+          created_at: string;
+          response_id: string;
+          sound_id: string;
+          function_id: string;
+          is_correct: boolean;
+        };
+        Insert: {
+          id?: string;
+          created_at?: string;
+          response_id: string;
+          sound_id: string;
+          function_id: string;
+          is_correct: boolean;
+        };
+        Update: {
+          id?: string;
+          created_at?: string;
+          response_id?: string;
+          sound_id?: string;
+          function_id?: string;
+          is_correct?: boolean;
+        };
+      };
       clients: {
         Row: {
           id: string;
@@ -116,6 +171,35 @@ export interface Database {
           profile_id?: string;
         };
       };
+      surveys: {
+        Row: {
+          id: string;
+          created_at: string;
+          title: string;
+          description: string | null;
+          client_id: string;
+          sound_profile_id: string;
+          status: 'draft' | 'active' | 'completed';
+        };
+        Insert: {
+          id?: string;
+          created_at?: string;
+          title: string;
+          description?: string | null;
+          client_id: string;
+          sound_profile_id: string;
+          status?: 'draft' | 'active' | 'completed';
+        };
+        Update: {
+          id?: string;
+          created_at?: string;
+          title?: string;
+          description?: string | null;
+          client_id?: string;
+          sound_profile_id?: string;
+          status?: 'draft' | 'active' | 'completed';
+        };
+      };
     };
     Views: {
       [_ in never]: never;
@@ -143,4 +227,20 @@ export type SoundProfileWithSounds = Database['public']['Tables']['sound_profile
 
 export type ClientWithUsers = Database['public']['Tables']['clients']['Row'] & {
   users: Database['public']['Tables']['users']['Row'][];
+};
+
+// Survey table types
+export type SoundMatch = Database['public']['Tables']['sound_matches']['Row'];
+
+export type SurveyResponse = Database['public']['Tables']['survey_responses']['Row'] & {
+  sound_matches?: SoundMatch[];
+};
+
+export type Survey = Database['public']['Tables']['surveys']['Row'] & {
+  sound_profiles?: Database['public']['Tables']['sound_profiles']['Row'] | null;
+  survey_responses?: SurveyResponse[];
+};
+
+export type SurveyWithRelations = Survey & {
+  clients?: Database['public']['Tables']['clients']['Row'] | null;
 };

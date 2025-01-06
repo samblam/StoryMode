@@ -1,0 +1,76 @@
+/* Survey-specific styles */
+.survey-container {
+    font-family: sans-serif;
+    color: #333;
+  }
+  
+  .survey-header {
+    text-align: center;
+    margin-bottom: 20px;
+  }
+  
+  .survey-progress {
+    margin-bottom: 20px;
+  }
+  
+  .survey-content {
+    padding: 20px;
+  }
+  
+  .survey-button {
+    padding: 10px 20px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+  
+  .survey-button:hover {
+    background-color: #0056b3;
+  }
+  
+  .survey-input {
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    margin-bottom: 10px;
+  }
+  
+  .survey-error {
+    color: red;
+    margin-bottom: 10px;
+  }
+  
+  /* Animation definitions */
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  
+  .fade-in {
+    animation: fadeIn 0.5s ease;
+  }
+  
+  /* Interactive element states */
+  .survey-button:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+  }
+  
+  .survey-button:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.5);
+  }
+  
+  /* Responsive design rules */
+  @media (max-width: 768px) {
+    .survey-content {
+      padding: 10px;
+    }
+  }

@@ -43,7 +43,12 @@ export const RATE_LIMITS = {
   
   // Public APIs
   CONTACT: { windowMs: 60 * 60 * 1000, maxAttempts: 5 },   // 5 contact emails per hour
-  API: { windowMs: 60 * 1000, maxAttempts: 100 }           // 100 API calls per minute
+  API: { windowMs: 60 * 1000, maxAttempts: 100 },           // 100 API calls per minute
+  
+  // Survey APIs
+  SURVEY_CREATE: { windowMs: 60 * 60 * 1000, maxAttempts: 10 }, // 10 survey creations per hour
+  SURVEY_RESPONSE: { windowMs: 15 * 60 * 1000, maxAttempts: 20 }, // 20 survey responses per 15 minutes
+  SURVEY_RESULTS: { windowMs: 60 * 60 * 1000, maxAttempts: 50 }, // 50 results downloads per hour
 } as const;
 
 export class RateLimiter {

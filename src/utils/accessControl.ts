@@ -1,6 +1,8 @@
 import { supabase, supabaseAdmin } from '../lib/supabase';
-import type { User, ClientInfo, AuthErrorCode } from '../types/auth';
+import type { User, ClientInfo, AuthErrorCode, AuthError } from '../types/auth';
 import type { Database } from '../types/database';
+import type { AstroGlobal } from 'astro';
+import { getCurrentUser } from './authUtils';
 
 /**
  * Error type for Row Level Security (RLS) violations
@@ -51,7 +53,7 @@ export async function handleRLSError(error: unknown): Promise<Response> {
 export async function verifyAuthorization(
   user: User | undefined,
   requiredRole: string,
-  operationType: 'read' | 'write' | 'admin'
+  operationType: 'read' | 'write' | 'admin' | 'participant'
 ): Promise<{
   authorized: boolean;
   error?: {
@@ -80,16 +82,27 @@ export async function verifyAuthorization(
     };
   }
 
-  // Check if user has required role or is admin
-  if (!isUserAuthorized(user, requiredRole)) {
-    return {
-      authorized: false,
-      error: {
-        code: 'PERMISSION_DENIED',
-        message: 'Insufficient permissions'
-      }
-    };
-  }
+    // Participant operations require participant role
+    if (operationType === 'participant' && user.role !== 'participant') {
+        return {
+            authorized: false,
+            error: {
+                code: 'PARTICIPANT_REQUIRED',
+                message: 'Participant privileges required'
+            }
+        };
+    }
+
+    // Check if user has required role
+    if (!isUserAuthorized(user, requiredRole)) {
+        return {
+            authorized: false,
+            error: {
+                code: 'PERMISSION_DENIED' as AuthErrorCode,
+                message: 'Insufficient permissions'
+            }
+        };
+    }
 
   return { authorized: true };
 }
@@ -111,7 +124,20 @@ export function isAdmin(user: User | undefined): boolean {
  */
 export function isUserAuthorized(user: User | undefined, requiredRole: string): boolean {
   if (!user) return false;
-  return user.role === requiredRole || isAdmin(user);
+  return user.role === requiredRole || isAdmin(user) || user.role === 'participant';
+}
+
+/**
+ * Checks if a user is authorized to view survey results
+ * @param user - The user to check
+ * @param survey - The survey to check
+ * @returns boolean indicating authorization status
+ */
+export function canViewSurveyResults(user: User | undefined, survey: { client_id: string, visible_to_client: boolean }): boolean {
+    if (!user) return false;
+    if (isAdmin(user)) return true;
+    if (user.role === 'client' && user.clientId === survey.client_id && survey.visible_to_client) return true;
+    return false;
 }
 
 type SoundProfileWithClient = Database['public']['Tables']['sound_profiles']['Row'] & {
@@ -135,7 +161,7 @@ export async function getAccessibleSoundProfiles(user: User | undefined): Promis
       `)
       .order('created_at', { ascending: false });
 
-    // If user is a client, filter to only show their profiles
+    // If user is a client or participant, filter to only show their profiles
     if (user.role === 'client' && user.clientId) {
       query = query.eq('client_id', user.clientId);
     }
@@ -199,4 +225,22 @@ export function organizeProfilesByClient(profiles: SoundProfileWithClient[]) {
     acc[clientName].push(profile);
     return acc;
   }, {} as Record<string, SoundProfileWithClient[]>);
+}
+
+/**
+ * Checks if the current request is from an admin user
+ * @param Astro - The Astro global object
+ * @returns Promise<boolean> indicating if user has admin access
+ */
+export async function checkAdminAccess(Astro: AstroGlobal): Promise<boolean> {
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return false;
+    }
+    return isAdmin(user);
+  } catch (error) {
+    console.error('Error checking admin access:', error);
+    return false;
+  }
 }

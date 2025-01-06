@@ -1,0 +1,135 @@
+---
+import SurveyLayout from '../../components/SurveyLayout.astro';
+import { supabase } from '../../lib/supabase';
+import type { User } from '../../types/auth';
+
+const surveyId = Astro.url.searchParams.get('id');
+const user = Astro.locals.user as User | undefined;
+
+// Redirect if not logged in
+if (!user) {
+    return Astro.redirect('/login');
+}
+
+// Redirect if no survey ID
+if (!surveyId) {
+    return new Response(JSON.stringify({ error: 'Survey ID is required' }), {
+        status: 400,
+    });
+}
+
+// Get survey data
+const { data: survey, error } = await supabase
+    .from('surveys')
+    .select(`
+        *,
+        client:clients (
+            id,
+            name
+        )
+    `)
+    .eq('id', surveyId)
+    .single();
+
+if (error) {
+    return new Response(JSON.stringify({ error: error.message }), {
+        status: 500,
+    });
+}
+
+if (!survey) {
+    return new Response(JSON.stringify({ error: 'Survey not found' }), {
+        status: 404,
+    });
+}
+
+const title = `Project Video - ${survey.client.name}`;
+---
+
+<SurveyLayout 
+    title={title}
+    description="Please watch the following video to understand the project context."
+    currentStep={2}
+    totalSteps={4}
+>
+    <div class="max-w-4xl mx-auto px-4 py-8">
+        <div class="space-y-8">
+            {survey.video_url ? (
+                <div class="relative">
+                    <div class="aspect-w-16 aspect-h-9">
+                        <video
+                            id="projectVideo"
+                            src={survey.video_url}
+                            class="w-full h-full rounded-lg shadow-lg"
+                            controls
+                        >
+                            Your browser does not support the video tag.
+                        </video>
+                    </div>
+                    <div id="videoError" class="hidden mt-4 p-4 bg-red-100 text-red-700 rounded-lg">
+                        Error loading video. Please try refreshing the page.
+                    </div>
+                </div>
+            ) : (
+                <div class="p-4 bg-yellow-100 text-yellow-700 rounded-lg">
+                    No video available for this project.
+                </div>
+            )}
+
+            <div class="flex justify-between items-center mt-8">
+                <a 
+                    href={`/surveys?id=${surveyId}`}
+                    class="inline-block px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                    Back
+                </a>
+                <a 
+                    href={`/surveys/${surveyId}/instructions`}
+                    class="inline-block bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                    Continue
+                </a>
+            </div>
+        </div>
+    </div>
+</SurveyLayout>
+
+<script>
+    const video = document.getElementById('projectVideo') as HTMLVideoElement;
+    const errorDiv = document.getElementById('videoError');
+
+    if (video) {
+        video.addEventListener('error', () => {
+            if (errorDiv) {
+                errorDiv.classList.remove('hidden');
+            }
+        });
+
+        // Track video completion
+        video.addEventListener('ended', () => {
+            // Could add logic here to mark video as watched
+            console.log('Video completed');
+        });
+    }
+</script>
+
+<style>
+    .aspect-w-16 {
+        position: relative;
+        padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
+    }
+
+    .aspect-w-16 > * {
+        position: absolute;
+        height: 100%;
+        width: 100%;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        left: 0;
+    }
+
+    .shadow-lg {
+        box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    }
+</style>

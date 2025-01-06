@@ -1,0 +1,272 @@
+---
+import { supabase } from '../../lib/supabase';
+
+interface Props {
+    surveyId: string;
+    initialMappings?: {
+        soundId: string;
+        functionId: string;
+        order: number;
+    }[];
+}
+
+const { surveyId, initialMappings = [] } = Astro.props;
+
+// Fetch available sounds from profiles
+const { data: soundProfiles } = await supabase
+    .from('sound_profiles')
+    .select('*');
+
+// Fetch available functions
+const { data: functions } = await supabase
+    .from('functions')
+    .select('*');
+
+const sounds = soundProfiles?.flatMap(profile => profile.sounds) || [];
+---
+
+<div class="space-y-6">
+    <div class="bg-white p-6 rounded-lg shadow">
+        <h3 class="text-lg font-semibold mb-4">Sound Selection & Mapping</h3>
+        
+        <!-- Sound-Function Mapping Interface -->
+        <div id="mapping-container" class="space-y-4" data-survey-id={surveyId}>
+            {initialMappings.map((mapping) => (
+                <div
+                    class="mapping-row bg-gray-50 p-4 rounded-md flex items-center space-x-4"
+                    data-mapping-id={`${mapping.soundId}-${mapping.functionId}`}
+                    data-order={mapping.order}
+                >
+                    <!-- Drag Handle -->
+                    <div class="cursor-move">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M3 7a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 6a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd" />
+                        </svg>
+                    </div>
+
+                    <!-- Sound Selection -->
+                    <div class="flex-1">
+                        <select
+                            class="sound-select w-full rounded-md border-gray-300"
+                            data-current-sound={mapping.soundId}
+                        >
+                            <option value="">Select Sound</option>
+                            {sounds.map(sound => (
+                                <option
+                                    value={sound.id}
+                                    selected={sound.id === mapping.soundId}
+                                >
+                                    {sound.name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <!-- Function Selection -->
+                    <div class="flex-1">
+                        <select
+                            class="function-select w-full rounded-md border-gray-300"
+                            data-current-function={mapping.functionId}
+                        >
+                            <option value="">Select Function</option>
+                            {functions?.map(func => (
+                                <option
+                                    value={func.id}
+                                    selected={func.id === mapping.functionId}
+                                >
+                                    {func.description}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <!-- Preview Button -->
+                    <button
+                        type="button"
+                        class="preview-sound p-2 text-blue-600 hover:text-blue-800"
+                        data-sound-url={sounds.find(s => s.id === mapping.soundId)?.url}
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
+                        </svg>
+                    </button>
+
+                    <!-- Remove Button -->
+                    <button
+                        type="button"
+                        class="remove-mapping text-red-600 hover:text-red-800"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                        </svg>
+                    </button>
+                </div>
+            ))}
+        </div>
+
+        <!-- Add Mapping Button -->
+        <button
+            type="button"
+            id="add-mapping"
+            class="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200"
+        >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" />
+            </svg>
+            Add Sound Mapping
+        </button>
+    </div>
+</div>
+
+<script>
+    let currentAudio: HTMLAudioElement | null = null;
+
+    // Initialize Sortable.js for drag-and-drop reordering
+    const mappingContainer = document.getElementById('mapping-container');
+    if (mappingContainer) {
+        new (window as any).Sortable(mappingContainer, {
+            animation: 150,
+            handle: '.cursor-move',
+            onEnd: updateMappingOrder
+        });
+    }
+
+    // Handle sound preview
+    document.querySelectorAll('.preview-sound').forEach(button => {
+        button.addEventListener('click', async (e) => {
+            const btn = e.currentTarget as HTMLButtonElement;
+            const url = btn.dataset.soundUrl;
+            
+            if (!url) return;
+
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio.currentTime = 0;
+            }
+
+            // If clicking the same sound that's playing, just stop
+            if (currentAudio?.src === url) {
+                currentAudio = null;
+                return;
+            }
+
+            try {
+                currentAudio = new Audio(url);
+                await currentAudio.play();
+
+                currentAudio.addEventListener('ended', () => {
+                    currentAudio = null;
+                });
+            } catch (error) {
+                console.error('Error playing audio:', error);
+            }
+        });
+    });
+
+    // Handle adding new mapping
+    document.getElementById('add-mapping')?.addEventListener('click', () => {
+        const container = document.getElementById('mapping-container');
+        if (!container) return;
+
+        const newOrder = container.children.length;
+        const mappingRow = createMappingRow(newOrder);
+        if (mappingRow) {
+            container.appendChild(mappingRow);
+        }
+    });
+
+    // Handle removing mapping
+    document.addEventListener('click', (e) => {
+        if ((e.target as HTMLElement).closest('.remove-mapping')) {
+            const row = (e.target as HTMLElement).closest('.mapping-row');
+            row?.remove();
+            updateMappingOrder();
+        }
+    });
+
+    // Update mapping order after drag-and-drop
+    function updateMappingOrder() {
+        const rows = document.querySelectorAll('.mapping-row');
+        rows.forEach((row, index) => {
+            row.setAttribute('data-order', index.toString());
+        });
+    }
+
+    // Create new mapping row
+    function createMappingRow(order: number): HTMLElement | null {
+        const template = document.createElement('template');
+        const soundOptions = Array.from(document.querySelectorAll<HTMLOptionElement>('.sound-select option'))
+            .filter(opt => opt.value)
+            .map(opt => `<option value="${opt.value}">${opt.textContent}</option>`)
+            .join('');
+
+        const functionOptions = Array.from(document.querySelectorAll<HTMLOptionElement>('.function-select option'))
+            .filter(opt => opt.value)
+            .map(opt => `<option value="${opt.value}">${opt.textContent}</option>`)
+            .join('');
+
+        template.innerHTML = `
+            <div
+                class="mapping-row bg-gray-50 p-4 rounded-md flex items-center space-x-4"
+                data-order="${order}"
+            >
+                <div class="cursor-move">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M3 7a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 6a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+                <div class="flex-1">
+                    <select class="sound-select w-full rounded-md border-gray-300">
+                        <option value="">Select Sound</option>
+                        ${soundOptions}
+                    </select>
+                </div>
+                <div class="flex-1">
+                    <select class="function-select w-full rounded-md border-gray-300">
+                        <option value="">Select Function</option>
+                        ${functionOptions}
+                    </select>
+                </div>
+                <button
+                    type="button"
+                    class="preview-sound p-2 text-blue-600 hover:text-blue-800"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+                <button
+                    type="button"
+                    class="remove-mapping text-red-600 hover:text-red-800"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+            </div>
+        `;
+        return template.content.firstElementChild as HTMLElement;
+    }
+
+    // Handle sound selection change
+    document.addEventListener('change', (e) => {
+        const select = e.target as HTMLSelectElement;
+        if (select.classList.contains('sound-select')) {
+            const row = select.closest('.mapping-row');
+            const previewButton = row?.querySelector('.preview-sound') as HTMLButtonElement;
+            if (previewButton) {
+                const selectedOption = select.selectedOptions[0];
+                const soundUrl = selectedOption.getAttribute('data-sound-url');
+                previewButton.dataset.soundUrl = soundUrl || '';
+            }
+        }
+    });
+
+    // Cleanup audio on page unload
+    window.addEventListener('beforeunload', () => {
+        if (currentAudio) {
+            currentAudio.pause();
+            currentAudio = null;
+        }
+    });
+</script>

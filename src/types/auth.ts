@@ -1,6 +1,5 @@
 // src/types/auth.ts
-export type UserRole = 'admin' | 'client';
-
+export type UserRole = 'admin' | 'client' | 'participant';
 
 
 export interface ClientInfo {
@@ -15,7 +14,7 @@ export interface ClientInfo {
 export interface User {
   id: string;
   email: string;
-  role: 'admin' | 'client';
+  role: UserRole;
   clientId?: string | null;
   client?: ClientInfo | null;
   createdAt: string;
@@ -32,7 +31,8 @@ export type AuthErrorCode =
   | 'PERMISSION_DENIED'
   | 'INTERNAL_ERROR'
   | 'ADMIN_REQUIRED'
-  | 'RLS_VIOLATION';
+  | 'RLS_VIOLATION'
+  | 'PARTICIPANT_REQUIRED';
 
 export interface AuthResponse {
   success: boolean;

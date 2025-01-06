@@ -1,0 +1,115 @@
+---
+import type { Database } from '../../types/database';
+
+interface Props {
+    survey: Database['public']['Tables']['surveys']['Row'];
+    clients: Database['public']['Tables']['clients']['Row'][];
+}
+
+const { survey, clients } = Astro.props;
+---
+
+<div class="bg-white p-6 rounded-lg shadow">
+    <h3 class="text-lg font-semibold mb-4">Survey Details</h3>
+    
+    <form id="survey-details-form" class="space-y-6">
+        <!-- Hidden Survey ID -->
+        <input type="hidden" name="id" value={survey.id} />
+
+        <!-- Title -->
+        <div>
+            <label for="title" class="block text-sm font-medium text-gray-700">
+                Survey Title
+            </label>
+            <input
+                type="text"
+                name="title"
+                id="title"
+                required
+                value={survey.title}
+                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                placeholder="Enter survey title"
+            />
+        </div>
+
+        <!-- Description -->
+        <div>
+            <label for="description" class="block text-sm font-medium text-gray-700">
+                Description
+            </label>
+            <textarea
+                name="description"
+                id="description"
+                rows="3"
+                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                placeholder="Enter survey description"
+            >{survey.description}</textarea>
+        </div>
+
+        <!-- Client Selection -->
+        <div>
+            <label for="client_id" class="block text-sm font-medium text-gray-700">
+                Associated Client
+            </label>
+            <select
+                name="client_id"
+                id="client_id"
+                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            >
+                <option value="">No Client</option>
+                {clients.map(client => (
+                    <option 
+                        value={client.id}
+                        selected={client.id === survey.client_id}
+                    >
+                        {client.name}
+                    </option>
+                ))}
+            </select>
+        </div>
+
+        <!-- Status Indicator -->
+        <div class="flex items-center space-x-2">
+            <span class="text-sm font-medium text-gray-700">Status:</span>
+            <span 
+                class={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                    survey.status === 'active'
+                        ? 'bg-green-100 text-green-800'
+                        : survey.status === 'completed'
+                        ? 'bg-blue-100 text-blue-800'
+                        : 'bg-yellow-100 text-yellow-800'
+                }`}
+            >
+                {survey.status.charAt(0).toUpperCase() + survey.status.slice(1)}
+            </span>
+        </div>
+
+        <!-- Created Info -->
+        <div class="text-sm text-gray-500">
+            <p>Created: {new Date(survey.created_at).toLocaleDateString()}</p>
+        </div>
+    </form>
+</div>
+
+<script>
+    // Listen for form changes
+    const form = document.getElementById('survey-details-form') as HTMLFormElement;
+    let hasUnsavedChanges = false;
+
+    form?.addEventListener('input', () => {
+        hasUnsavedChanges = true;
+    });
+
+    // Listen for save event
+    window.addEventListener('survey-saved', () => {
+        hasUnsavedChanges = false;
+    });
+
+    // Warn about unsaved changes when leaving
+    window.addEventListener('beforeunload', (e) => {
+        if (hasUnsavedChanges) {
+            e.preventDefault();
+            e.returnValue = '';
+        }
+    });
+</script>
