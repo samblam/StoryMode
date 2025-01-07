@@ -124,7 +124,21 @@ export function isAdmin(user: User | undefined): boolean {
  */
 export function isUserAuthorized(user: User | undefined, requiredRole: string): boolean {
   if (!user) return false;
-  return user.role === requiredRole || isAdmin(user) || user.role === 'participant';
+  
+  // Admin can do anything
+  if (isAdmin(user)) return true;
+  
+  // Participants can only access participant resources
+  if (user.role === 'participant') {
+    return requiredRole === 'participant';
+  }
+  
+  // Clients can access client resources and read operations
+  if (user.role === 'client') {
+    return requiredRole === 'client' || requiredRole === 'read';
+  }
+  
+  return false;
 }
 
 /**
@@ -147,33 +161,71 @@ type SoundProfileWithClient = Database['public']['Tables']['sound_profiles']['Ro
 
 
 export async function getAccessibleSoundProfiles(user: User | undefined): Promise<SoundProfileWithClient[]> {
+  console.log('getAccessibleSoundProfiles - User:', {
+    id: user?.id,
+    role: user?.role,
+    clientId: user?.clientId,
+    email: user?.email
+  });
+
   if (!user) {
+    console.log('getAccessibleSoundProfiles - No user, returning empty array');
     return [];
   }
 
   try {
-    let query = supabaseAdmin
-      .from('sound_profiles')
-      .select(`
-        *,
-        client:clients(*),
-        sounds(*)
-      `)
-      .order('created_at', { ascending: false });
+    // For admin users, get all profiles
+    if (isAdmin(user)) {
+      console.log('getAccessibleSoundProfiles - Admin user, getting all profiles');
+      const { data, error } = await supabaseAdmin
+        .from('sound_profiles')
+        .select(`
+          *,
+          client:clients(*),
+          sounds(*)
+        `)
+        .order('created_at', { ascending: false });
 
-    // If user is a client or participant, filter to only show their profiles
-    if (user.role === 'client' && user.clientId) {
-      query = query.eq('client_id', user.clientId);
+      if (error) {
+        console.error('getAccessibleSoundProfiles - Error:', error);
+        return [];
+      }
+
+      console.log('getAccessibleSoundProfiles - Retrieved admin profiles:', {
+        count: data?.length || 0
+      });
+      
+      return data || [];
     }
 
-    const { data, error } = await query;
+    // For client users, only get their associated profiles
+    if (user.role === 'client' && user.client?.id) {
+      console.log('getAccessibleSoundProfiles - Client user, filtering by clientId:', user.client.id);
+      const { data, error } = await supabaseAdmin
+        .from('sound_profiles')
+        .select(`
+          *,
+          client:clients(*),
+          sounds(*)
+        `)
+        .eq('client_id', user.client.id)
+        .order('created_at', { ascending: false });
 
-    if (error) {
-      console.error('Error fetching sound profiles:', error);
-      return [];
+      if (error) {
+        console.error('getAccessibleSoundProfiles - Error:', error);
+        return [];
+      }
+
+      console.log('getAccessibleSoundProfiles - Retrieved client profiles:', {
+        count: data?.length || 0,
+        clientId: user.clientId
+      });
+      
+      return data || [];
     }
-    
-    return data || [];
+
+    console.log('getAccessibleSoundProfiles - User has no access, returning empty array');
+    return [];
   } catch (error) {
     console.error('Error fetching sound profiles:', error);
     return [];
@@ -181,35 +233,74 @@ export async function getAccessibleSoundProfiles(user: User | undefined): Promis
 }
 
 export async function getAccessibleSounds(user: User | undefined) {
+  console.log('getAccessibleSounds - User:', {
+    id: user?.id,
+    role: user?.role,
+    clientId: user?.clientId
+  });
+
   if (!user) {
+    console.log('getAccessibleSounds - No user, returning empty array');
     return [];
   }
 
   try {
-    let query = supabaseAdmin
-      .from('sounds')
-      .select(`
-        *,
-        sound_profiles!inner(
+    // For admin users, get all sounds
+    if (isAdmin(user)) {
+      console.log('getAccessibleSounds - Admin user, getting all sounds');
+      const { data, error } = await supabaseAdmin
+        .from('sounds')
+        .select(`
           *,
-          client:clients(*)
-        )
-      `)
-      .order('created_at', { ascending: false });
+          sound_profiles!inner(
+            *,
+            client:clients(*)
+          )
+        `)
+        .order('created_at', { ascending: false });
 
-    // If user is a client, filter to only show their sounds
-    if (user.role === 'client' && user.clientId) {
-      query = query.eq('sound_profiles.client_id', user.clientId);
+      if (error) {
+        console.error('getAccessibleSounds - Error:', error);
+        return [];
+      }
+
+      console.log('getAccessibleSounds - Retrieved admin sounds:', {
+        count: data?.length || 0
+      });
+      
+      return data || [];
     }
 
-    const { data, error } = await query;
+    // For client users, only get their associated sounds
+    if (user.role === 'client' && user.client?.id) {
+      console.log('getAccessibleSounds - Client user, filtering by clientId:', user.client.id);
+      const { data, error } = await supabaseAdmin
+        .from('sounds')
+        .select(`
+          *,
+          sound_profiles!inner(
+            *,
+            client:clients(*)
+          )
+        `)
+        .eq('sound_profiles.client_id', user.client.id)
+        .order('created_at', { ascending: false });
 
-    if (error) {
-      console.error('Error fetching sounds:', error);
-      return [];
+      if (error) {
+        console.error('getAccessibleSounds - Error:', error);
+        return [];
+      }
+
+      console.log('getAccessibleSounds - Retrieved client sounds:', {
+        count: data?.length || 0,
+        clientId: user.clientId
+      });
+      
+      return data || [];
     }
 
-    return data || [];
+    console.log('getAccessibleSounds - User has no access, returning empty array');
+    return [];
   } catch (error) {
     console.error('Error fetching sounds:', error);
     return [];

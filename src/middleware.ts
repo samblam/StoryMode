@@ -108,8 +108,12 @@ export const onRequest: MiddlewareHandler = async ({ request, locals, cookies },
               id: authUser.id,
               email: authUser.email || '',
               role: role,
-              clientId: userData.client_id,
-              client: clientData,
+              client: userData.client_id ? {
+                id: userData.client_id,
+                name: clientData?.name || '',
+                email: clientData?.email || '',
+                active: true
+              } : null,
               createdAt: authUser.created_at || ''
             };
           }
@@ -131,11 +135,58 @@ export const onRequest: MiddlewareHandler = async ({ request, locals, cookies },
       cookies.delete('sb-token', { path: '/' });
     }
 
+    const url = new URL(request.url);
+    const user = locals.user;
+
+    // Admin route protection
+    if (url.pathname.startsWith('/admin')) {
+      if (!user || user.role !== 'admin') {
+        return new Response('Redirect', {
+          status: 302,
+          headers: {
+            Location: '/login'
+          }
+        });
+      }
+    }
+
+    // Sound access protection
+    if (url.pathname.startsWith('/sounds') || url.pathname.includes('/api/sounds/')) {
+      if (!user) {
+        return new Response('Redirect', {
+          status: 302,
+          headers: {
+            Location: '/login'
+          }
+        });
+      }
+
+      // Only admins can upload/manage sounds
+      if ((url.pathname === '/sounds/upload' || url.pathname.includes('/api/sounds/upload')) && user.role !== 'admin') {
+        return new Response('Unauthorized', { status: 403 });
+      }
+
+      // Clients can access the sounds page and their associated sounds
+      if (user.role === 'client') {
+        // Allow access to main sounds page and API
+        if (url.pathname === '/sounds' || url.pathname === '/api/sounds') {
+          return next();
+        }
+        
+        // For specific sound access, verify client association in getAccessibleSounds
+        if (url.pathname.includes('/api/sounds/')) {
+          const { authorized } = await verifyAuthorization(user, 'client', 'read');
+          if (!authorized) {
+            return new Response('Unauthorized', { status: 403 });
+          }
+        }
+      }
+    }
+
     // Survey-specific route protection
     const surveyIdMatch = request.url.match(/\/api\/surveys\/([a-f0-9-]+)/);
     if (surveyIdMatch) {
       const surveyId = surveyIdMatch[1];
-      const user = locals.user;
 
       // Check if user is a participant and has access to the survey
       if (user?.role === 'participant' && locals.participantId) {

@@ -53,11 +53,9 @@ const compatibleUser: User = {
   id: user.id,
   email: user.email,
   role: user.role,
-  clientId: user.client?.id || null,
   client: user.client ? {
     id: user.client.id,
     name: user.client.name,
-    company: user.client.company || null,
     email: user.email,
     active: true
   } : null,

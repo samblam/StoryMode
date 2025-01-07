@@ -37,7 +37,12 @@ const isAdmin = user?.role === 'admin';
             <>
               <a href="/sounds" class="hover:underline">Sounds</a>
               {user.role === 'client' && <a href="/surveys/client-results" class="hover:underline">My Survey Results</a>}
-              {isAdmin && <a href="/create-user" class="hover:underline">Create User</a>}
+              {isAdmin && (
+                <>
+                  <a href="/admin/surveys" class="hover:underline">Survey Management</a>
+                  <a href="/create-user" class="hover:underline">Create User</a>
+                </>
+              )}
               <button
                 id="logout-button"
                 class="hover:underline text-white bg-transparent border-none cursor-pointer font-inherit"
