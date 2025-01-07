@@ -40,6 +40,12 @@
 
 **Next Steps:**
 
+- Fix the seeker functionality on the sounds page.
+- Fix survey functionality:
+  - a) Implement survey deletion.
+  - b) Fix the client dropdown in the survey creation form. The sound profile dropdown should wait for a client to be chosen, and then only show sound profiles associated with said client.
+  - c) Ensure surveys are associated with the specified client, and the sounds from the chosen sound profile are associated as well.
+  - d) Fix the edit survey button functionality.
 - Monitor system performance in production
 - Gather user feedback on new features
 - Consider additional visualization options
