@@ -7,7 +7,7 @@ import AnalyticsDashboard from '../../../../components/AnalyticsDashboard.astro'
 import ReportGenerator from '../../../../components/ReportGenerator.astro';
 import DataExporter from '../../../../components/DataExporter.astro';
 import { calculateSuccessMetrics, performSoundPerformanceAnalysis, trackParticipantBehavior } from '../../../../utils/surveyAnalytics';
-import { processRawData, prepareGraphData, formatCSVExport, generatePDFReport } from '../../../../utils/surveyResults';
+import { processRawData, prepareGraphData } from '../../../../utils/surveyResults';
 
 // Ensure admin access
 const user = await getCurrentUser(Astro.cookies);
@@ -21,6 +21,9 @@ if (!authorized) {
 }
 
 const { id } = Astro.params;
+if (!id) {
+  return Astro.redirect('/admin/surveys', 302);
+}
 
 // Fetch survey data with responses
 const { data: survey, error: surveyError } = await supabase
@@ -47,27 +50,37 @@ if (survey.status !== 'completed') {
   return Astro.redirect('/admin/surveys', 302);
 }
 
-// Fetch survey responses
-const { data: responses } = await supabase
+// Fetch survey responses with sound matches
+const { data: responses, error: responsesError } = await supabase
   .from('survey_responses')
-  .select('*')
+  .select(`
+    *,
+    sound_matches (
+      id,
+      sound_id,
+      function_id,
+      is_correct
+    )
+  `)
   .eq('survey_id', id)
   .order('created_at', { ascending: false });
 
-// Process survey data using analytics utilities
+// Process survey data
 const surveyResponses = responses || [];
-const metrics = calculateSuccessMetrics(surveyResponses);
-const performanceAnalysis = performSoundPerformanceAnalysis(surveyResponses);
-const behaviorMetrics = trackParticipantBehavior(surveyResponses);
-
-// Prepare data for visualization and export
-const graphData = prepareGraphData(surveyResponses);
-const rawData = processRawData(surveyResponses);
 
 // Calculate display metrics
 const totalResponses = surveyResponses.length;
 const completedResponses = surveyResponses.filter(r => r.status === 'completed').length;
 const completionRate = totalResponses ? (completedResponses / totalResponses * 100).toFixed(1) : 0;
+
+// Prepare data for visualization
+const graphData = prepareGraphData(surveyResponses);
+const rawData = processRawData(surveyResponses);
+
+// Calculate metrics for ReportGenerator
+const metrics = calculateSuccessMetrics(surveyResponses);
+const performanceAnalysis = performSoundPerformanceAnalysis(surveyResponses);
+const behaviorMetrics = trackParticipantBehavior(surveyResponses);
 
 ---
 
@@ -79,17 +92,13 @@ const completionRate = totalResponses ? (completedResponses / totalResponses * 1
         client:load
         surveyId={id}
         rawData={rawData}
-        onExportPDF={() => generatePDFReport(surveyResponses)}
-        onExportCSV={() => formatCSVExport(surveyResponses)}
       />
     </div>
 
     <AnalyticsDashboard
-      metrics={metrics}
-      performanceAnalysis={performanceAnalysis}
-      behaviorMetrics={behaviorMetrics}
-      graphData={graphData}
-      class="mb-8"
+      responses={surveyResponses}
+      surveyId={id}
+      error={responsesError?.message}
     />
 
     <ReportGenerator
@@ -123,7 +132,7 @@ const completionRate = totalResponses ? (completedResponses / totalResponses * 1
       <!-- Sound-Function Correlation -->
       <div class="bg-white shadow rounded-lg p-6">
         <h2 class="text-xl font-semibold mb-4">Sound-Function Correlation</h2>
-        <div >
+        <div>
           <canvas id="correlationChart" class="h-64"></canvas>
         </div>
       </div>
@@ -131,7 +140,7 @@ const completionRate = totalResponses ? (completedResponses / totalResponses * 1
       <!-- Success Rates -->
       <div class="bg-white shadow rounded-lg p-6">
         <h2 class="text-xl font-semibold mb-4">Success Rates</h2>
-        <div >
+        <div>
           <canvas id="successRateChart" class="h-64"></canvas>
         </div>
       </div>
@@ -139,7 +148,7 @@ const completionRate = totalResponses ? (completedResponses / totalResponses * 1
       <!-- Response Timeline -->
       <div class="bg-white shadow rounded-lg p-6">
         <h2 class="text-xl font-semibold mb-4">Response Timeline</h2>
-        <div >
+        <div>
           <canvas id="timelineChart" class="h-64"></canvas>
         </div>
       </div>
@@ -147,7 +156,7 @@ const completionRate = totalResponses ? (completedResponses / totalResponses * 1
       <!-- Error Patterns -->
       <div class="bg-white shadow rounded-lg p-6">
         <h2 class="text-xl font-semibold mb-4">Error Patterns</h2>
-        <div >
+        <div>
           <canvas id="errorPatternChart" class="h-64"></canvas>
         </div>
       </div>

@@ -1,7 +1,297 @@
 ---
 // src/components/ReportGenerator.astro
+import type { SurveyResponse, Survey } from '../types/database';
+
+interface Props {
+  surveyData: Survey;
+  responses: SurveyResponse[];
+  metrics: {
+    successRate: number;
+    averageCompletionTime: number;
+  };
+  performanceAnalysis: {
+    majorityChoice: string | null;
+    majorityChoiceCount: number;
+    totalResponses: number;
+  };
+  behaviorMetrics: {
+    averageTimePerQuestion: number;
+    dropOffRate: number;
+  };
+  class?: string;
+}
+
+const {
+  surveyData,
+  responses,
+  metrics,
+  performanceAnalysis,
+  behaviorMetrics,
+  class: className = ''
+} = Astro.props;
+
+const templates = [
+  { id: 'default', name: 'Default Template', description: 'Standard report with all metrics' },
+  { id: 'detailed', name: 'Detailed Analysis', description: 'In-depth analysis with extended metrics' },
+  { id: 'summary', name: 'Executive Summary', description: 'High-level overview of key findings' }
+];
+
+const reportSections = [
+  { id: 'overview', name: 'Overview', included: true },
+  { id: 'metrics', name: 'Success Metrics', included: true },
+  { id: 'performance', name: 'Sound Performance', included: true },
+  { id: 'behavior', name: 'Participant Behavior', included: true },
+  { id: 'charts', name: 'Visualizations', included: true }
+];
+
 ---
-<div class="report-generator">
-    <h2>Report Generator</h2>
-    <p>This component will generate reports.</p>
+
+<div class={`report-generator bg-white rounded-lg shadow-lg p-6 ${className}`}>
+  <div class="border-b pb-4 mb-6">
+    <h2 class="text-2xl font-bold text-gray-800">Report Generator</h2>
+    <p class="text-gray-600 mt-1">Generate customized reports from survey data</p>
+  </div>
+
+  <!-- Template Selection -->
+  <div class="mb-8">
+    <h3 class="text-lg font-semibold text-gray-800 mb-4">Report Template</h3>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {templates.map(template => (
+        <button
+          class="template-button p-4 border rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors text-left"
+          data-template={template.id}
+        >
+          <h4 class="font-semibold text-gray-800">{template.name}</h4>
+          <p class="text-sm text-gray-600 mt-1">{template.description}</p>
+        </button>
+      ))}
+    </div>
+  </div>
+
+  <!-- Report Sections -->
+  <div class="mb-8">
+    <h3 class="text-lg font-semibold text-gray-800 mb-4">Report Sections</h3>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {reportSections.map(section => (
+        <label class="flex items-center space-x-3 p-3 border rounded-lg hover:bg-gray-50">
+          <input
+            type="checkbox"
+            checked={section.included}
+            class="form-checkbox h-5 w-5 text-blue-600"
+            data-section={section.id}
+          />
+          <span class="text-gray-700">{section.name}</span>
+        </label>
+      ))}
+    </div>
+  </div>
+
+  <!-- Export Options -->
+  <div class="mb-8">
+    <h3 class="text-lg font-semibold text-gray-800 mb-4">Export Options</h3>
+    <div class="flex flex-wrap gap-4">
+      <label class="flex items-center space-x-3">
+        <input
+          type="checkbox"
+          checked
+          class="form-checkbox h-5 w-5 text-blue-600"
+          data-option="includeCharts"
+        />
+        <span class="text-gray-700">Include Charts</span>
+      </label>
+      <label class="flex items-center space-x-3">
+        <input
+          type="checkbox"
+          checked
+          class="form-checkbox h-5 w-5 text-blue-600"
+          data-option="includeRawData"
+        />
+        <span class="text-gray-700">Include Raw Data</span>
+      </label>
+      <label class="flex items-center space-x-3">
+        <input
+          type="checkbox"
+          checked
+          class="form-checkbox h-5 w-5 text-blue-600"
+          data-option="anonymizeData"
+        />
+        <span class="text-gray-700">Anonymize Data</span>
+      </label>
+    </div>
+  </div>
+
+  <!-- Progress Bar (hidden by default) -->
+  <div class="progress-container hidden mb-8">
+    <div class="flex justify-between text-sm text-gray-600 mb-2">
+      <span class="progress-status">Preparing report...</span>
+      <span class="progress-percentage">0%</span>
+    </div>
+    <div class="w-full bg-gray-200 rounded-full h-2">
+      <div class="progress-bar bg-blue-600 h-2 rounded-full w-0 transition-all duration-300"></div>
+    </div>
+  </div>
+
+  <!-- Action Buttons -->
+  <div class="flex justify-end space-x-4">
+    <button
+      class="preview-button px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+      type="button"
+    >
+      Preview Report
+    </button>
+    <button
+      class="generate-button px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+      type="button"
+    >
+      Generate Report
+    </button>
+  </div>
 </div>
+
+<script define:vars={{ surveyData, responses, metrics, performanceAnalysis, behaviorMetrics }}>
+document.addEventListener('DOMContentLoaded', () => {
+  const progressContainer = document.querySelector('.progress-container');
+  const progressBar = document.querySelector('.progress-bar');
+  const progressStatus = document.querySelector('.progress-status');
+  const progressPercentage = document.querySelector('.progress-percentage');
+  
+  let selectedTemplate = 'default';
+  const selectedSections = new Set(['overview', 'metrics', 'performance', 'behavior', 'charts']);
+  const options = {
+    includeCharts: true,
+    includeRawData: true,
+    anonymizeData: true
+  };
+
+  // Template selection
+  document.querySelectorAll('.template-button').forEach(button => {
+    button.addEventListener('click', () => {
+      document.querySelectorAll('.template-button').forEach(b => 
+        b.classList.remove('border-blue-500', 'bg-blue-50'));
+      button.classList.add('border-blue-500', 'bg-blue-50');
+      selectedTemplate = button.dataset.template;
+    });
+  });
+
+  // Section toggles
+  document.querySelectorAll('[data-section]').forEach(checkbox => {
+    checkbox.addEventListener('change', (e) => {
+      const section = e.target.dataset.section;
+      if (e.target.checked) {
+        selectedSections.add(section);
+      } else {
+        selectedSections.delete(section);
+      }
+    });
+  });
+
+  // Option toggles
+  document.querySelectorAll('[data-option]').forEach(checkbox => {
+    checkbox.addEventListener('change', (e) => {
+      options[e.target.dataset.option] = e.target.checked;
+    });
+  });
+
+  // Update progress
+  function updateProgress(status, percent) {
+    progressContainer.classList.remove('hidden');
+    progressStatus.textContent = status;
+    progressPercentage.textContent = `${percent}%`;
+    progressBar.style.width = `${percent}%`;
+  }
+
+  // Generate report
+  async function generateReport() {
+    try {
+      progressContainer.classList.remove('hidden');
+      updateProgress('Preparing data...', 10);
+
+      // Process data in batches
+      const batchSize = 100;
+      const batches = [];
+      for (let i = 0; i < responses.length; i += batchSize) {
+        batches.push(responses.slice(i, i + batchSize));
+      }
+
+      updateProgress('Processing responses...', 30);
+
+      // Process each batch
+      let processedData = [];
+      for (let i = 0; i < batches.length; i++) {
+        const batchData = await processBatch(batches[i]);
+        processedData = processedData.concat(batchData);
+        updateProgress(
+          'Processing responses...',
+          30 + Math.floor((i / batches.length) * 40)
+        );
+      }
+
+      updateProgress('Generating report...', 80);
+
+      // Generate final report
+      const reportData = {
+        template: selectedTemplate,
+        sections: Array.from(selectedSections),
+        options,
+        surveyData,
+        metrics,
+        performanceAnalysis,
+        behaviorMetrics,
+        processedData
+      };
+
+      // Simulate report generation (replace with actual API call)
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      updateProgress('Finalizing...', 90);
+
+      // Download report (replace with actual download logic)
+      const blob = new Blob(['Report content'], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `survey-report-${surveyData.id}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      updateProgress('Report generated successfully!', 100);
+
+      // Hide progress after a delay
+      setTimeout(() => {
+        progressContainer.classList.add('hidden');
+      }, 2000);
+
+    } catch (error) {
+      console.error('Report generation failed:', error);
+      updateProgress('Error generating report', 0);
+    }
+  }
+
+  async function processBatch(batch) {
+    // Process batch data (replace with actual processing logic)
+    await new Promise(resolve => setTimeout(resolve, 100));
+    return batch.map(response => ({
+      ...response,
+      processed: true
+    }));
+  }
+
+  // Preview report
+  function previewReport() {
+    // Implement preview logic
+    alert('Preview functionality coming soon!');
+  }
+
+  // Add button event listeners
+  document.querySelector('.generate-button').addEventListener('click', generateReport);
+  document.querySelector('.preview-button').addEventListener('click', previewReport);
+});
+</script>
+
+<style>
+.form-checkbox {
+  @apply rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50;
+}
+</style>

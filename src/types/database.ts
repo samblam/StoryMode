@@ -232,9 +232,19 @@ export type ClientWithUsers = Database['public']['Tables']['clients']['Row'] & {
 // Survey table types
 export type SoundMatch = Database['public']['Tables']['sound_matches']['Row'];
 
-export type SurveyResponse = Database['public']['Tables']['survey_responses']['Row'] & {
+// Base survey response type from database
+export type BaseSurveyResponse = Database['public']['Tables']['survey_responses']['Row'];
+
+// Extended survey response type for analytics
+export interface SurveyResponse extends BaseSurveyResponse {
   sound_matches?: SoundMatch[];
-};
+  // Derived properties for analytics
+  is_success?: boolean;
+  is_complete?: boolean;
+  chosen_sound?: string;
+  expected_sound?: string;
+  score?: number;
+}
 
 export type Survey = Database['public']['Tables']['surveys']['Row'] & {
   sound_profiles?: Database['public']['Tables']['sound_profiles']['Row'] | null;
