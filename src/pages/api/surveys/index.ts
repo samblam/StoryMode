@@ -14,7 +14,7 @@ function getErrorMessage(error: PostgrestError): string {
   return error?.message || 'Unknown error occurred';
 }
 
-export const get: APIRoute = async ({ request, locals }) => {
+export const GET: APIRoute = async ({ request, locals }) => {
   try {
     const user = locals.user as User | undefined;
     const { authorized, error: authError } = await verifyAuthorization(user, 'admin', 'read');
@@ -69,7 +69,7 @@ export const get: APIRoute = async ({ request, locals }) => {
   }
 };
 
-export const post: APIRoute = async ({ request, locals }) => {
+export const POST: APIRoute = async ({ request, locals }) => {
   try {
     const user = locals.user as User | undefined;
     const { authorized, error: authError } = await verifyAuthorization(user, 'admin', 'write');
@@ -81,34 +81,47 @@ export const post: APIRoute = async ({ request, locals }) => {
     }
 
     const body = await request.json();
+    console.log('Received survey creation request:', body);
+
     const {
       title,
       description,
       client_id,
+      sound_profile_id,
       video_url,
-      sounds
+      sounds = []
     } = body as {
       title: string;
       description?: string;
       client_id: string;
+      sound_profile_id?: string;
       video_url?: string;
       sounds: SurveySound[];
     };
 
     // Validate required fields
-    if (!title || !client_id || !Array.isArray(sounds)) {
+    if (!title || !client_id) {
       return new Response(JSON.stringify({
         error: 'Missing required fields'
       }), { status: 400 });
     }
 
     // Start a transaction
+    console.log('Creating survey with data:', {
+      title,
+      description,
+      client_id,
+      sound_profile_id,
+      video_url
+    });
+
     const { data: survey, error: surveyError } = await supabase
       .from('surveys')
       .insert({
         title,
         description,
         client_id,
+        sound_profile_id,
         video_url,
         active: true,
         approved: false,

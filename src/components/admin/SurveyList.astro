@@ -72,6 +72,7 @@ function getStatusClasses(status: string): string {
               <a
                 href={`/admin/surveys/${survey.id}/edit`}
                 class="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                onclick="console.log('Edit button clicked for survey:', '${survey.id}')"
               >
                 Edit
               </a>

@@ -19,9 +19,7 @@ if (!user) {
 
 type Client = Database['public']['Tables']['clients']['Row'];
 type ClientBasic = Pick<Client, 'id' | 'name'>;
-type SoundProfile = Database['public']['Tables']['sound_profiles']['Row'] & {
-  name: string;
-};
+type SoundProfile = Database['public']['Tables']['sound_profiles']['Row'];
 
 let clients: ClientBasic[] | null = null;
 let soundProfiles: SoundProfile[] = [];
@@ -134,7 +132,7 @@ try {
         <option value="" disabled>{soundProfileError}</option>
       ) : soundProfiles.length ? (
         soundProfiles.map((profile: SoundProfile) => (
-          <option value={profile.id}>{profile.name}</option>
+          <option value={profile.id}>{profile.title}</option>
         ))
       ) : (
         <option value="" disabled>No sound profiles found</option>
@@ -162,11 +160,54 @@ try {
 <script>
 interface SoundProfile {
   id: string;
-  name: string;
+  title: string;
 }
 
+const form = document.getElementById('createSurveyForm') as HTMLFormElement;
 const clientSelect = document.getElementById('clientId');
 const soundProfileSelect = document.getElementById('soundProfileId');
+
+form?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  console.log('Form submission started');
+
+  const formData = new FormData(form);
+  const data = {
+    title: formData.get('title'),
+    description: formData.get('description'),
+    client_id: formData.get('clientId'),
+    sound_profile_id: formData.get('soundProfileId'),
+    sounds: [], // Initialize empty array for now
+    status: 'draft'
+  };
+
+  console.log('Submitting survey data:', data);
+
+  try {
+    const response = await fetch('/api/surveys', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+
+    console.log('API Response status:', response.status);
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('API Error:', errorData);
+      throw new Error(errorData.message || 'Failed to create survey');
+    }
+
+    const result = await response.json();
+    console.log('Survey created successfully:', result);
+    
+    // Redirect to surveys list
+    window.location.href = '/admin/surveys';
+  } catch (error) {
+    console.error('Survey creation failed:', error);
+    alert('Failed to create survey. Please try again.');
+  }
+});
 
 clientSelect?.addEventListener('change', async (e) => {
   const clientId = (e.target as HTMLSelectElement).value;
@@ -191,7 +232,7 @@ clientSelect?.addEventListener('change', async (e) => {
     soundProfileSelect!.innerHTML = `
       <option value="">Select a sound profile</option>
       ${profiles.map((profile: SoundProfile) => `
-        <option value="${profile.id}">${profile.name}</option>
+        <option value="${profile.id}">${profile.title}</option>
       `).join('')}
     `;
   } catch (error) {

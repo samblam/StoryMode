@@ -18,9 +18,13 @@
   - Error handling
   - Loading states
   - Fallback image handling
+- Sound profile dropdown fixes:
+  - Property name consistency
+  - Type safety improvements
+  - API response handling
 
 ## In Progress
-- Sound profile filtering by client
+- Survey functionality debugging
 - Loading states and UI feedback
 - Comprehensive type safety
 - Audio component monitoring

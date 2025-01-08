@@ -11,7 +11,10 @@
 
 ## Form Handling
 - Client-side form submission with validation
-- Dynamic dropdown population
+- Dynamic dropdown population:
+  - Using database property names consistently
+  - Type-safe interfaces matching database schema
+  - Proper error and loading states
 - Loading states and error messages
 - Type-safe form data handling
 

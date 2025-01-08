@@ -8,6 +8,7 @@ import { getSurveyById, type SurveyWithRelations } from '../../../../utils/surve
 import { checkAdminAccess } from '../../../../utils/accessControl';
 import { getAllClients as listClients } from '../../../../utils/clientUtils';
 import type { Database } from '../../../../types/database';
+import type { ClientInfo } from '../../../../types/auth';
 
 // Get survey ID from URL params
 const { id } = Astro.params;
@@ -30,12 +31,26 @@ try {
 let survey: SurveyWithRelations | null = null;
 let clients: Database['public']['Tables']['clients']['Row'][] = [];
 try {
+    console.log('Fetching survey with ID:', id);
     survey = await getSurveyById(id);
+    console.log('Survey data:', survey);
+    
     if (!survey) {
+        console.error('Survey not found');
         return Astro.redirect('/admin/surveys?error=survey_not_found');
     }
+    
     const clientsResponse = await listClients();
-    clients = clientsResponse.data;
+    // Map ClientInfo to Database client type
+    clients = clientsResponse.data.map(client => ({
+      id: client.id,
+      name: client.name,
+      email: client.email,
+      company: client.company ?? null, // Ensure it's null, not undefined
+      active: client.active,
+      created_at: client.created_at || new Date().toISOString()
+    }));
+    console.log('Clients loaded:', clients.length);
 } catch (error) {
     console.error('Error fetching data:', error);
     return Astro.redirect('/error?message=fetch_error');
