@@ -12,56 +12,32 @@ import type { Database } from '../../../../types/database';
 
 // Get survey ID from URL params
 const { id } = Astro.params;
-console.log('Edit page - URL params:', {
-    id,
-    url: Astro.url.pathname,
-    params: Astro.params
-});
-
 if (!id) {
-    console.log('Edit page - No ID provided, redirecting to surveys list');
     return Astro.redirect('/admin/surveys');
 }
 
 // Check admin access and get user data
 try {
-    console.log('Edit page - Checking admin access');
     const user = await getCurrentUser(Astro.cookies);
-    console.log('Edit page - User data:', {
-        id: user?.id,
-        email: user?.email,
-        role: user?.role,
-        clientId: user?.clientId
-    });
     
     if (!user) {
-        console.log('Edit page - No user found, redirecting to login');
         Astro.cookies.delete('sb-token');
-        const returnUrl = encodeURIComponent(Astro.url.pathname);
-        return Astro.redirect(`/login?error=no_user&redirect=${returnUrl}`);
+        
+        return Astro.redirect(`/login?error=no_user&redirect=${encodeURIComponent(Astro.url.pathname)}`);
     }
     
     if (user.role !== 'admin') {
-        console.log('Edit page - User is not admin:', user.role);
         Astro.cookies.delete('sb-token');
         return Astro.redirect('/login?error=not_admin');
     }
 
     const accessGranted = await checkAdminAccess(Astro);
-    console.log('Edit page - Admin access check result:', { accessGranted });
-    
     if (!accessGranted) {
-        console.log('Edit page - Access denied by checkAdminAccess');
         Astro.cookies.delete('sb-token');
-        const returnUrl = encodeURIComponent(Astro.url.pathname);
-        return Astro.redirect(`/login?error=access_denied&redirect=${returnUrl}`);
+        return Astro.redirect(`/login?error=access_denied&redirect=${encodeURIComponent(Astro.url.pathname)}`);
     }
-    console.log('Edit page - Access granted');
 } catch (error) {
-    console.error('Edit page - Error checking admin access:', error);
-    if (error instanceof Error) {
-        console.error('Error stack:', error.stack);
-    }
+    console.error('Admin access check failed:', error instanceof Error ? error.message : 'Unknown error');
     Astro.cookies.delete('sb-token');
     return Astro.redirect(`/login?error=auth_error&message=${encodeURIComponent(error instanceof Error ? error.message : 'Unknown error')}`);
 }
@@ -70,43 +46,34 @@ try {
 let survey: SurveyWithRelations | null = null;
 let clients: Database['public']['Tables']['clients']['Row'][] = [];
 try {
-    console.log('Fetching survey with ID:', id);
-    try {
-        const token = Astro.cookies.get('sb-token')?.value;
-        if (!token) {
-            console.error('No auth token found for survey fetch');
-            return Astro.redirect('/login?error=no_token');
-        }
+    const token = Astro.cookies.get('sb-token')?.value;
+    if (!token) {
+        return Astro.redirect('/login?error=no_token');
+    }
 
+    // Fetch survey data
+    try {
         survey = await getSurveyById(id, Astro.url.origin, token);
-        console.log('Survey data:', survey);
-        
         if (!survey) {
-            console.error('Survey not found');
             return Astro.redirect('/admin/surveys?error=survey_not_found');
         }
     } catch (error) {
-        console.error('Error in getSurveyById:', error);
-        if (error instanceof Error) {
-            console.error('Error stack:', error.stack);
-            return Astro.redirect(`/admin/surveys?error=fetch_error&details=${encodeURIComponent(error.message)}`);
-        }
-        return Astro.redirect('/admin/surveys?error=unknown_error');
+        console.error('Failed to fetch survey:', error instanceof Error ? error.message : 'Unknown error');
+        return Astro.redirect(`/admin/surveys?error=fetch_error&details=${encodeURIComponent(error instanceof Error ? error.message : 'Unknown error')}`);
     }
-    
-    const clientsResponse = await listClients();
-    // Map ClientInfo to Database client type
+
+    // Fetch client data
+    const clientsResponse = await listClients(token);
     clients = clientsResponse.data.map(client => ({
-      id: client.id,
-      name: client.name,
-      email: client.email,
-      company: client.company ?? null, // Ensure it's null, not undefined
-      active: client.active,
-      created_at: client.created_at || new Date().toISOString()
+        id: client.id,
+        name: client.name,
+        email: client.email,
+        company: client.company ?? null,
+        active: client.active,
+        created_at: client.created_at || new Date().toISOString()
     }));
-    console.log('Clients loaded:', clients.length);
 } catch (error) {
-    console.error('Error fetching data:', error);
+    console.error('Failed to fetch data:', error instanceof Error ? error.message : 'Unknown error');
     return Astro.redirect('/error?message=fetch_error');
 }
 ---

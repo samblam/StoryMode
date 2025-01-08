@@ -1,21 +1,20 @@
 # Active Context
 
 ## Current Task
-Fixing survey data handling:
-
-1. Database Schema Alignment:
-   - Problem: Code using 'status' field that doesn't exist
-   - Root cause: Database uses active/approved flags instead
+1. Client Dropdown and Data Loading:
+   - Problem: Empty client dropdown in survey edit page
+   - Root cause: Auth token not properly passed to client fetch
    - Fix implemented:
-     * Updated components to use actual database fields
-     * Removed status references
-     * Using active/approved for state management
+     * Updated getAllClients to use admin client
+     * Added proper token handling
+     * Fixed type casting issues
+     * Cleaned up logging noise
 
 2. Component Updates:
-   - SurveyDetails: Using active/approved for status display
-   - SaveControls: Updated to use active flag
-   - SurveyActions: Refactored for active/approved
-   - SurveyList: Updated status display
+   - SurveyDetails: Fixed client selection
+   - Edit page: Improved error handling
+   - ClientUtils: Enhanced type safety
+   - Logging: Reduced console noise
 
 3. Database Fields Used:
    - active: Boolean for survey activation state
@@ -24,31 +23,32 @@ Fixing survey data handling:
    - client_id: Direct reference to client
 
 ## Recent Changes
-- Refactored components to match database schema:
-  * Removed status field usage
-  * Using active/approved flags
-  * Updated type definitions
-  * Fixed component interfaces
-- Updated UI elements:
-  * Status indicators use actual flags
-  * Toggle buttons reflect true state
-  * Proper type safety
+- Fixed client data loading:
+  * Added token-based auth to client fetching
+  * Improved error handling
+  * Enhanced type safety
+  * Cleaned up logging
+- Updated components:
+  * Fixed client dropdown selection
+  * Improved error messages
+  * Reduced console noise
+  * Better type definitions
 
 ## Next Steps
 1. Testing:
-   - Verify survey state changes
-   - Test client relationships
-   - Check UI updates
-   - Monitor error handling
+   - Verify client relationship changes
+   - Test error handling
+   - Check data persistence
+   - Monitor auth token handling
 
 2. Validation:
-   - Test all state combinations
+   - Test client selection
    - Verify proper display
    - Check data persistence
    - Monitor state transitions
 
 3. Documentation:
-   - Update state management docs
-   - Document flag usage
-   - Note UI patterns
-   - Add migration notes
+   - Update auth handling docs
+   - Document client relationships
+   - Note logging patterns
+   - Add debugging notes
