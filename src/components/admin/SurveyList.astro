@@ -1,20 +1,21 @@
 ---
-import { supabase } from '../../lib/supabase';
+import { getClient } from '../../lib/supabase';
 import SurveyActions from './SurveyActions.astro';
 import DeleteSurveyModal from './DeleteSurveyModal.astro';
-import type { Database } from '../../types/database';
+// Remove unused import since we're using SurveyWithRelations directly
+
 
 // Fetch surveys with client and sound profile information
-const { data: surveys, error } = await supabase
+const { data: surveys, error } = await getClient({ requiresAdmin: true })
   .from('surveys')
   .select(`
     *,
-    clients:client_id (
+    client:clients!client_id (
       id,
       name,
       email
     ),
-    sound_profiles:sound_profile_id (
+    sound_profiles!sound_profile_id (
       id,
       title
     )
@@ -22,20 +23,22 @@ const { data: surveys, error } = await supabase
   .order('created_at', { ascending: false });
 
 console.log('Fetched surveys:', surveys);
+console.log('First survey client:', surveys?.[0]?.client);
+console.log('Full first survey:', JSON.stringify(surveys?.[0], null, 2));
 
 if (error) {
   console.error('Error fetching surveys:', error);
 }
 
-type SurveyWithRelations = Database['public']['Tables']['surveys']['Row'] & {
-  clients?: {
+// Import the type from database.ts to ensure consistency
+import type { SurveyWithRelations } from '../../types/database';
+
+// Add type assertion to match the query structure
+type LocalSurveyWithRelations = Omit<SurveyWithRelations, 'clients'> & {
+  client?: {
     id: string;
     name: string;
     email: string;
-  } | null;
-  sound_profiles?: {
-    id: string;
-    title: string;
   } | null;
 };
 
@@ -67,7 +70,7 @@ function getStatusText(active: boolean, approved: boolean): string {
     </div>
   ) : (
     <div class="grid gap-4">
-      {surveys.map((survey: SurveyWithRelations) => (
+      {surveys.map((survey: LocalSurveyWithRelations) => (
         <div class="bg-white shadow rounded-lg p-6">
           <div class="flex items-center justify-between">
             <div class="flex-1">
@@ -81,7 +84,7 @@ function getStatusText(active: boolean, approved: boolean): string {
               <div class="text-sm text-gray-600 space-y-2">
                 <div class="flex items-center gap-2">
                   <span class="font-medium">Client:</span>
-                  <span>{survey.clients?.name || 'No Client'}</span>
+                  <span>{survey.client?.name || 'No Client'}</span>
                 </div>
                 <div class="flex items-center gap-2">
                   <span class="font-medium">Sound Profile:</span>
