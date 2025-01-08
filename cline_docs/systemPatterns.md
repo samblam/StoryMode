@@ -14,3 +14,30 @@
 - Dynamic dropdown population
 - Loading states and error messages
 - Type-safe form data handling
+
+## Audio Management
+- Centralized audio control through audioManager
+- Resource cleanup patterns:
+  - Controller array for tracking instances
+  - Unload event listeners for cleanup
+  - Memory leak prevention
+- Progress tracking with requestAnimationFrame
+- Event-based state management for audio playback
+
+## API Rate Limiting
+- Per-endpoint rate limit configurations
+- In-memory rate limit store with cleanup
+- Rate limit headers for client feedback
+- Endpoint-specific limits:
+  - Profile operations (read/create/update)
+  - File operations (upload/delete)
+  - Authentication operations
+  - Survey operations
+
+## Error Handling
+- Type-safe error responses
+- Detailed error logging
+- Client-side error states
+- Loading state management
+- Null element checking
+- Resource availability verification
