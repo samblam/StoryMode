@@ -27,18 +27,19 @@
   - Property consistency
   - Sound profile handling
   - Error logging
-- Survey API improvements:
-  - Simplified query structure
-  - Removed unnecessary joins
-  - Split complex queries
-  - Better error handling
+- Survey state management:
+  - Aligned with database schema
+  - Using active/approved flags
+  - Removed status field
+  - Updated component interfaces
+  - Fixed type definitions
 
 ## In Progress
-- Survey data fetching:
-  - Testing new query structure
-  - Verifying client data handling
-  - Monitoring performance
-  - Checking error cases
+- Survey component testing:
+  - Verifying state changes
+  - Testing client relationships
+  - Checking UI updates
+  - Monitoring error handling
 - Edit button routing fix:
   - Changed from <a> tag to form submission
   - Added baseUrl parameter to API calls
@@ -50,9 +51,9 @@
 - Error boundary implementation
 
 ## Remaining
-- Test new survey fetching
+- Test survey state transitions
 - Verify client relationship changes
-- Monitor query performance
+- Monitor state management
 - Final testing and validation
 - Error boundary handling
 - Accessibility improvements

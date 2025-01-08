@@ -174,7 +174,6 @@ export interface Database {
       surveys: {
         Row: {
           id: string;
-          created_at: string;
           title: string;
           description: string | null;
           client_id: string;

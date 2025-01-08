@@ -3,10 +3,10 @@ import { supabase } from '../../lib/supabase';
 
 interface Props {
   surveyId: string;
-  status: 'draft' | 'active' | 'completed';
+  active: boolean;
 }
 
-const { surveyId, status } = Astro.props;
+const { surveyId, active } = Astro.props;
 
 // Fetch survey stats
 const { data: stats } = await supabase
@@ -19,30 +19,18 @@ const responseCount = stats?.length || 0;
 
 <div class="flex flex-col space-y-2">
   <!-- Status Toggle -->
-  {status !== 'completed' && (
-    <button
-      data-survey-id={surveyId}
-      data-current-status={status}
-      data-action="toggle-status"
-      class={`px-4 py-2 rounded-md text-sm font-medium ${
-        status === 'active'
-          ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'
-          : 'bg-green-100 text-green-800 hover:bg-green-200'
-      }`}
-    >
-      {status === 'active' ? 'Deactivate Survey' : 'Activate Survey'}
-    </button>
-  )}
-  
-  {status === 'active' && (
-    <button
-      data-survey-id={surveyId}
-      data-action="complete-survey"
-      class="px-4 py-2 rounded-md text-sm font-medium bg-blue-100 text-blue-800 hover:bg-blue-200"
-    >
-      Complete Survey
-    </button>
-  )}
+  <button
+    data-survey-id={surveyId}
+    data-is-active={active}
+    data-action="toggle-status"
+    class={`px-4 py-2 rounded-md text-sm font-medium ${
+      active
+        ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'
+        : 'bg-green-100 text-green-800 hover:bg-green-200'
+    }`}
+  >
+    {active ? 'Deactivate Survey' : 'Activate Survey'}
+  </button>
 
   <!-- Quick Stats -->
   <div class="text-sm text-gray-600 bg-gray-50 p-3 rounded-md">
@@ -87,18 +75,14 @@ const responseCount = stats?.length || 0;
 </div>
 
 <script>
-  import { completeSurvey } from '../../utils/surveyDataManager';
-
   // Handle status toggle
   document.querySelectorAll('[data-action="toggle-status"]').forEach(button => {
     button.addEventListener('click', async (e) => {
       const btn = e.currentTarget as HTMLButtonElement;
       const surveyId = btn.dataset.surveyId;
-      const currentStatus = btn.dataset.currentStatus;
+      const isActive = btn.dataset.isActive === 'true';
       
       if (!surveyId) return;
-
-      const newStatus = currentStatus === 'active' ? 'draft' : 'active';
 
       try {
         const response = await fetch(`/api/surveys/${surveyId}`, {
@@ -106,19 +90,19 @@ const responseCount = stats?.length || 0;
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ status: newStatus }),
+          body: JSON.stringify({ active: !isActive }),
         });
 
         if (response.ok) {
           // Update button state
-          btn.dataset.currentStatus = newStatus;
-          btn.textContent = newStatus === 'active' ? 'Deactivate Survey' : 'Activate Survey';
+          btn.dataset.isActive = (!isActive).toString();
+          btn.textContent = !isActive ? 'Deactivate Survey' : 'Activate Survey';
           btn.className = `px-4 py-2 rounded-md text-sm font-medium ${
-            newStatus === 'active'
+            !isActive
               ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'
               : 'bg-green-100 text-green-800 hover:bg-green-200'
           }`;
-          // Refresh the page to show/hide the complete button
+          // Refresh the page to update other components
           window.location.reload();
         } else {
           const error = await response.json();
@@ -127,25 +111,6 @@ const responseCount = stats?.length || 0;
       } catch (error) {
         console.error('Error updating survey status:', error);
         alert('Failed to update survey status. Please try again.');
-      }
-    });
-  });
-
-  // Handle survey completion
-  document.querySelectorAll('[data-action="complete-survey"]').forEach(button => {
-    button.addEventListener('click', async (e) => {
-      const surveyId = (e.currentTarget as HTMLButtonElement).dataset.surveyId;
-      if (!surveyId) return;
-
-      if (confirm('Are you sure you want to mark this survey as completed? This action cannot be undone.')) {
-        try {
-          await completeSurvey(surveyId);
-          // Refresh the page to update the UI
-          window.location.reload();
-        } catch (error) {
-          console.error('Error completing survey:', error);
-          alert('Failed to complete survey. Please try again.');
-        }
       }
     });
   });

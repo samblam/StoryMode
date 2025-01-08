@@ -1,11 +1,11 @@
 ---
 interface Props {
     surveyId: string;
-    status: 'draft' | 'active' | 'completed';
+    active: boolean;
 }
 
-const { surveyId, status } = Astro.props;
-const isPublished = status === 'active';
+const { surveyId, active } = Astro.props;
+const isPublished = active;
 ---
 
 <div class="bg-white p-6 rounded-lg shadow">

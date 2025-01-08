@@ -39,17 +39,24 @@ type SurveyWithRelations = Database['public']['Tables']['surveys']['Row'] & {
   } | null;
 };
 
-function getStatusClasses(status: string): string {
-  switch (status) {
-    case 'active':
-      return 'bg-green-100 text-green-800';
-    case 'draft':
-      return 'bg-gray-100 text-gray-800';
-    case 'completed':
-      return 'bg-blue-100 text-blue-800';
-    default:
-      return 'bg-gray-100 text-gray-800';
+function getStatusClasses(active: boolean, approved: boolean): string {
+  if (approved) {
+    return 'bg-blue-100 text-blue-800';
   }
+  if (active) {
+    return 'bg-green-100 text-green-800';
+  }
+  return 'bg-gray-100 text-gray-800';
+}
+
+function getStatusText(active: boolean, approved: boolean): string {
+  if (approved) {
+    return 'Approved';
+  }
+  if (active) {
+    return 'Active';
+  }
+  return 'Draft';
 }
 ---
 
@@ -66,8 +73,8 @@ function getStatusClasses(status: string): string {
             <div class="flex-1">
               <div class="flex items-center space-x-4 mb-2">
                 <h3 class="text-xl font-semibold">{survey.title}</h3>
-                <span class={`px-2 py-1 rounded-full text-xs font-medium ${getStatusClasses(survey.status)}`}>
-                  {survey.status}
+                <span class={`px-2 py-1 rounded-full text-xs font-medium ${getStatusClasses(survey.active, survey.approved)}`}>
+                  {getStatusText(survey.active, survey.approved)}
                 </span>
               </div>
               
@@ -111,7 +118,7 @@ function getStatusClasses(status: string): string {
                 Delete
               </button>
 
-              <SurveyActions surveyId={survey.id} status={survey.status} />
+              <SurveyActions surveyId={survey.id} active={survey.active} />
             </div>
           </div>
         </div>

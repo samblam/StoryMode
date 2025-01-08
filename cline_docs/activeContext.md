@@ -1,51 +1,54 @@
 # Active Context
 
 ## Current Task
-Fixing survey data fetching issues:
+Fixing survey data handling:
 
-1. Client Data Issue:
-   - Problem: Unnecessary clients join causing null data
-   - Root cause: Using clients join when client_id is sufficient
+1. Database Schema Alignment:
+   - Problem: Code using 'status' field that doesn't exist
+   - Root cause: Database uses active/approved flags instead
    - Fix implemented:
-     * Removed clients join from survey query
-     * Using direct client_id from survey table
-     * SurveyDetails already handles client_id properly
+     * Updated components to use actual database fields
+     * Removed status references
+     * Using active/approved for state management
 
-2. Survey Query Structure:
-   - Problem: Complex PostgREST query failing
-   - Solution implemented:
-     * Split into separate queries for clarity
-     * First fetch survey data
-     * Then fetch survey sounds separately
-     * Combine data before sending response
-     * Removed unnecessary joins
+2. Component Updates:
+   - SurveyDetails: Using active/approved for status display
+   - SaveControls: Updated to use active flag
+   - SurveyActions: Refactored for active/approved
+   - SurveyList: Updated status display
+
+3. Database Fields Used:
+   - active: Boolean for survey activation state
+   - approved: Boolean for approval state
+   - visible_to_client: Boolean for visibility
+   - client_id: Direct reference to client
 
 ## Recent Changes
-- Refactored survey API endpoint:
-  * Simplified query structure
-  * Removed unnecessary clients join
-  * Split complex query into separate parts
-  * Maintained proper data relationships
-- Kept existing client handling in SurveyDetails:
-  * Using client_id directly
-  * Maintaining backward compatibility
-  * Proper null handling
+- Refactored components to match database schema:
+  * Removed status field usage
+  * Using active/approved flags
+  * Updated type definitions
+  * Fixed component interfaces
+- Updated UI elements:
+  * Status indicators use actual flags
+  * Toggle buttons reflect true state
+  * Proper type safety
 
 ## Next Steps
 1. Testing:
-   - Verify survey fetching works
-   - Check sound relationships
-   - Test client selection
+   - Verify survey state changes
+   - Test client relationships
+   - Check UI updates
    - Monitor error handling
 
-2. Performance:
-   - Monitor query efficiency
-   - Check response times
-   - Verify data consistency
-   - Watch for potential issues
+2. Validation:
+   - Test all state combinations
+   - Verify proper display
+   - Check data persistence
+   - Monitor state transitions
 
 3. Documentation:
-   - Update query patterns
-   - Document relationship handling
-   - Note client data approach
-   - Add performance notes
+   - Update state management docs
+   - Document flag usage
+   - Note UI patterns
+   - Add migration notes
