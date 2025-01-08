@@ -77,16 +77,16 @@ const { survey, clients } = Astro.props;
         <!-- Status Indicator -->
         <div class="flex items-center space-x-2">
             <span class="text-sm font-medium text-gray-700">Status:</span>
-            <span 
+            <span
                 class={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                    survey.status === 'active'
-                        ? 'bg-green-100 text-green-800'
-                        : survey.status === 'completed'
+                    survey.approved
                         ? 'bg-blue-100 text-blue-800'
+                        : survey.active
+                        ? 'bg-green-100 text-green-800'
                         : 'bg-yellow-100 text-yellow-800'
                 }`}
             >
-                {survey.status.charAt(0).toUpperCase() + survey.status.slice(1)}
+                {survey.approved ? 'Approved' : survey.active ? 'Active' : 'Draft'}
             </span>
         </div>
 

@@ -27,17 +27,18 @@
   - Property consistency
   - Sound profile handling
   - Error logging
+- Survey API improvements:
+  - Simplified query structure
+  - Removed unnecessary joins
+  - Split complex queries
+  - Better error handling
 
 ## In Progress
-- Sound URL handling:
-  - Signed URL generation
-  - Storage path integration
-  - Error handling for URL failures
-  - Performance monitoring
-- Client relationship fixes:
-  - Optional client joins
-  - Nullable relationship handling
-  - Type safety improvements
+- Survey data fetching:
+  - Testing new query structure
+  - Verifying client data handling
+  - Monitoring performance
+  - Checking error cases
 - Edit button routing fix:
   - Changed from <a> tag to form submission
   - Added baseUrl parameter to API calls
@@ -49,9 +50,9 @@
 - Error boundary implementation
 
 ## Remaining
-- Test signed URL generation
+- Test new survey fetching
 - Verify client relationship changes
-- Monitor URL generation performance
+- Monitor query performance
 - Final testing and validation
 - Error boundary handling
 - Accessibility improvements

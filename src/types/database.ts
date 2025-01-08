@@ -178,8 +178,12 @@ export interface Database {
           title: string;
           description: string | null;
           client_id: string;
+          created_at: string;
+          active: boolean;
+          video_url: string | null;
+          approved: boolean;
+          visible_to_client: boolean;
           sound_profile_id: string;
-          status: 'draft' | 'active' | 'completed';
         };
         Insert: {
           id?: string;

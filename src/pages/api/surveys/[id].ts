@@ -83,40 +83,49 @@ export const GET: APIRoute = async ({ params, request }) => {
         });
     }
 
-    const { data, error } = await supabase
+    // First get the survey
+    const { data: survey, error: surveyError } = await supabase
       .from('surveys')
-      .select(`
-        *,
-        clients (
-          id,
-          name,
-          email
-        ),
-        survey_sounds!inner (
-          id,
-          sound_id,
-          intended_function,
-          order_index,
-          sounds!inner (
-            id,
-            name,
-            file_path,
-            storage_path,
-            profile_id
-          )
-      `)
+      .select('*')
       .eq('id', id)
       .single();
 
-    if (error) {
-      const postgrestError = error as PostgrestError;
-      if (isRLSError(postgrestError)) {
-        return handleRLSError(postgrestError);
-      }
-      return new Response(JSON.stringify({ error: getErrorMessage(postgrestError) }), {
+    if (surveyError) {
+      return new Response(JSON.stringify({ error: getErrorMessage(surveyError) }), {
         status: 500,
       });
     }
+
+    // Then get the survey sounds
+    const { data: surveySounds, error: soundsError } = await supabase
+      .from('survey_sounds')
+      .select(`
+        id,
+        sound_id,
+        intended_function,
+        order_index,
+        sounds (
+          id,
+          name,
+          file_path,
+          storage_path,
+          profile_id
+        )
+      `)
+      .eq('survey_id', id)
+      .order('order_index');
+
+    if (soundsError) {
+      return new Response(JSON.stringify({ error: getErrorMessage(soundsError) }), {
+        status: 500,
+      });
+    }
+
+    // Combine the data
+    const data = {
+      ...survey,
+      survey_sounds: surveySounds
+    };
 
     return new Response(JSON.stringify({ data }), {
       status: 200,
