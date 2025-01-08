@@ -29,6 +29,15 @@
   - Error logging
 
 ## In Progress
+- Sound URL handling:
+  - Signed URL generation
+  - Storage path integration
+  - Error handling for URL failures
+  - Performance monitoring
+- Client relationship fixes:
+  - Optional client joins
+  - Nullable relationship handling
+  - Type safety improvements
 - Edit button routing fix:
   - Changed from <a> tag to form submission
   - Added baseUrl parameter to API calls
@@ -40,6 +49,9 @@
 - Error boundary implementation
 
 ## Remaining
+- Test signed URL generation
+- Verify client relationship changes
+- Monitor URL generation performance
 - Final testing and validation
 - Error boundary handling
 - Accessibility improvements

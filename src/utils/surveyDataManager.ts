@@ -6,8 +6,23 @@ interface Match {
     functionId: string;
 }
 
+import { getSignedUrl } from './storageUtils';
+
 export type SurveyWithRelations = Database['public']['Tables']['surveys']['Row'] & {
-    sounds: Database['public']['Tables']['sounds']['Row'][];
+    survey_sounds: {
+        id: string;
+        sound_id: string;
+        intended_function: string;
+        order_index: number;
+        sounds: {
+            id: string;
+            name: string;
+            file_path: string;
+            storage_path: string;
+            profile_id: string;
+            url?: string;
+        };
+    }[];
     clients?: {
         id: string;
         name: string;
@@ -27,14 +42,39 @@ export async function getSurveyById(id: string, baseUrl?: string, token?: string
         
         const response = await fetch(url, {
             credentials: 'include',
-            headers: token ? {
-                'Authorization': `Bearer ${token}`
-            } : {}
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            }
         });
+        
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
         }
-        const data = await response.json();
+        
+        const { data } = await response.json();
+        if (!data) {
+            throw new Error('No data returned from server');
+        }
+
+        // Generate signed URLs for all sounds
+        if (data.survey_sounds) {
+            await Promise.all(
+                data.survey_sounds.map(async (surveySound: SurveyWithRelations['survey_sounds'][0]) => {
+                    try {
+                        if (surveySound.sounds?.storage_path) {
+                            surveySound.sounds.url = await getSignedUrl(surveySound.sounds.storage_path);
+                        }
+                    } catch (error) {
+                        console.error(`Error generating signed URL for sound ${surveySound.sound_id}:`, error);
+                        // Don't throw, just continue with other sounds
+                    }
+                })
+            );
+        }
+        
         return data;
     } catch (error) {
         console.error('Error fetching survey:', error);

@@ -251,6 +251,20 @@ export type Survey = Database['public']['Tables']['surveys']['Row'] & {
   survey_responses?: SurveyResponse[];
 };
 
+export interface SurveySoundWithSound {
+  id: string;
+  sound_id: string;
+  intended_function: string;
+  order_index: number;
+  sounds: {
+    id: string;
+    name: string;
+    file_path: string;
+    storage_path: string;
+  };
+}
+
 export type SurveyWithRelations = Survey & {
   clients?: Database['public']['Tables']['clients']['Row'] | null;
+  survey_sounds: SurveySoundWithSound[];
 };

@@ -87,22 +87,23 @@ export const GET: APIRoute = async ({ params, request }) => {
       .from('surveys')
       .select(`
         *,
-        clients!client_id (
+        clients (
           id,
           name,
           email
         ),
-        survey_sounds (
+        survey_sounds!inner (
           id,
           sound_id,
           intended_function,
           order_index,
-          sounds (
+          sounds!inner (
             id,
             name,
-            url
+            file_path,
+            storage_path,
+            profile_id
           )
-        )
       `)
       .eq('id', id)
       .single();
