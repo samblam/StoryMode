@@ -325,11 +325,24 @@ export function organizeProfilesByClient(profiles: SoundProfileWithClient[]) {
  */
 export async function checkAdminAccess(Astro: AstroGlobal): Promise<boolean> {
   try {
-    const user = await getCurrentUser();
+    console.log('checkAdminAccess - Checking with cookies');
+    const user = await getCurrentUser(Astro.cookies);
+    
+    console.log('checkAdminAccess - User:', {
+      id: user?.id,
+      role: user?.role,
+      email: user?.email
+    });
+    
     if (!user) {
+      console.log('checkAdminAccess - No user found');
       return false;
     }
-    return isAdmin(user);
+    
+    const isAdminUser = isAdmin(user);
+    console.log('checkAdminAccess - Is admin:', isAdminUser);
+    
+    return isAdminUser;
   } catch (error) {
     console.error('Error checking admin access:', error);
     return false;

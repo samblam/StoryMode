@@ -8,7 +8,11 @@ interface Match {
 
 export type SurveyWithRelations = Database['public']['Tables']['surveys']['Row'] & {
     sounds: Database['public']['Tables']['sounds']['Row'][];
-    client?: Database['public']['Tables']['clients']['Row'] | null;
+    clients?: {
+        id: string;
+        name: string;
+        email: string;
+    } | null;
 };
 
 /**
@@ -16,9 +20,17 @@ export type SurveyWithRelations = Database['public']['Tables']['surveys']['Row']
  * @param id - Survey ID
  * @returns Promise<SurveyWithRelations | null>
  */
-export async function getSurveyById(id: string): Promise<SurveyWithRelations | null> {
+export async function getSurveyById(id: string, baseUrl?: string, token?: string): Promise<SurveyWithRelations | null> {
     try {
-        const response = await fetch(`/api/surveys/${id}`);
+        // Construct full URL using provided base URL or default to relative path
+        const url = baseUrl ? `${baseUrl}/api/surveys/${id}` : `/api/surveys/${id}`;
+        
+        const response = await fetch(url, {
+            credentials: 'include',
+            headers: token ? {
+                'Authorization': `Bearer ${token}`
+            } : {}
+        });
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -30,7 +42,7 @@ export async function getSurveyById(id: string): Promise<SurveyWithRelations | n
     }
 }
 
-export async function submitSurveyResponses(surveyId: string, matches: Match[]): Promise<boolean> {
+export async function submitSurveyResponses(surveyId: string, matches: Match[], baseUrl?: string): Promise<boolean> {
     setSubmitting(true);
     const state = getSurveyState();
 
@@ -48,7 +60,8 @@ export async function submitSurveyResponses(surveyId: string, matches: Match[]):
         const responseData = formatResponseData(matches);
 
         // Submit results
-        const response = await fetch(`/api/surveys/${surveyId}/responses`, {
+        const url = baseUrl ? `${baseUrl}/api/surveys/${surveyId}/responses` : `/api/surveys/${surveyId}/responses`;
+        const response = await fetch(url, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -94,14 +107,17 @@ function formatResponseData(matches: Match[]): { matches: { [soundId: string]: s
 /**
  * Saves survey data including title, description, client, sounds, and video
  */
-export async function saveSurveyData(data: Record<string, any>): Promise<boolean> {
+export async function saveSurveyData(data: Record<string, any>, baseUrl?: string, token?: string): Promise<boolean> {
     try {
-        const response = await fetch(`/api/surveys/${data.id}`, {
+        const url = baseUrl ? `${baseUrl}/api/surveys/${data.id}` : `/api/surveys/${data.id}`;
+        const response = await fetch(url, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
             },
             body: JSON.stringify(data),
+            credentials: 'include'
         });
 
         if (!response.ok) {
@@ -120,9 +136,10 @@ type SurveyStatus = 'draft' | 'active' | 'completed';
 /**
  * Updates survey status
  */
-export async function updateSurveyStatus(surveyId: string, status: SurveyStatus): Promise<boolean> {
+export async function updateSurveyStatus(surveyId: string, status: SurveyStatus, baseUrl?: string): Promise<boolean> {
     try {
-        const response = await fetch(`/api/surveys/${surveyId}`, {
+        const url = baseUrl ? `${baseUrl}/api/surveys/${surveyId}` : `/api/surveys/${surveyId}`;
+        const response = await fetch(url, {
             method: 'PATCH',
             headers: {
                 'Content-Type': 'application/json',

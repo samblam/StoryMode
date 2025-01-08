@@ -1,23 +1,42 @@
 # Active Context
 
 ## Current Task
-- Fixed sound profile dropdown issue in CreateSurveyForm.astro
-- Corrected property name mismatches between frontend and API
-- Ensured type safety with database schema
+Fixed edit button and client data display issues:
+
+1. Authentication Fixes:
+   - Added token handling to saveSurveyData
+   - Updated SaveControls to extract token from cookies
+   - Fixed authorization header setting
+   - Maintained proper credentials inclusion
+
+2. Client Data Structure Fixes:
+   - Updated SurveyDetails Props interface for nested data
+   - Modified client selection logic
+   - Added fallback for direct client_id access
+   - Aligned data structure with API response
 
 ## Recent Changes
-- Modified CreateSurveyForm.astro to:
-  - Remove unnecessary type extension
-  - Update component template to use profile.title
-  - Update client-side TypeScript interface
-  - Fix template string property names
-- Fixed property name consistency between frontend and API:
-  - Changed all instances of 'name' to 'title'
-  - Aligned with database schema
-  - Improved type safety
+- Added token extraction in SaveControls
+- Updated saveSurveyData to accept and use token
+- Fixed client data structure handling
+- Enhanced Props interface for type safety
+- Added backward compatibility for client_id
 
 ## Next Steps
-- Continue to debug survey functionality
-- Monitor sound profile dropdown for any edge cases
-- Consider adding loading states for better UX
-- Add error handling for failed API responses
+1. Monitor auth flow:
+   - Verify token passing works
+   - Check save functionality
+   - Monitor error handling
+   - Watch debug logs
+
+2. Test client data:
+   - Verify client selection works
+   - Check data persistence
+   - Monitor relationship handling
+   - Verify display consistency
+
+3. Consider adding:
+   - Loading states during save
+   - Better error messages
+   - Validation feedback
+   - Success notifications

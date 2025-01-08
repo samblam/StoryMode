@@ -4,26 +4,38 @@ import SurveyActions from './SurveyActions.astro';
 import DeleteSurveyModal from './DeleteSurveyModal.astro';
 import type { Database } from '../../types/database';
 
-// Fetch surveys with client information
+// Fetch surveys with client and sound profile information
 const { data: surveys, error } = await supabase
   .from('surveys')
   .select(`
     *,
-    clients (
+    clients:client_id (
       id,
-      name
+      name,
+      email
+    ),
+    sound_profiles:sound_profile_id (
+      id,
+      title
     )
   `)
   .order('created_at', { ascending: false });
+
+console.log('Fetched surveys:', surveys);
 
 if (error) {
   console.error('Error fetching surveys:', error);
 }
 
-type SurveyWithClient = Database['public']['Tables']['surveys']['Row'] & {
+type SurveyWithRelations = Database['public']['Tables']['surveys']['Row'] & {
   clients?: {
     id: string;
     name: string;
+    email: string;
+  } | null;
+  sound_profiles?: {
+    id: string;
+    title: string;
   } | null;
 };
 
@@ -48,7 +60,7 @@ function getStatusClasses(status: string): string {
     </div>
   ) : (
     <div class="grid gap-4">
-      {surveys.map((survey: SurveyWithClient) => (
+      {surveys.map((survey: SurveyWithRelations) => (
         <div class="bg-white shadow rounded-lg p-6">
           <div class="flex items-center justify-between">
             <div class="flex-1">
@@ -59,23 +71,37 @@ function getStatusClasses(status: string): string {
                 </span>
               </div>
               
-              <div class="text-sm text-gray-600 space-y-1">
-                <p>Client: {survey.clients?.name || 'No Client'}</p>
-                <p>Created: {new Date(survey.created_at).toLocaleDateString()}</p>
+              <div class="text-sm text-gray-600 space-y-2">
+                <div class="flex items-center gap-2">
+                  <span class="font-medium">Client:</span>
+                  <span>{survey.clients?.name || 'No Client'}</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="font-medium">Sound Profile:</span>
+                  <span>{survey.sound_profiles?.title || 'None'}</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="font-medium">Created:</span>
+                  <span>{new Date(survey.created_at).toLocaleDateString()}</span>
+                </div>
                 {survey.description && (
-                  <p class="mt-2">{survey.description}</p>
+                  <p class="mt-2 text-gray-700">{survey.description}</p>
                 )}
               </div>
             </div>
 
             <div class="flex items-center space-x-4">
-              <a
-                href={`/admin/surveys/${survey.id}/edit`}
-                class="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                onclick="console.log('Edit button clicked for survey:', '${survey.id}')"
-              >
-                Edit
-              </a>
+              <form method="GET" action={`/admin/surveys/${survey.id}/edit`} style="display: inline;">
+                <button
+                  type="submit"
+                  class="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                  </svg>
+                  Edit Survey
+                </button>
+              </form>
               
               <button
                 type="button"

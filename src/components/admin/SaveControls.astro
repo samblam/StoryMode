@@ -91,8 +91,18 @@ const isPublished = status === 'active';
             const formData = new FormData(form);
             const surveyData = Object.fromEntries(formData);
 
-            // Save survey data
-            await saveSurveyData(surveyData);
+            // Get auth token from cookie
+            const token = document.cookie
+                .split('; ')
+                .find(row => row.startsWith('sb-token='))
+                ?.split('=')[1];
+
+            if (!token) {
+                throw new Error('No authentication token found');
+            }
+
+            // Save survey data with token
+            await saveSurveyData(surveyData, undefined, token);
             showStatus('Survey saved successfully');
 
             // Dispatch save event

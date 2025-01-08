@@ -51,10 +51,26 @@ export async function getCurrentUser(cookies?: AstroCookies): Promise<User | nul
         return null;
       }
 
-      return {
+      // Ensure we have valid user data
+      if (!userData) {
+        console.error('No user data found after query');
+        return null;
+      }
+
+      // Log the user data for debugging
+      console.log('User data from query:', {
         id: userData.id,
         email: userData.email,
         role: userData.role,
+        clientId: userData.client_id,
+        clients: userData.clients
+      });
+
+      // Construct user object with proper client data
+      const user: User = {
+        id: userData.id,
+        email: userData.email,
+        role: userData.role || 'client', // Default to client if no role
         clientId: userData.client_id,
         client: userData.clients ? {
           id: userData.clients.id,
@@ -62,8 +78,11 @@ export async function getCurrentUser(cookies?: AstroCookies): Promise<User | nul
           email: userData.clients.email,
           active: userData.clients.active
         } : null,
-        createdAt: authUser.created_at || '',
+        createdAt: authUser.created_at || new Date().toISOString(),
       };
+
+      console.log('Constructed user object:', user);
+      return user;
     }
 
     // Rest of the file remains the same...

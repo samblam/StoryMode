@@ -2,7 +2,13 @@
 import type { Database } from '../../types/database';
 
 interface Props {
-    survey: Database['public']['Tables']['surveys']['Row'];
+    survey: Database['public']['Tables']['surveys']['Row'] & {
+        clients?: {
+            id: string;
+            name: string;
+            email: string;
+        } | null;
+    };
     clients: Database['public']['Tables']['clients']['Row'][];
 }
 
@@ -60,7 +66,7 @@ const { survey, clients } = Astro.props;
                 {clients.map(client => (
                     <option 
                         value={client.id}
-                        selected={client.id === survey.client_id}
+                        selected={client.id === (survey.clients?.id || survey.client_id)}
                     >
                         {client.name}
                     </option>

@@ -140,18 +140,44 @@ export const onRequest: MiddlewareHandler = async ({ request, locals, cookies },
 
     // Admin route protection
     if (url.pathname.startsWith('/admin')) {
-      if (!user || user.role !== 'admin') {
+      console.log('Middleware - Admin route check:', {
+        pathname: url.pathname,
+        method: request.method,
+        user: user ? {
+          id: user.id,
+          role: user.role,
+          email: user.email
+        } : null
+      });
+      
+      if (!user) {
+        console.log('Middleware - No user found, redirecting to login');
+        const returnUrl = encodeURIComponent(url.pathname);
         return new Response('Redirect', {
           status: 302,
           headers: {
-            Location: '/login'
+            Location: `/login?redirect=${returnUrl}`
           }
         });
       }
+      
+      if (user.role !== 'admin') {
+        console.log('Middleware - User is not admin:', user.role);
+        return new Response('Redirect', {
+          status: 302,
+          headers: {
+            Location: '/login?error=access_denied'
+          }
+        });
+      }
+      
+      console.log('Middleware - Admin access granted for:', url.pathname);
     }
 
     // Sound access protection
-    if (url.pathname.startsWith('/sounds') || url.pathname.includes('/api/sounds/')) {
+    if (url.pathname === '/sounds' ||
+        url.pathname.startsWith('/sounds/') ||
+        url.pathname.includes('/api/sounds/')) {
       if (!user) {
         return new Response('Redirect', {
           status: 302,

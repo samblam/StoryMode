@@ -140,29 +140,39 @@ export const POST: APIRoute = async ({ request, locals }) => {
       });
     }
 
-    // Add survey sounds
-    const surveySounds = sounds.map((sound, index) => ({
-      survey_id: survey.id,
-      sound_id: sound.id,
-      intended_function: sound.intended_function,
-      order_index: index
-    }));
+    // Add survey sounds if any
+    if (sounds && sounds.length > 0) {
+      console.log('Adding survey sounds:', sounds);
+      
+      const surveySounds = sounds.map((sound, index) => ({
+        survey_id: survey.id,
+        sound_id: sound.id,
+        intended_function: sound.intended_function,
+        order_index: index
+      }));
 
-    const { error: soundsError } = await supabase
-      .from('survey_sounds')
-      .insert(surveySounds);
+      const { error: soundsError } = await supabase
+        .from('survey_sounds')
+        .insert(surveySounds);
 
-    if (soundsError) {
-      const postgrestError = soundsError as PostgrestError;
-      if (isRLSError(postgrestError)) {
-        return handleRLSError(postgrestError);
+      if (soundsError) {
+        console.error('Error adding survey sounds:', soundsError);
+        const postgrestError = soundsError as PostgrestError;
+        if (isRLSError(postgrestError)) {
+          return handleRLSError(postgrestError);
+        }
+        return new Response(JSON.stringify({ error: getErrorMessage(postgrestError) }), {
+          status: 500,
+        });
       }
-      return new Response(JSON.stringify({ error: getErrorMessage(postgrestError) }), {
-        status: 500,
-      });
+      
+      console.log('Successfully added survey sounds');
     }
 
-    return new Response(JSON.stringify({ data: survey }), {
+    return new Response(JSON.stringify({
+      data: survey,
+      message: 'Survey created successfully'
+    }), {
       status: 201,
     });
   } catch (error) {

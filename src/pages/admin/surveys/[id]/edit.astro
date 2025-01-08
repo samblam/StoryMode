@@ -6,25 +6,64 @@ import VideoUploader from '../../../../components/admin/VideoUploader.astro';
 import SaveControls from '../../../../components/admin/SaveControls.astro';
 import { getSurveyById, type SurveyWithRelations } from '../../../../utils/surveyDataManager';
 import { checkAdminAccess } from '../../../../utils/accessControl';
+import { getCurrentUser } from '../../../../utils/authUtils';
 import { getAllClients as listClients } from '../../../../utils/clientUtils';
 import type { Database } from '../../../../types/database';
-import type { ClientInfo } from '../../../../types/auth';
 
 // Get survey ID from URL params
 const { id } = Astro.params;
+console.log('Edit page - URL params:', {
+    id,
+    url: Astro.url.pathname,
+    params: Astro.params
+});
+
 if (!id) {
+    console.log('Edit page - No ID provided, redirecting to surveys list');
     return Astro.redirect('/admin/surveys');
 }
 
-// Check admin access
+// Check admin access and get user data
 try {
-    const accessGranted = await checkAdminAccess(Astro);
-    if (!accessGranted) {
-        return Astro.redirect('/login?error=access_denied&redirect=' + encodeURIComponent(Astro.url.pathname));
+    console.log('Edit page - Checking admin access');
+    const user = await getCurrentUser(Astro.cookies);
+    console.log('Edit page - User data:', {
+        id: user?.id,
+        email: user?.email,
+        role: user?.role,
+        clientId: user?.clientId
+    });
+    
+    if (!user) {
+        console.log('Edit page - No user found, redirecting to login');
+        Astro.cookies.delete('sb-token');
+        const returnUrl = encodeURIComponent(Astro.url.pathname);
+        return Astro.redirect(`/login?error=no_user&redirect=${returnUrl}`);
     }
+    
+    if (user.role !== 'admin') {
+        console.log('Edit page - User is not admin:', user.role);
+        Astro.cookies.delete('sb-token');
+        return Astro.redirect('/login?error=not_admin');
+    }
+
+    const accessGranted = await checkAdminAccess(Astro);
+    console.log('Edit page - Admin access check result:', { accessGranted });
+    
+    if (!accessGranted) {
+        console.log('Edit page - Access denied by checkAdminAccess');
+        Astro.cookies.delete('sb-token');
+        const returnUrl = encodeURIComponent(Astro.url.pathname);
+        return Astro.redirect(`/login?error=access_denied&redirect=${returnUrl}`);
+    }
+    console.log('Edit page - Access granted');
 } catch (error) {
-    console.error('Error checking admin access:', error);
-    return Astro.redirect('/error?message=auth_error');
+    console.error('Edit page - Error checking admin access:', error);
+    if (error instanceof Error) {
+        console.error('Error stack:', error.stack);
+    }
+    Astro.cookies.delete('sb-token');
+    return Astro.redirect(`/login?error=auth_error&message=${encodeURIComponent(error instanceof Error ? error.message : 'Unknown error')}`);
 }
 
 // Fetch survey and client data
@@ -32,12 +71,27 @@ let survey: SurveyWithRelations | null = null;
 let clients: Database['public']['Tables']['clients']['Row'][] = [];
 try {
     console.log('Fetching survey with ID:', id);
-    survey = await getSurveyById(id);
-    console.log('Survey data:', survey);
-    
-    if (!survey) {
-        console.error('Survey not found');
-        return Astro.redirect('/admin/surveys?error=survey_not_found');
+    try {
+        const token = Astro.cookies.get('sb-token')?.value;
+        if (!token) {
+            console.error('No auth token found for survey fetch');
+            return Astro.redirect('/login?error=no_token');
+        }
+
+        survey = await getSurveyById(id, Astro.url.origin, token);
+        console.log('Survey data:', survey);
+        
+        if (!survey) {
+            console.error('Survey not found');
+            return Astro.redirect('/admin/surveys?error=survey_not_found');
+        }
+    } catch (error) {
+        console.error('Error in getSurveyById:', error);
+        if (error instanceof Error) {
+            console.error('Error stack:', error.stack);
+            return Astro.redirect(`/admin/surveys?error=fetch_error&details=${encodeURIComponent(error.message)}`);
+        }
+        return Astro.redirect('/admin/surveys?error=unknown_error');
     }
     
     const clientsResponse = await listClients();

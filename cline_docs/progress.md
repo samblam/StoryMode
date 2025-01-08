@@ -22,9 +22,18 @@
   - Property name consistency
   - Type safety improvements
   - API response handling
+- Survey creation form fixes:
+  - API route naming
+  - Property consistency
+  - Sound profile handling
+  - Error logging
 
 ## In Progress
-- Survey functionality debugging
+- Edit button routing fix:
+  - Changed from <a> tag to form submission
+  - Added baseUrl parameter to API calls
+  - Enhanced error logging
+  - Testing new navigation approach
 - Loading states and UI feedback
 - Comprehensive type safety
 - Audio component monitoring
