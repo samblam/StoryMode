@@ -8,5 +8,11 @@ export default defineConfig({
   adapter: vercel({
     analytics: true,
     imageService: true
-  })
+  }),
+  server: {
+    port: 4322
+  },
+  vite: {
+    logLevel: 'info'
+  }
 });

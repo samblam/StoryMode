@@ -1,9 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '../types/database';
 
+console.log('Loading Supabase environment variables...');
 const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY;
 const supabaseServiceRole = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
+
+console.log('Supabase URL:', supabaseUrl ? '***' : 'MISSING');
+console.log('Supabase Anon Key:', supabaseAnonKey ? '***' : 'MISSING');
+console.log('Supabase Service Role:', supabaseServiceRole ? '***' : 'MISSING');
 
 if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRole) {
   throw new Error(
@@ -24,6 +29,25 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     detectSessionInUrl: false,
   },
 });
+
+// Test connection
+(async () => {
+  try {
+    console.log('Testing Supabase connection...');
+    const { data, error } = await supabase
+      .from('clients')
+      .select('*')
+      .limit(1);
+      
+    if (error) {
+      console.error('Supabase connection error:', error);
+    } else {
+      console.log('Supabase connection successful:', data);
+    }
+  } catch (error) {
+    console.error('Supabase connection failed:', error);
+  }
+})();
 
 /**
  * Admin client with service role key for privileged operations

@@ -11,7 +11,7 @@ const sounds = await getSounds();
 const profilesWithSounds = profiles.map(profile => ({
   ...profile,
   sounds: sounds.filter(sound => 
-    sound.profile?.toLowerCase() === profile.slug.toLowerCase()
+    sound.profileId?.toLowerCase() === profile.slug.toLowerCase()
   )
 }));
 

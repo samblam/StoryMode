@@ -40,6 +40,7 @@ export const RATE_LIMITS = {
   DELETE: { windowMs: 60 * 60 * 1000, maxAttempts: 30 },   // 30 deletions per hour
   PROFILE_CREATE: { windowMs: 60 * 60 * 1000, maxAttempts: 20 }, // 20 profile creations per hour
   PROFILE_UPDATE: { windowMs: 60 * 60 * 1000, maxAttempts: 30 }, // 30 profile updates per hour
+  PROFILE_READ: { windowMs: 60 * 1000, maxAttempts: 100 }, // 100 profile reads per minute
   
   // Public APIs
   CONTACT: { windowMs: 60 * 60 * 1000, maxAttempts: 5 },   // 5 contact emails per hour

@@ -2,6 +2,75 @@ import type { APIRoute } from 'astro';
 import { supabaseAdmin } from '../../../lib/supabase';
 import { RateLimiter, RATE_LIMITS, rateLimitMiddleware } from '../../../utils/rateLimit';
 
+export const GET: APIRoute = async ({ request, locals }) => {
+  const headers = {
+    'Content-Type': 'application/json'
+  };
+
+  try {
+    // Apply rate limiting middleware
+    const rateLimitResponse = await rateLimitMiddleware('PROFILE_READ')(request);
+    if (rateLimitResponse instanceof Response) {
+      return rateLimitResponse;
+    }
+    Object.assign(headers, rateLimitResponse.headers);
+
+    const url = new URL(request.url);
+    const clientId = url.searchParams.get('client_id');
+    const { user } = locals;
+
+    if (!user) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { 
+          status: 401,
+          headers
+        }
+      );
+    }
+
+    // Build query
+    let query = supabaseAdmin
+      .from('sound_profiles')
+      .select('*');
+
+    // Filter by client_id if provided
+    if (clientId) {
+      query = query.eq('client_id', clientId);
+    }
+
+    // If user is a client, only show their profiles
+    if (user.role === 'client') {
+      query = query.eq('client_id', user.clientId);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      throw error;
+    }
+
+    return new Response(
+      JSON.stringify(data),
+      { 
+        status: 200,
+        headers
+      }
+    );
+  } catch (error) {
+    console.error('Profile fetch error:', error);
+    return new Response(
+      JSON.stringify({
+        error: error instanceof Error ? error.message : 'Failed to fetch profiles'
+      }),
+      { 
+        status: 500,
+        headers
+      }
+    );
+  }
+};
+
 export const POST: APIRoute = async ({ request, locals, cookies }) => {
   const headers = {
     'Content-Type': 'application/json'
@@ -88,17 +157,11 @@ export const POST: APIRoute = async ({ request, locals, cookies }) => {
 
     console.log('Profile created successfully:', newProfile);
 
-    // Get the current session token from cookies
-    const token = cookies.get('sb-token');
-    
     return new Response(
-      JSON.stringify(newProfile), 
-      { 
+      JSON.stringify(newProfile),
+      {
         status: 201,
-        headers: {
-          ...headers,
-          'Set-Cookie': `sb-token=${token?.value}; Path=/; HttpOnly; Secure; SameSite=Lax` 
-        }
+        headers
       }
     );
   } catch (error) {
@@ -180,8 +243,15 @@ export const PUT: APIRoute = async ({ request, locals, cookies }) => {
       );
     }
 
-    // Prepare update data
-    const updateData: any = {
+    // Prepare update data with proper typing
+    interface UpdateData {
+      title: string;
+      description: string;
+      slug: string;
+      client_id?: string | null;
+    }
+
+    const updateData: UpdateData = {
       title: data.title,
       description: data.description,
       slug: data.title.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
@@ -202,18 +272,11 @@ export const PUT: APIRoute = async ({ request, locals, cookies }) => {
     if (error) {
       throw error;
     }
-
-    // Get the current session token from cookies
-    const token = cookies.get('sb-token');
-    
     return new Response(
-      JSON.stringify(updatedProfile), 
-      { 
+      JSON.stringify(updatedProfile),
+      {
         status: 200,
-        headers: {
-          ...headers,
-          'Set-Cookie': `sb-token=${token?.value}; Path=/; HttpOnly; Secure; SameSite=Lax`
-        }
+        headers
       }
     );
   } catch (error) {

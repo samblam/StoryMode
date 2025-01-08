@@ -1,32 +1,77 @@
 ---
-import { supabase } from '../../lib/supabase';
+import { getClient } from '../../lib/supabase';
 import type { Database } from '../../types/database';
+
+interface User {
+  role: string;
+}
+
+interface Props {
+  user?: User;
+}
+
+const { user } = Astro.props;
+
+if (!user) {
+  console.error('User not available in component');
+  return;
+}
 
 type Client = Database['public']['Tables']['clients']['Row'];
 type ClientBasic = Pick<Client, 'id' | 'name'>;
-type SoundProfileWithClient = Database['public']['Tables']['sound_profiles']['Row'] & {
-  client?: ClientBasic | null;
+type SoundProfile = Database['public']['Tables']['sound_profiles']['Row'] & {
+  name: string;
 };
 
-// Fetch clients for dropdown
-const { data: clients } = await supabase
-  .from('clients')
-  .select('id, name')
-  .eq('active', true)
-  .order('name') as { data: ClientBasic[] | null };
+let clients: ClientBasic[] | null = null;
+let soundProfiles: SoundProfile[] = [];
+let loading = true;
+let soundProfilesLoading = false;
+let errorMessage = '';
+let soundProfileError = '';
 
-// Fetch sound profiles for selection
-const { data: soundProfiles } = await supabase
-  .from('sound_profiles')
-  .select(`
-    id,
-    title,
-    client:clients (
-      id,
-      name
-    )
-  `)
-  .order('title') as { data: SoundProfileWithClient[] | null };
+// Fetch clients after component mounts
+try {
+  console.log('Fetching clients from Supabase...');
+  
+  const client = getClient({ requiresAdmin: user?.role === 'admin' });
+  console.log('Using client with context:', {
+    requiresAdmin: user?.role === 'admin',
+    role: user?.role
+  });
+  
+  const { data, error } = await client
+    .from('clients')
+    .select('*');
+    
+  if (error?.code === '42501') {
+    console.error('RLS Policy Violation:', {
+      message: error.message,
+      hint: error.hint,
+      details: error.details
+    });
+    errorMessage = 'Permission denied. Please check your access rights.';
+  }
+  
+  if (error) {
+    console.error('Supabase query error:', {
+      message: error.message,
+      code: error.code,
+      details: error.details
+    });
+    errorMessage = error.message;
+  } else {
+    clients = data;
+  }
+} catch (error) {
+  console.error('Client fetch failed:', {
+    error: error instanceof Error ? error.message : error,
+    stack: error instanceof Error ? error.stack : undefined
+  });
+  errorMessage = 'Failed to load clients. Please try again.';
+} finally {
+  loading = false;
+}
 ---
 
 <form id="createSurveyForm" class="space-y-6">
@@ -60,9 +105,17 @@ const { data: soundProfiles } = await supabase
       class="mt-1 block w-full border rounded-md shadow-sm px-3 py-2"
     >
       <option value="">Select a client</option>
-      {clients?.map((client: ClientBasic) => (
-        <option value={client.id}>{client.name}</option>
-      ))}
+      {loading ? (
+        <option value="" disabled>Loading clients...</option>
+      ) : errorMessage ? (
+        <option value="" disabled>{errorMessage}</option>
+      ) : clients?.length ? (
+        clients.map((client: ClientBasic) => (
+          <option value={client.id}>{client.name}</option>
+        ))
+      ) : (
+        <option value="" disabled>No clients found</option>
+      )}
     </select>
   </div>
 
@@ -75,11 +128,17 @@ const { data: soundProfiles } = await supabase
       class="mt-1 block w-full border rounded-md shadow-sm px-3 py-2"
     >
       <option value="">Select a sound profile</option>
-      {soundProfiles?.map((profile: SoundProfileWithClient) => (
-        <option value={profile.id}>
-          {profile.title} ({profile.client?.name || 'No Client'})
-        </option>
-      ))}
+      {soundProfilesLoading ? (
+        <option value="" disabled>Loading sound profiles...</option>
+      ) : soundProfileError ? (
+        <option value="" disabled>{soundProfileError}</option>
+      ) : soundProfiles.length ? (
+        soundProfiles.map((profile: SoundProfile) => (
+          <option value={profile.id}>{profile.name}</option>
+        ))
+      ) : (
+        <option value="" disabled>No sound profiles found</option>
+      )}
     </select>
   </div>
 
@@ -101,47 +160,43 @@ const { data: soundProfiles } = await supabase
 </form>
 
 <script>
-  const form = document.getElementById('createSurveyForm') as HTMLFormElement;
-  const cancelButton = document.getElementById('cancelButton');
+interface SoundProfile {
+  id: string;
+  name: string;
+}
 
-  form?.addEventListener('submit', async (e) => {
-    e.preventDefault();
+const clientSelect = document.getElementById('clientId');
+const soundProfileSelect = document.getElementById('soundProfileId');
 
-    const formData = new FormData(form);
-    const data = {
-      title: formData.get('title'),
-      description: formData.get('description'),
-      clientId: formData.get('clientId'),
-      soundProfileId: formData.get('soundProfileId'),
-      status: 'draft'
-    };
+clientSelect?.addEventListener('change', async (e) => {
+  const clientId = (e.target as HTMLSelectElement).value;
+  if (!clientId) {
+    soundProfileSelect!.innerHTML = '<option value="">Select a sound profile</option>';
+    return;
+  }
 
-    try {
-      const response = await fetch('/api/surveys', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-      });
-
-      if (response.ok) {
-        // Close modal and refresh list
-        const modal = document.getElementById('createSurveyModal');
-        modal?.classList.add('hidden');
-        window.location.reload();
-      } else {
-        const error = await response.json();
-        alert(`Failed to create survey: ${error.message}`);
-      }
-    } catch (error) {
-      console.error('Error creating survey:', error);
-      alert('Failed to create survey. Please try again.');
+  soundProfileSelect!.innerHTML = '<option value="" disabled>Loading sound profiles...</option>';
+  
+  try {
+    const response = await fetch('/api/sound-profiles?' + new URLSearchParams({
+      client_id: clientId
+    }));
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch sound profiles');
     }
-  });
-
-  cancelButton?.addEventListener('click', () => {
-    const modal = document.getElementById('createSurveyModal');
-    modal?.classList.add('hidden');
-  });
+    
+    const profiles: SoundProfile[] = await response.json();
+    
+    soundProfileSelect!.innerHTML = `
+      <option value="">Select a sound profile</option>
+      ${profiles.map((profile: SoundProfile) => `
+        <option value="${profile.id}">${profile.name}</option>
+      `).join('')}
+    `;
+  } catch (error) {
+    console.error('Failed to load sound profiles:', error);
+    soundProfileSelect!.innerHTML = '<option value="" disabled>Failed to load sound profiles</option>';
+  }
+});
 </script>

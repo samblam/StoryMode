@@ -57,7 +57,7 @@ const { initialVolume = 1.0 } = Astro.props;
       this.volumeSlider = document.getElementById('volume-slider') as HTMLInputElement;
       this.volumePercentage = document.getElementById('volume-percentage') as HTMLElement;
       this.volumeMute = document.getElementById('volume-mute') as HTMLElement;
-      this.volumeIcon = document.getElementById('volume-icon') as SVGPathElement;
+      this.volumeIcon = document.getElementById('volume-icon') as unknown as SVGPathElement;
       this.previousVolume = audioManager.getVolume();
 
       if (!this.validateElements()) {

@@ -1,14 +1,20 @@
 import { supabase } from '../lib/supabase';
-import type { SoundProfile, SoundProfileWithSounds } from '../types/sound';
+import type { SoundProfile, SoundProfileWithSounds, Sound } from '../types/sound';
 import { deleteSoundsByProfileId } from './soundUtils';
 
 let isProcessingDelete = false;
 
-export async function getSoundProfiles(): Promise<SoundProfile[]> {
-  const { data, error } = await supabase
+export async function getSoundProfiles(clientId?: string): Promise<SoundProfile[]> {
+  let query = supabase
     .from('sound_profiles')
     .select('*')
     .order('created_at', { ascending: false });
+
+  if (clientId) {
+    query = query.eq('client_id', clientId);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error('Error fetching sound profiles:', error);
@@ -42,12 +48,12 @@ export async function getSoundProfilesWithSounds(): Promise<
       title: profile.title,
       description: profile.description,
       slug: profile.slug,
-      sounds: profile.sounds.map((sound) => ({
+      sounds: profile.sounds.map((sound: Sound) => ({
         id: sound.id,
         name: sound.name,
         description: sound.description,
-        file: sound.file_path,
-        profileId: sound.profile_id,
+       
+        profileId: sound.profileId,
       })),
     })) || []
   );
@@ -79,12 +85,12 @@ export async function getSoundProfileById(
     title: data.title,
     description: data.description,
     slug: data.slug,
-    sounds: data.sounds.map((sound) => ({
+    sounds: data.sounds.map((sound: Sound) => ({
       id: sound.id,
       name: sound.name,
       description: sound.description,
-      file: sound.file_path,
-      profileId: sound.profile_id,
+      
+      profileId: sound.profileId,
     })),
   };
 }
@@ -135,7 +141,7 @@ export async function deleteSoundProfile(id: string): Promise<void> {
 }
 
 // Added new profile deletion handler
-export async function handleProfileDelete(button: HTMLElement): Promise<void> {
+export async function handleProfileDelete(button: HTMLButtonElement): Promise<void> {
   if (isProcessingDelete) return;
 
   const profileId = button.dataset.profileId;

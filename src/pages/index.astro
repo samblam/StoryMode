@@ -51,14 +51,18 @@ import Layout from '../layouts/Layout.astro';
 </Layout>
 
 <script>
-  const button = document.getElementById('test-db');
+  const button = document.getElementById('test-db') as HTMLButtonElement;
   const status = document.getElementById('db-status');
 
-  button?.addEventListener('click', async () => {
-    if (!status) return;
-    
+  if (!button || !status) {
+    console.error('Required elements not found');
+    return;
+  }
+
+  button.addEventListener('click', async () => {
     try {
       button.disabled = true;
+      button.classList.add('opacity-50', 'cursor-not-allowed');
       status.textContent = 'Testing connection...';
       status.classList.remove('hidden', 'text-red-600', 'text-green-600');
       status.classList.add('text-gray-600');

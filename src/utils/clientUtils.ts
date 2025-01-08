@@ -1,14 +1,14 @@
 import { supabase } from '../lib/supabase';
-import type { Client } from '../types/auth';
+import type { ClientInfo } from '../types/auth';
 import type { Database } from '../types/database';
 
 type ClientResponse = {
-  data: Client | null;
+  data: ClientInfo | null;
   error: string | null;
 };
 
 type ClientsResponse = {
-  data: Client[];
+  data: ClientInfo[];
   error: string | null;
 };
 
@@ -38,7 +38,7 @@ export async function createClient(
         email: data.email,
         company: data.company ?? undefined,
         active: data.active,
-        createdAt: data.created_at,
+        created_at: data.created_at,
       },
       error: null,
     };
@@ -54,7 +54,7 @@ export async function createClient(
 
 export async function updateClient(
   id: string,
-  updates: Partial<Omit<Client, 'id' | 'createdAt'>>
+  updates: Partial<Omit<ClientInfo, 'id' | 'created_at'>>
 ): Promise<ClientResponse> {
   try {
     const { data, error } = await supabase
@@ -73,7 +73,7 @@ export async function updateClient(
         email: data.email,
         company: data.company ?? undefined,
         active: data.active,
-        createdAt: data.created_at,
+        created_at: data.created_at,
       },
       error: null,
     };
@@ -104,7 +104,7 @@ export async function getClient(id: string): Promise<ClientResponse> {
         email: data.email,
         company: data.company ?? undefined,
         active: data.active,
-        createdAt: data.created_at,
+        created_at: data.created_at,
       },
       error: null,
     };
@@ -134,7 +134,7 @@ export async function getAllClients(): Promise<ClientsResponse> {
         email: client.email,
         company: client.company ?? undefined,
         active: client.active,
-        createdAt: client.created_at,
+        created_at: client.created_at,
       })),
       error: null,
     };
