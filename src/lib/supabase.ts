@@ -1,19 +1,18 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '../types/database';
 
-console.log('Loading Supabase environment variables...');
+// Load environment variables
 const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY;
-const supabaseServiceRole = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseServiceRole = process.env.SUPABASE_SERVICE_ROLE_KEY || import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
 
-console.log('Supabase URL:', supabaseUrl ? '***' : 'MISSING');
-console.log('Supabase Anon Key:', supabaseAnonKey ? '***' : 'MISSING');
-console.log('Supabase Service Role:', supabaseServiceRole ? '***' : 'MISSING');
+// Validate environment variables
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error('Missing required Supabase public environment variables');
+}
 
-if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceRole) {
-  throw new Error(
-    'Missing Supabase environment variables. Please check your .env file.'
-  );
+if (!supabaseServiceRole) {
+  console.warn('Warning: SUPABASE_SERVICE_ROLE_KEY not found. Some admin operations may be limited.');
 }
 
 /**

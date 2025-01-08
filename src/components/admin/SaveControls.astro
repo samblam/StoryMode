@@ -62,12 +62,14 @@ const isPublished = active;
 </div>
 
 <script>
-    import { saveSurveyData, publishSurvey, unpublishSurvey } from '../../utils/surveyDataManager';
-
+    // Get survey ID from data attribute
     const saveButton = document.getElementById('save-survey');
     const publishButton = document.getElementById('toggle-publish');
     const statusMessage = document.getElementById('status-message');
     const statusText = statusMessage?.querySelector('p');
+    const surveyId = publishButton?.dataset.surveyId;
+
+    import { saveSurveyData, publishSurvey, unpublishSurvey } from '../../utils/surveyDataManager';
 
     function showStatus(message: string, isError = false) {
         if (statusMessage && statusText) {
@@ -83,13 +85,16 @@ const isPublished = active;
     // Handle save
     saveButton?.addEventListener('click', async () => {
         try {
-            // Get current form data
+            // Get current form data and ensure surveyId is included
             const form = document.querySelector('form');
             if (!form) {
                 throw new Error('Form not found');
             }
             const formData = new FormData(form);
-            const surveyData = Object.fromEntries(formData);
+            const surveyData = {
+                id: surveyId, // Ensure surveyId is included
+                ...Object.fromEntries(formData)
+            };
 
             // Get auth token from cookie
             const token = document.cookie
@@ -101,8 +106,9 @@ const isPublished = active;
                 throw new Error('No authentication token found');
             }
 
-            // Save survey data with token
-            await saveSurveyData(surveyData, undefined, token);
+            // Save survey data with token and baseUrl
+            const baseUrl = window.location.origin;
+            await saveSurveyData(surveyData, baseUrl, token);
             showStatus('Survey saved successfully');
 
             // Dispatch save event
@@ -121,11 +127,23 @@ const isPublished = active;
         if (!surveyId) return;
 
         try {
+            // Get auth token
+            const token = document.cookie
+                .split('; ')
+                .find(row => row.startsWith('sb-token='))
+                ?.split('=')[1];
+
+            if (!token) {
+                throw new Error('No authentication token found');
+            }
+
+            const baseUrl = window.location.origin;
+            
             if (isPublished) {
-                await unpublishSurvey(surveyId);
+                await unpublishSurvey(surveyId, baseUrl, token);
                 showStatus('Survey unpublished successfully');
             } else {
-                await publishSurvey(surveyId);
+                await publishSurvey(surveyId, baseUrl, token);
                 showStatus('Survey published successfully');
             }
 

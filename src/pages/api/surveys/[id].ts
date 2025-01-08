@@ -138,13 +138,66 @@ export const GET: APIRoute = async ({ params, request }) => {
   }
 };
 
-export const PUT: APIRoute = async ({ request, params, locals }) => {
+export const PUT: APIRoute = async ({ request, params }) => {
     try {
-        const user = locals.user as User | undefined;
-        const { authorized, error: authError } = await verifyAuthorization(user, 'admin', 'write');
+        // Extract token from Authorization header
+        const authHeader = request.headers.get('Authorization');
+        const token = authHeader?.replace('Bearer ', '');
+        
+        if (!token) {
+            return new Response(JSON.stringify({ error: 'No authorization token provided' }), {
+                status: 401,
+            });
+        }
 
+        // Get user from token using admin client
+        const { data: { user: authUser }, error: authError } = await supabaseAdmin.auth.getUser(token);
+        
+        if (authError || !authUser) {
+            return new Response(JSON.stringify({ error: 'Invalid token' }), {
+                status: 401,
+            });
+        }
+
+        // Get user data with admin client
+        const { data: userData, error: userError } = await supabaseAdmin
+            .from('users')
+            .select(`
+                *,
+                clients!client_id (
+                    id,
+                    name,
+                    email,
+                    active
+                )
+            `)
+            .eq('id', authUser.id)
+            .single();
+
+        if (userError) {
+            return new Response(JSON.stringify({ error: 'Error fetching user data' }), {
+                status: 500,
+            });
+        }
+
+        const user: User = {
+            id: userData.id,
+            email: userData.email,
+            role: userData.role || 'client',
+            clientId: userData.client_id,
+            client: userData.clients ? {
+                id: userData.clients.id,
+                name: userData.clients.name,
+                email: userData.clients.email,
+                active: userData.clients.active
+            } : null,
+            createdAt: authUser.created_at || new Date().toISOString(),
+        };
+
+        const { authorized, error: authzError } = await verifyAuthorization(user, 'admin', 'write');
+        
         if (!authorized) {
-            return new Response(JSON.stringify({ error: authError }), {
+            return new Response(JSON.stringify({ error: authzError }), {
                 status: 403,
             });
         }
@@ -157,8 +210,8 @@ export const PUT: APIRoute = async ({ request, params, locals }) => {
         }
 
         const body = await request.json();
-        // Allow updating all survey fields
-        const { data, error } = await supabase
+        // Use admin client to bypass RLS
+        const { data, error } = await supabaseAdmin
             .from('surveys')
             .update(body)
             .eq('id', id)
@@ -166,11 +219,7 @@ export const PUT: APIRoute = async ({ request, params, locals }) => {
             .single();
 
         if (error) {
-            const postgrestError = error as PostgrestError;
-            if (isRLSError(postgrestError)) {
-                return handleRLSError(postgrestError);
-            }
-            return new Response(JSON.stringify({ error: getErrorMessage(postgrestError) }), {
+            return new Response(JSON.stringify({ error: getErrorMessage(error) }), {
                 status: 500,
             });
         }

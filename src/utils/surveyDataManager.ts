@@ -174,17 +174,19 @@ export async function saveSurveyData(data: Record<string, any>, baseUrl?: string
 type SurveyStatus = 'draft' | 'active' | 'completed';
 
 /**
- * Updates survey status
+ * Updates survey active state
  */
-export async function updateSurveyStatus(surveyId: string, status: SurveyStatus, baseUrl?: string): Promise<boolean> {
+export async function updateSurveyActive(surveyId: string, active: boolean, baseUrl?: string, token?: string): Promise<boolean> {
     try {
         const url = baseUrl ? `${baseUrl}/api/surveys/${surveyId}` : `/api/surveys/${surveyId}`;
         const response = await fetch(url, {
-            method: 'PATCH',
+            method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
             },
-            body: JSON.stringify({ status }),
+            body: JSON.stringify({ active }),
+            credentials: 'include'
         });
 
         if (!response.ok) {
@@ -193,28 +195,21 @@ export async function updateSurveyStatus(surveyId: string, status: SurveyStatus,
 
         return true;
     } catch (error) {
-        console.error(`Error updating survey status to ${status}:`, error);
+        console.error(`Error updating survey active state to ${active}:`, error);
         throw error;
     }
 }
 
 /**
- * Updates survey status to active (published)
+ * Publishes a survey by setting active to true
  */
-export async function publishSurvey(surveyId: string): Promise<boolean> {
-    return updateSurveyStatus(surveyId, 'active');
+export async function publishSurvey(surveyId: string, baseUrl?: string, token?: string): Promise<boolean> {
+    return updateSurveyActive(surveyId, true, baseUrl, token);
 }
 
 /**
- * Updates survey status to draft (unpublished)
+ * Unpublishes a survey by setting active to false
  */
-export async function unpublishSurvey(surveyId: string): Promise<boolean> {
-    return updateSurveyStatus(surveyId, 'draft');
-}
-
-/**
- * Updates survey status to completed
- */
-export async function completeSurvey(surveyId: string): Promise<boolean> {
-    return updateSurveyStatus(surveyId, 'completed');
+export async function unpublishSurvey(surveyId: string, baseUrl?: string, token?: string): Promise<boolean> {
+    return updateSurveyActive(surveyId, false, baseUrl, token);
 }
