@@ -6,35 +6,28 @@ export default defineConfig({
   integrations: [tailwind()],
   output: 'server',
   adapter: vercel({
-    analytics: true,
-    imageService: true,
     webAnalytics: {
       enabled: true
     },
-    externals: [],
-    includeFiles: ['**/*'],
-    bundleNodeModules: true,
-    minify: true,
-    isr: {
-      enabled: true,
-      maxDuration: 10
-    }
+    imageService: true,
+    // Remove includeFiles that was causing the error
+    functionPerRoute: false,
+    deploymentSuffix: String(Date.now()),
   }),
   vite: {
     build: {
-      target: 'esnext',
-      modulePreload: {
-        polyfill: false
-      },
+      assetsInlineLimit: 0,
+      cssCodeSplit: false,
       rollupOptions: {
         output: {
           format: 'esm',
-          inlineDynamicImports: true,
-          preserveModules: false,
+          entryFileNames: '[name].mjs',
+          chunkFileNames: 'chunks/[name].[hash].mjs',
+          assetFileNames: 'assets/[name].[hash][extname]',
+          inlineDynamicImports: false,
           manualChunks: undefined
         }
-      },
-      sourcemap: true
+      }
     },
     ssr: {
       noExternal: true

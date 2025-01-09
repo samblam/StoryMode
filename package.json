@@ -1,32 +1,32 @@
 {
  "name": "storymode-website",
-  "type": "module",
-  "version": "0.0.1",
-    "scripts": {
-       "dev": "astro dev --host",
-    "start": "astro dev --host",
-    "build": "astro build",
-    "preview": "astro preview",
-    "astro": "astro"
-    },
-    "dependencies": {
-        "@astrojs/mdx": "^4.0.3",
-        "@astrojs/node": "^9.0.0",
-        "@astrojs/tailwind": "^5.1.0",
-        "@astrojs/vercel": "^8.0.1",
-        "@supabase/supabase-js": "^2.39.3",
-        "astro": "^5.1.1",
-        "dotenv": "^16.4.7",
-        "howler": "^2.2.4",
-        "multer": "^1.4.5-lts.1",
-        "nodemailer": "^6.9.9",
-        "tailwindcss": "^3.4.1",
-        "uuid": "^11.0.3"
-    },
-    "devDependencies": {
-        "@types/howler": "^2.2.12",
-        "@types/nodemailer": "^6.4.17",
-        "@types/uuid": "^10.0.0",
-        "supabase": "^2.2.1"
-    }
+ "type": "module",
+ "version": "0.0.1",
+ "scripts": {
+  "dev": "astro dev --host",
+  "start": "astro dev --host",
+  "build": "astro build",
+  "preview": "astro preview",
+  "astro": "astro"
+ },
+ "dependencies": {
+  "@astrojs/mdx": "^4.0.3",
+  "@astrojs/node": "^9.0.0",
+  "@astrojs/tailwind": "^5.1.0",
+  "@astrojs/vercel": "^8.0.1",
+  "@supabase/supabase-js": "^2.39.3",
+  "astro": "^5.1.1",
+  "dotenv": "^16.4.7",
+  "howler": "^2.2.4",
+  "multer": "^1.4.5-lts.1",
+  "nodemailer": "^6.9.9",
+  "tailwindcss": "^3.4.1",
+  "uuid": "^11.0.3"
+ },
+ "devDependencies": {
+  "@types/howler": "^2.2.12",
+  "@types/nodemailer": "^6.4.17",
+  "@types/uuid": "^10.0.0",
+  "supabase": "^2.2.1"
+ }
 }

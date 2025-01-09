@@ -3,22 +3,5 @@
     "devCommand": "npm run dev",
     "framework": "astro",
     "installCommand": "npm install",
-    "builds": [
-      {
-        "src": "package.json",
-        "use": "@vercel/node"
-      }
-    ],
-    "routes": [
-      {
-        "src": "/(.*)",
-        "dest": "/dist/server/entry.mjs"
-      }
-    ],
-    "crons": [
-      {
-        "path": "/api/cron/cleanup",
-        "schedule": "0 0 * * *"
-      }
-    ]
+    "regions": ["iad1"]
   }
