@@ -1,19 +1,9 @@
 import { defineConfig } from 'astro/config';
 import tailwind from '@astrojs/tailwind';
-import vercel from '@astrojs/vercel/serverless';
 
 export default defineConfig({
   integrations: [tailwind()],
-  output: 'server',
-  adapter: vercel({
-    webAnalytics: {
-      enabled: true
-    },
-    imageService: true,
-    functionPerRoute: false,
-    includeFiles: ['**/*'],
-    assets: 'static'
-  }),
+  output: 'static',
   vite: {
     build: {
       cssCodeSplit: true,
