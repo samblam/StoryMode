@@ -1,6 +1,8 @@
 # build output
 dist/
 .output/
+.vercel/
+.astro/
 
 # dependencies
 node_modules/
@@ -23,14 +25,8 @@ pnpm-debug.log*
 # Vercel
 .vercel
 
-# Netlify
-.netlify
-
 # IDE specific files
 .idea
 .vscode
 *.swp
 *.swo
-
-# Astro
-.astro
