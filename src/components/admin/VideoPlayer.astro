@@ -14,7 +14,7 @@ const {
 } = Astro.props;
 ---
 
-<div class={`video-player-container ${className}`} data-video-url={videoUrl}>
+<div class={`video-player-container ${className}`} data-video-path={videoUrl}>
     <div class="video-loading hidden">
         <div class="loading-spinner"></div>
         <span>Loading video...</span>
@@ -25,12 +25,12 @@ const {
         <button class="retry-button">Retry</button>
     </div>
     
-    <video 
+    <video
         class="video-player"
         controls
         style={`width: ${width}; height: ${height};`}
     >
-        <source src={videoUrl} type="video/mp4">
+        <source type="video/mp4">
         Your browser does not support the video tag.
     </video>
 </div>
@@ -101,30 +101,103 @@ const {
 </style>
 
 <script>
+    import { getSignedUrl } from '../../utils/storageUtils';
+
     class VideoPlayerManager {
         private video: HTMLVideoElement;
         private loadingEl: HTMLElement;
         private errorEl: HTMLElement;
-        private videoUrl: string;
+        private videoPath: string;
+        private refreshTimer: NodeJS.Timeout | null = null;
 
         constructor(container: HTMLElement) {
+            console.log('Initializing VideoPlayerManager');
+            
             this.video = container.querySelector('.video-player') as HTMLVideoElement;
             this.loadingEl = container.querySelector('.video-loading') as HTMLElement;
             this.errorEl = container.querySelector('.video-error') as HTMLElement;
-            this.videoUrl = container.dataset.videoUrl || '';
+            this.videoPath = container.dataset.videoPath || '';
+            
+            console.log('Video path from container:', this.videoPath);
 
             this.initializePlayer();
             this.setupEventListeners();
         }
 
-        private initializePlayer() {
-            if (!this.videoUrl) {
+        private async getSignedUrl(): Promise<string | null> {
+                console.log('Getting signed URL for video path:', this.videoPath);
+                
+                // Validate video path exists
+                if (!this.videoPath) {
+                    console.error('No video path provided');
+                    return null;
+                }
+        
+                try {
+                    console.log('Attempting to create signed URL');
+                    // Use the full path as stored in the database
+                    const signedUrl = await getSignedUrl(this.videoPath, 'videos');
+                    console.log('Successfully created signed URL for path:', this.videoPath);
+                    return signedUrl;
+                } catch (error) {
+                    console.error('Error getting signed URL:', error);
+                    if (error instanceof Error) {
+                        console.error('Error details:', error.message);
+                    }
+                    return null;
+                }
+            }
+
+        private async initializePlayer() {
+            console.log('Initializing video player with path:', this.videoPath);
+            
+            if (!this.videoPath) {
+                console.error('No video path provided');
                 this.showError();
                 return;
             }
 
             this.showLoading();
-            this.video.src = this.videoUrl;
+            console.log('Getting signed URL for path:', this.videoPath);
+            const signedUrl = await this.getSignedUrl();
+            
+            if (!signedUrl) {
+                console.error('Failed to get signed URL');
+                this.showError();
+                return;
+            }
+            console.log('Got signed URL:', signedUrl);
+
+            const source = this.video.querySelector('source');
+            if (source) {
+                console.log('Setting video source to signed URL');
+                source.src = signedUrl;
+                this.video.load(); // Needed to refresh the video element after changing source
+            } else {
+                console.error('No source element found in video player');
+                this.showError();
+            }
+
+            // Set up URL refresh timer (refresh every 50 minutes)
+            if (this.refreshTimer) {
+                clearInterval(this.refreshTimer);
+            }
+            this.refreshTimer = setInterval(async () => {
+                const newUrl = await this.getSignedUrl();
+                if (newUrl) {
+                    const source = this.video.querySelector('source');
+                    if (source) {
+                        const currentTime = this.video.currentTime;
+                        const isPaused = this.video.paused;
+                        source.src = newUrl;
+                        this.video.load();
+                        this.video.currentTime = currentTime;
+                        if (!isPaused) {
+                            this.video.play();
+                        }
+                    }
+                }
+            }, 50 * 60 * 1000); // 50 minutes
         }
 
         private setupEventListeners() {
@@ -136,6 +209,13 @@ const {
             if (retryButton) {
                 retryButton.addEventListener('click', () => this.retryLoading());
             }
+
+            // Clean up on page unload
+            window.addEventListener('unload', () => {
+                if (this.refreshTimer) {
+                    clearInterval(this.refreshTimer);
+                }
+            });
         }
 
         private showLoading() {
@@ -152,9 +232,9 @@ const {
             this.errorEl.classList.remove('hidden');
         }
 
-        private retryLoading() {
+        private async retryLoading() {
             this.video.load();
-            this.initializePlayer();
+            await this.initializePlayer();
         }
     }
 

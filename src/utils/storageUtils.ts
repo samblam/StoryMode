@@ -14,22 +14,39 @@ export class StorageError extends Error {
   }
 }
 
-export async function getSignedUrl(path: string): Promise<string> {
+export async function getSignedUrl(path: string, bucket: string): Promise<string> {
   try {
+    // Validate bucket name
+    const validBuckets = ['sounds', 'videos'];
+    if (!validBuckets.includes(bucket)) {
+      throw new StorageError(`Invalid bucket name: ${bucket}`);
+    }
+
+    // Validate path exists
+    if (!path) {
+      throw new StorageError('No path provided');
+    }
+
+    // Create signed URL with 1 hour expiration
     const { data, error } = await supabaseAdmin.storage
-      .from('sounds')
-      .createSignedUrl(path, 60 * 60, {
-        download: false,
-        transform: {
-          format: 'origin'
-        }
+      .from(bucket)
+      .createSignedUrl(path, 3600, {
+        download: false
       });
 
-    if (error) throw error;
-    if (!data?.signedUrl) throw new Error('No signed URL returned');
+    if (error) {
+      throw new StorageError(`Supabase error: ${error.message}`);
+    }
+
+    if (!data?.signedUrl) {
+      throw new StorageError('No signed URL returned from Supabase');
+    }
 
     return data.signedUrl;
   } catch (error) {
+    if (error instanceof StorageError) {
+      throw error;
+    }
     throw new StorageError(
       `Failed to get signed URL: ${
         error instanceof Error ? error.message : 'Unknown error'

@@ -55,12 +55,13 @@ export const POST: APIRoute = async ({ request }) => {
 
         // Upload the video
         const fileExt = videoFile.name.split('.').pop();
-        const fileName = `${surveyId}/video.${fileExt}`;
+        const fileName = `video.${fileExt}`;
+        const filePath = `${surveyId}/${fileName}`;
 
         const { error: uploadError, data } = await supabase
             .storage
             .from('videos')
-            .upload(fileName, videoFile, {
+            .upload(filePath, videoFile, {
                 cacheControl: '3600',
                 upsert: true
             });
@@ -73,16 +74,11 @@ export const POST: APIRoute = async ({ request }) => {
             }), { status: 500 });
         }
 
-        // Get the public URL
-        const { data: { publicUrl } } = supabase
-            .storage
-            .from('videos')
-            .getPublicUrl(fileName);
-
-        // Update the survey with the video URL
+        // Update the survey with the full video path including bucket
+        const fullPath = `videos/${filePath}`;
         const { error: updateError } = await supabase
             .from('surveys')
-            .update({ video_url: publicUrl })
+            .update({ video_url: fullPath })
             .eq('id', surveyId);
 
         if (updateError) {
@@ -94,7 +90,7 @@ export const POST: APIRoute = async ({ request }) => {
         }
 
         return new Response(JSON.stringify({
-            url: publicUrl
+            url: filePath
         }), { status: 200 });
 
     } catch (error) {
