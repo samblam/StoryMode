@@ -1,46 +1,26 @@
 # System Patterns
 
-## Supabase Integration
-- Using getClient utility for role-based access
-- Type-safe queries using Database types
-- Error handling with detailed logging
-- Client-side query patterns:
-  - Fetching clients with count
-  - Filtering sound profiles by client_id
-  - Using proper type casting for query results
+## Architecture
+- Astro.js for static site generation and server-side rendering
+- Component-based architecture with .astro files
+- Supabase for backend services and authentication
 
-## Form Handling
-- Client-side form submission with validation
-- Dynamic dropdown population:
-  - Using database property names consistently
-  - Type-safe interfaces matching database schema
-  - Proper error and loading states
-- Loading states and error messages
-- Type-safe form data handling
+## Data Flow
+- Server-side: Direct Supabase client usage via src/lib/supabase.ts
+- Client-side: Browser-based Supabase client needed for interactive features
+- Components can have both server-side and client-side scripts
 
-## Audio Management
-- Centralized audio control through audioManager
-- Resource cleanup patterns:
-  - Controller array for tracking instances
-  - Unload event listeners for cleanup
-  - Memory leak prevention
-- Progress tracking with requestAnimationFrame
-- Event-based state management for audio playback
+## Component Patterns
+- Server Script: Runs during build/request time
+- Client Script: Runs in browser, needs explicit initialization
+- Components should handle both server and client state appropriately
 
-## API Rate Limiting
-- Per-endpoint rate limit configurations
-- In-memory rate limit store with cleanup
-- Rate limit headers for client feedback
-- Endpoint-specific limits:
-  - Profile operations (read/create/update)
-  - File operations (upload/delete)
-  - Authentication operations
-  - Survey operations
+## State Management
+- Server state managed through Supabase queries
+- Client state requires initialized Supabase client in window context
+- Components should verify client availability before operations
 
 ## Error Handling
-- Type-safe error responses
-- Detailed error logging
-- Client-side error states
-- Loading state management
-- Null element checking
-- Resource availability verification
+- Server-side errors caught in try/catch blocks
+- Client-side operations need initialization checks
+- Proper error messages displayed to users

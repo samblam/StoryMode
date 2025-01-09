@@ -1,57 +1,11 @@
-## Why this project exists
-StoryMode's website exists to showcase their audio branding and UX sound design services, and to provide a client portal for accessing sound libraries and testing tools. The administrative interface is a crucial component that enables efficient management of surveys, sound testing, and client interactions.
+# Product Context
 
-## What problems it solves
-- Marketing: Effectively showcases StoryMode's work and capabilities
-- Client Access: Provides secure access to client resources and sound libraries
-- Survey Management: Enables creation and management of sound testing surveys
-- Data Analysis: Provides insights through visualization and analytics
-- Client Feedback: Facilitates collection and analysis of sound testing feedback
-- Resource Management: Streamlines sound library and video content management
-- Result Sharing: Controls access to survey results and enables client reporting
-- Secure Results: Ensures only completed survey results are accessible
-- Rate Management: Prevents API abuse while ensuring smooth operation
-- Audio Experience: Provides professional-grade audio playback and control
+StoryMode is a survey management system that allows administrators to create and manage surveys with various functions. The system includes:
 
-## How it should work
-The website functions as:
-1. Marketing Platform
-   - Showcases StoryMode's work and capabilities
-   - Presents client success stories and case studies
-   - Provides interactive audio demonstrations
-   - Ensures smooth, professional audio playback
+- Survey creation and management
+- Function management within surveys
+- Sound and video management
+- Client management
+- Access control with admin privileges
 
-2. Secure Client Portal
-   - Sound library access and download functionality
-   - Client-specific resource management
-   - Approved results viewing
-   - Rate-limited API access
-   - Efficient audio progress tracking
-   - Memory-safe audio playback
-
-3. Admin Dashboard
-   - Survey creation and management
-   - Sound and video content management
-   - Client access control
-   - Results analysis and visualization
-   - Report generation and export
-   - System configuration
-   - Resource usage monitoring
-   - Rate limit management
-
-4. Survey System
-   - Sound testing and feedback collection
-   - Data analysis and visualization
-   - Progress tracking
-   - Result compilation and sharing
-   - Secure access to results based on survey status
-   - Optimized audio playback controls
-   - Resource cleanup and memory management
-
-5. API Management
-   - Rate limiting for different operations
-   - Client-specific access controls
-   - Resource usage tracking
-   - Error handling and feedback
-   - Performance monitoring
-   - Security measures
+The system uses Supabase as its backend database and authentication service.

@@ -7,15 +7,14 @@ interface Props {
 
 const { surveyId } = Astro.props;
 
-// Fetch existing functions for this survey
-const { data: surveyFunctions, error } = await supabase
-    .from('survey_sounds')
-    .select('intended_function')
-    .eq('survey_id', surveyId)
-    .not('intended_function', 'is', null)
-    .order('intended_function');
+// Fetch survey functions
+const { data: survey, error } = await supabase
+    .from('surveys')
+    .select('functions')
+    .eq('id', surveyId)
+    .single();
 
-const uniqueFunctions = [...new Set(surveyFunctions?.map(f => f.intended_function) || [])];
+const functions = Array.isArray(survey?.functions) ? survey.functions : [];
 
 if (error) {
     console.error('Error fetching survey functions:', error);
@@ -27,7 +26,7 @@ if (error) {
     
     <!-- Function List -->
     <div class="space-y-2 mb-4">
-        {uniqueFunctions.map(func => (
+        {functions.map((func: string) => (
             <div class="flex items-center justify-between bg-gray-50 p-2 rounded">
                 <span>{func}</span>
                 <button
@@ -62,7 +61,57 @@ if (error) {
     </form>
 </div>
 
+<script>
+    import { createClient } from '@supabase/supabase-js';
+    import type { SupabaseClient } from '@supabase/supabase-js';
+    import type { Database } from '../../types/database';
+
+    // Add TypeScript declaration for window.supabase
+    declare global {
+        interface Window {
+            supabase: SupabaseClient<Database>;
+        }
+    }
+
+    // Initialize Supabase client in browser
+    const initializeSupabase = () => {
+        if (!window.supabase) {
+            const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
+            const supabaseAnonKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY;
+
+            if (!supabaseUrl || !supabaseAnonKey) {
+                throw new Error('Missing Supabase configuration');
+            }
+
+            window.supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+                auth: {
+                    persistSession: true,
+                    autoRefreshToken: true,
+                    detectSessionInUrl: true
+                }
+            });
+        }
+        return window.supabase;
+    };
+
+    // Initialize on load
+    document.addEventListener('DOMContentLoaded', initializeSupabase);
+</script>
+
 <script define:vars={{ surveyId }}>
+
+    // Debug function to log survey data
+    const logSurveyData = async () => {
+        const { data, error } = await window.supabase
+            .from('surveys')
+            .select('*')
+            .eq('id', surveyId)
+            .single();
+        
+        console.log('Current survey data:', data);
+        if (error) console.error('Error fetching survey:', error);
+    };
+
     // Function to dispatch custom event when functions change
     const notifyFunctionsChanged = () => {
         const event = new CustomEvent('surveyFunctionsChanged', {
@@ -84,23 +133,66 @@ if (error) {
         if (!functionName) return;
 
         try {
-            // We'll just insert a dummy mapping to store the function
-            // It will be removed/updated when actual sound mappings are created
-            const { error } = await window.supabase
-                .from('survey_sounds')
-                .insert({
-                    survey_id: surveyId,
-                    sound_id: null, // This will be updated when mapping is created
-                    intended_function: functionName,
-                    order_index: 0
-                });
+            // Ensure Supabase is initialized
+            if (!window.supabase) {
+                try {
+                    initializeSupabase();
+                } catch (error) {
+                    console.error('Failed to initialize Supabase:', error);
+                    alert('Failed to initialize database connection. Please refresh the page and try again.');
+                    return;
+                }
+            }
 
-            if (error) throw error;
+            console.log('Adding function:', functionName);
+            await logSurveyData(); // Log initial state
 
-            // Clear input and reload page to show new function
-            input.value = '';
-            notifyFunctionsChanged();
-            window.location.reload();
+            // Get current functions
+            const { data: survey, error: fetchError } = await window.supabase
+                .from('surveys')
+                .select('functions')
+                .eq('id', surveyId)
+                .single();
+            
+            if (fetchError) {
+                console.error('Error fetching survey:', fetchError);
+                throw fetchError;
+            }
+
+            console.log('Current survey data:', survey);
+            
+            // Initialize or get current functions array
+            const currentFunctions = Array.isArray(survey?.functions) ? survey.functions : [];
+            console.log('Current functions:', currentFunctions);
+            
+            // Add new function if it doesn't exist
+            if (!currentFunctions.includes(functionName)) {
+                const newFunctions = [...currentFunctions, functionName];
+                console.log('New functions array:', newFunctions);
+
+                const { error: updateError } = await window.supabase
+                    .from('surveys')
+                    .update({
+                        functions: newFunctions
+                    })
+                    .eq('id', surveyId);
+
+                if (updateError) {
+                    console.error('Error updating survey:', updateError);
+                    throw updateError;
+                }
+
+                console.log('Update successful');
+                await logSurveyData(); // Log final state
+
+                // Clear input and reload page to show new function
+                input.value = '';
+                notifyFunctionsChanged();
+                window.location.reload();
+            } else {
+                console.log('Function already exists');
+                alert('This function already exists.');
+            }
         } catch (error) {
             console.error('Error adding function:', error);
             alert('Failed to add function. Please try again.');
@@ -118,11 +210,33 @@ if (error) {
         if (!confirm(`Are you sure you want to delete the function "${functionName}"?`)) return;
 
         try {
+            // Ensure Supabase is initialized
+            if (!window.supabase) {
+                try {
+                    initializeSupabase();
+                } catch (error) {
+                    console.error('Failed to initialize Supabase:', error);
+                    alert('Failed to initialize database connection. Please refresh the page and try again.');
+                    return;
+                }
+            }
+
+            // Get current functions
+            const { data: survey } = await window.supabase
+                .from('surveys')
+                .select('functions')
+                .eq('id', surveyId)
+                .single();
+            
+            const currentFunctions = Array.isArray(survey?.functions) ? survey.functions : [];
+            
+            // Remove the function
             const { error } = await window.supabase
-                .from('survey_sounds')
-                .delete()
-                .eq('survey_id', surveyId)
-                .eq('intended_function', functionName);
+                .from('surveys')
+                .update({
+                    functions: currentFunctions.filter(f => f !== functionName)
+                })
+                .eq('id', surveyId);
 
             if (error) throw error;
 

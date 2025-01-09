@@ -5,61 +5,92 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 let supabase: SupabaseClient<Database>;
 let supabaseAdmin: SupabaseClient<Database>;
 
-if (typeof import.meta !== 'undefined' && import.meta.env) {
-    // Load environment variables
-    const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY;
-    const supabaseServiceRole = process.env.SUPABASE_SERVICE_ROLE_KEY || import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
+// Store references for checking if clients are initialized
+let isSupabaseInitialized = false;
+let isSupabaseAdminInitialized = false;
 
-    // Validate environment variables
-    if (!supabaseUrl || !supabaseAnonKey) {
-        throw new Error('Missing required Supabase public environment variables');
-    }
+function initializeClients() {
+  try {
+    // Only initialize once
+    if (!isSupabaseInitialized) {
+      // Validate required environment variables
+      const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
+      const supabaseAnonKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY;
+      const supabaseServiceRole = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
 
-    supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+      if (!supabaseUrl || !supabaseAnonKey) {
+        throw new Error(
+          'Missing required Supabase environment variables: PUBLIC_SUPABASE_URL and PUBLIC_SUPABASE_ANON_KEY must be set'
+        );
+      }
+
+      // Initialize regular client
+      supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
         auth: {
-            persistSession: false,
-            autoRefreshToken: false,
-            detectSessionInUrl: false,
+          persistSession: false,
+          autoRefreshToken: false,
+          detectSessionInUrl: false,
         },
-    });
+      });
+      isSupabaseInitialized = true;
 
-    supabaseAdmin = createClient<Database>(
-        supabaseUrl,
-        supabaseServiceRole,
-        {
+      // Initialize admin client if service role key is available
+      if (supabaseServiceRole) {
+        supabaseAdmin = createClient<Database>(
+          supabaseUrl,
+          supabaseServiceRole,
+          {
             auth: {
-                persistSession: false,
-                autoRefreshToken: false,
-                detectSessionInUrl: false,
+              persistSession: false,
+              autoRefreshToken: false,
+              detectSessionInUrl: false,
             },
-        }
-    );
+          }
+        );
+        isSupabaseAdminInitialized = true;
+      } else {
+        console.warn('SUPABASE_SERVICE_ROLE_KEY not found. Admin functionality will be limited.');
+        supabaseAdmin = supabase; // Fallback to regular client
+      }
+    }
+  } catch (error) {
+    console.error('Error initializing Supabase clients:', error);
+    throw error;
+  }
 }
 
 /**
  * Type definition for client usage contexts
  */
 export type ClientContext = {
-    requiresAdmin?: boolean;
-    bypassRLS?: boolean;
+  requiresAdmin?: boolean;
+  bypassRLS?: boolean;
 };
 
 /**
  * Determines if admin client should be used based on context
- * @param context - Client usage context
- * @returns boolean indicating if admin client is required
  */
 export function requiresAdminClient(context: ClientContext): boolean {
-    return Boolean(context.requiresAdmin || context.bypassRLS);
+  return Boolean(context.requiresAdmin || context.bypassRLS);
 }
 
 /**
  * Gets the appropriate client based on context
- * @param context - Client usage context
- * @returns Either supabase or supabaseAdmin client
+ * Ensures clients are initialized before use
  */
-export function getClient(context: ClientContext = {}) {
-    return requiresAdminClient(context) ? supabaseAdmin : supabase;
+export function getClient(context: ClientContext = {}): SupabaseClient<Database> {
+  if (!isSupabaseInitialized) {
+    initializeClients();
+  }
+
+  if (requiresAdminClient(context) && !isSupabaseAdminInitialized) {
+    throw new Error('Admin client requested but not initialized. Check SUPABASE_SERVICE_ROLE_KEY.');
+  }
+
+  return requiresAdminClient(context) ? supabaseAdmin : supabase;
 }
+
+// Initialize clients on import
+initializeClients();
+
 export { supabase, supabaseAdmin };

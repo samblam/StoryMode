@@ -1,57 +1,51 @@
 # Active Context
 
 ## Current Task
-Investigating Sound Mapping Data Access Failures in Survey Edit Page:
-1. Database Query Issues:
-   - Fixed "column sounds.url does not exist" error by updating to use file_path
-   - Fixed "relation 'public.functions' does not exist" error by querying survey_sounds
-   - Implemented proper data fetching from both tables
+Fixed non-functioning play buttons in sound mappings.
 
-2. Implementation Changes:
-   - Updated sound query to include all required fields
-   - Changed function data source to survey_sounds.intended_function
-   - Fixed type safety throughout component
-   - Removed references to non-existent 'url' field
+## Implementation Details
+1. Audio URL Handling:
+   - Implemented signed URL support using getSignedUrl utility
+   - Added URL refresh mechanism
+   - Proper error handling for invalid URLs
 
-3. Key Files Modified:
-   - src/components/admin/SoundManager.astro
-     * Updated database queries
-     * Fixed type definitions
-     * Corrected field references
+2. Audio State Management:
+   - Created AudioState interface for better state tracking
+   - Implemented loading states
+   - Added proper cleanup routines
+   - Enhanced error handling
 
-4. Current Status:
-   - Sound query now uses correct fields
-   - Functions are properly sourced from survey_sounds
-   - Type safety is maintained
-   - All TypeScript errors resolved
+3. UI Improvements:
+   - Added loading animation during URL fetch
+   - Implemented error message display
+   - Added accessibility improvements (sr-only text)
+   - Enhanced button states
 
-## Recent Changes
-- Fixed Sound Mapping Data Access:
-  * Corrected sound field references
-  * Updated function data source
-  * Improved type safety
-  * Fixed query structures
-- Previous Updates:
-  * Fixed client dropdown selection
-  * Improved error messages
-  * Reduced console noise
-  * Better type definitions
+## Changes Made
+1. SoundManager.astro:
+   - Added getSignedUrl import
+   - Created AudioState interface
+   - Updated preview button click handler
+   - Enhanced error handling
+   - Added loading states
+   - Improved cleanup functions
+
+2. UI Components:
+   - Added error message element
+   - Implemented loading animation
+   - Updated template for new mappings
+   - Enhanced accessibility
 
 ## Next Steps
-1. Testing:
-   - Verify sound data loading
-   - Test function selection
-   - Check preview functionality
-   - Validate mapping creation
+1. Test all implemented changes:
+   - URL signing functionality
+   - Audio playback
+   - Error scenarios
+   - Loading states
+   - Cleanup routines
 
-2. Validation:
-   - Ensure proper data display
-   - Verify audio preview works
-   - Check mapping persistence
-   - Test error handling
-
-3. Documentation:
-   - Update code comments
-   - Document data structure
-   - Note query patterns
-   - Record type definitions
+2. Monitor for any issues:
+   - URL expiration handling
+   - Error message display
+   - State management
+   - Memory leaks

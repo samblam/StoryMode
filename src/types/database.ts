@@ -183,6 +183,7 @@ export interface Database {
           approved: boolean;
           visible_to_client: boolean;
           sound_profile_id: string;
+          functions: string[] | null;
         };
         Insert: {
           id?: string;
@@ -192,6 +193,7 @@ export interface Database {
           client_id: string;
           sound_profile_id: string;
           status?: 'draft' | 'active' | 'completed';
+          functions?: string[] | null;
         };
         Update: {
           id?: string;
@@ -201,6 +203,7 @@ export interface Database {
           client_id?: string;
           sound_profile_id?: string;
           status?: 'draft' | 'active' | 'completed';
+          functions?: string[] | null;
         };
       };
     };
