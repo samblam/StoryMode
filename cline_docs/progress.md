@@ -1,52 +1,57 @@
 # Progress Status
 
 ## Current Focus
-1. Page Reload Prompt Issue:
+1. Video Player Implementation:
+   - Investigating signed URL retrieval failures
+   - Multiple approaches tried without success:
+     * File existence verification
+     * Path normalization
+     * Direct storage access
+   - Need to focus on authentication and storage configuration
+
+2. Page Reload Prompt Issue:
    - Investigating unwanted prompts during function submission
    - Analyzing form submission handling
    - Reviewing state management
    - Checking event listeners
 
-2. Video Player Implementation:
-   - Planning dedicated component creation
-   - Designing URL handling system
-   - Preparing state management approach
-   - Structuring error handling
-
 ## In Progress
-- Investigating form submission flow in SurveyFunctions
-- Planning VideoPlayer component architecture
-- Analyzing current video handling implementation
-- Reviewing state management patterns
+- Investigating video player storage access issues
+- Analyzing authentication patterns
+- Reviewing storage configuration
+- Testing different access approaches
 
 ## Next Steps
-1. Form Submission Investigation:
+1. Video Player Investigation:
+   - Review bucket policies
+   - Compare authentication methods
+   - Test service role access
+   - Consider server-side alternatives
+
+2. Form Submission Investigation:
    - Review event handlers
    - Check state management
    - Analyze beforeunload listeners
    - Verify cleanup procedures
 
-2. Video Player Development:
-   - Create VideoPlayer.astro component
-   - Implement URL handling
-   - Add state management
-   - Include error handling
-   - Add loading states
-
 ## Known Issues
-1. Page Reload Prompts:
+1. Video Player:
+   - Signed URL retrieval failing
+   - Object not found errors
+   - Path handling concerns
+   - Potential authentication issues
+
+2. Page Reload Prompts:
    - Unwanted prompts during function submission
    - Potential state management issues
    - Form submission handling concerns
 
-2. Video Implementation:
-   - Need dedicated player component
-   - URL handling to be implemented
-   - Loading states required
-   - Error handling needed
-
 ## Recent Changes
-- None yet - starting investigation and implementation
+- Implemented direct storage access in VideoPlayer
+- Removed storageUtils.ts dependency
+- Fixed path handling and normalization
+- Added error handling and logging
+- Fixed TypeScript errors
 
 ## Completed
 - Previous save changes button functionality fixes

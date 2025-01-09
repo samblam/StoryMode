@@ -2,69 +2,46 @@
 
 ## Current Tasks
 
-### 1. Page Reload Prompt Investigation
-- Investigating unwanted page reload prompts during function submission
-- Context: Adding functions to survey in edit page
-- Expected: Smooth function addition without reload prompts
+### 1. Video Player Signed URL Issue
+- Status: Ongoing investigation
+- Recent changes:
+  - Removed storageUtils.ts dependency
+  - Implemented direct Supabase storage access in VideoPlayer
+  - Fixed path handling and normalization
+  - Added error handling and logging
+  - Fixed TypeScript errors
+- Current state:
+  - Still getting "Object not found" errors
+  - Path handling improvements did not resolve the issue
+  - Direct storage access still fails
+  - Previous fixes attempted:
+    1. File existence verification (failed)
+    2. Path normalization (failed)
+    3. Direct storage access (failed)
 
-#### Investigation Areas
-1. Form Handling:
-   - Default form submission behavior
-   - Unsaved changes tracking
-   - beforeunload event management
-   - Reload prompt triggers
+### Investigation Areas
+1. Authentication Analysis:
+   - Test implementation uses regular client successfully
+   - VideoPlayer using client-side initialization
+   - Need to verify authentication flow and permissions
+   - Possible service role key requirement
 
-2. State Management:
-   - Function submission state tracking
-   - Unsaved changes flags
-   - Form dirty state handling
-   - State flag clearing
+2. Storage Configuration:
+   - Verify bucket policies allow client access
+   - Check if service role key is required
+   - Compare successful vs failing requests
+   - Review storage initialization timing
 
-### 2. Video Player Implementation
-- Creating dedicated video player component
-- Implementing proper video display on edit page
-- Handling video URLs and states
-
-#### Technical Requirements
-1. Video Display:
-   - Show uploaded video on edit page
-   - Video controls implementation
-   - Responsive design
-   - Loading states
-
-2. Implementation Details:
-   - Video URL handling
-   - Player component structure
-   - Error state management
-   - Loading feedback implementation
-
-## Key Files to Investigate
-- src/pages/admin/surveys/[id]/edit.astro
-- src/components/admin/SurveyFunctions.astro
-- src/components/admin/VideoUploader.astro
-- New file: src/components/admin/VideoPlayer.astro (to be created)
-
-## Technical Context
-- Need to handle form submission properly
-- Video player needs proper state management
-- Must prevent unwanted page reload prompts
-- Video component should be reusable
+3. Path Handling:
+   - Upload stores as: `videos/<surveyId>/video.<ext>`
+   - Test implementation uses: `<surveyId>/video.<ext>`
+   - Need to verify exact path requirements
+   - Investigate potential path encoding issues
 
 ## Next Steps
-1. Investigate form submission in SurveyFunctions.astro
-2. Create dedicated VideoPlayer component
-3. Implement proper state management
-4. Add error handling and loading states
-
-## Investigation Strategy
-1. Form Analysis:
-   - Review submission handlers
-   - Check state management
-   - Analyze event listeners
-   - Verify cleanup
-
-2. Video Implementation:
-   - Create player component
-   - Handle URL management
-   - Implement error states
-   - Add loading feedback
+1. Review Supabase storage bucket policies
+2. Compare authentication between test and VideoPlayer
+3. Verify exact path requirements in storage
+4. Test with service role key if needed
+5. Consider implementing server-side URL generation
+6. Investigate potential race conditions in initialization

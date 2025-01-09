@@ -27,10 +27,14 @@ export async function getSignedUrl(path: string, bucket: string): Promise<string
       throw new StorageError('No path provided');
     }
 
-    // Create signed URL with 1 hour expiration
+    // Remove bucket prefix if present for storage operations
+    const storagePath = path.startsWith(`${bucket}/`) ? path.slice(bucket.length + 1) : path;
+    console.log('Creating signed URL for:', { bucket, path: storagePath });
+
+    // Create signed URL with 1 hour expiration using corrected path
     const { data, error } = await supabaseAdmin.storage
       .from(bucket)
-      .createSignedUrl(path, 3600, {
+      .createSignedUrl(storagePath, 3600, {
         download: false
       });
 
