@@ -185,10 +185,29 @@ if (error) {
                 console.log('Update successful');
                 await logSurveyData(); // Log final state
 
-                // Clear input and reload page to show new function
+                // Clear input and update UI
                 input.value = '';
                 notifyFunctionsChanged();
-                window.location.reload();
+                
+                // Add new function to UI
+                const functionList = document.querySelector('.space-y-2');
+                if (functionList) {
+                    const newFunctionElement = document.createElement('div');
+                    newFunctionElement.className = 'flex items-center justify-between bg-gray-50 p-2 rounded';
+                    newFunctionElement.innerHTML = `
+                        <span>${functionName}</span>
+                        <button
+                            type="button"
+                            class="delete-function text-red-600 hover:text-red-800"
+                            data-function="${functionName}"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
+                    `;
+                    functionList.appendChild(newFunctionElement);
+                }
             } else {
                 console.log('Function already exists');
                 alert('This function already exists.');
@@ -240,8 +259,13 @@ if (error) {
 
             if (error) throw error;
 
+            // Remove function from UI
+            const functionElement = button.closest('.flex');
+            if (functionElement) {
+                functionElement.remove();
+            }
+
             notifyFunctionsChanged();
-            window.location.reload();
         } catch (error) {
             console.error('Error deleting function:', error);
             alert('Failed to delete function. Please try again.');

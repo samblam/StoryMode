@@ -62,6 +62,25 @@ const isPublished = active;
 </div>
 
 <script>
+    import { createClient } from '@supabase/supabase-js';
+    
+    // Initialize Supabase client
+    const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY;
+    
+    if (!supabaseUrl || !supabaseAnonKey) {
+        console.error('Missing Supabase configuration');
+        throw new Error('Missing required Supabase configuration');
+    }
+    
+    // Create Supabase client instance
+    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    
+    // Assign to window for other components
+    if (!window.supabase) {
+        window.supabase = supabase;
+    }
+
     // Get survey ID from data attribute
     const saveButton = document.getElementById('save-survey');
     const publishButton = document.getElementById('toggle-publish');

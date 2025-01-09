@@ -1,4 +1,6 @@
 ---
+import VideoPlayer from './VideoPlayer.astro';
+
 interface Props {
     surveyId: string;
     currentVideoUrl?: string;
@@ -16,14 +18,12 @@ const { surveyId, currentVideoUrl } = Astro.props;
             <div class="mb-6">
                 <h4 class="text-sm font-medium text-gray-700 mb-2">Current Video</h4>
                 <div class="relative aspect-video bg-gray-100 rounded-lg overflow-hidden">
-                    <video
-                        id="video-preview"
-                        class="w-full h-full object-contain"
-                        controls
-                        src={currentVideoUrl}
-                    >
-                        Your browser does not support the video tag.
-                    </video>
+                    <VideoPlayer
+                        videoUrl={currentVideoUrl}
+                        width="100%"
+                        height="100%"
+                        className="w-full h-full object-contain"
+                    />
                 </div>
             </div>
         )}
@@ -42,7 +42,7 @@ const { surveyId, currentVideoUrl } = Astro.props;
                         <p class="mb-2 text-sm text-gray-500">
                             <span class="font-semibold">Click to upload</span> or drag and drop
                         </p>
-                        <p class="text-xs text-gray-500">MP4, WebM or OGG (MAX. 100MB)</p>
+                        <p class="text-xs text-gray-500">MP4, WebM or OGG (MAX. 50MB)</p>
                     </div>
                     <input 
                         id="video-upload" 
@@ -70,7 +70,7 @@ const { surveyId, currentVideoUrl } = Astro.props;
 </div>
 
 <script>
-    const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+    const MAX_FILE_SIZE = 52428800; // 50MB to match server config
     const ALLOWED_TYPES = ['video/mp4', 'video/webm', 'video/ogg'];
     
     const uploadInput = document.getElementById('video-upload') as HTMLInputElement;
@@ -79,7 +79,6 @@ const { surveyId, currentVideoUrl } = Astro.props;
     const progressContainer = document.getElementById('upload-progress') as HTMLElement;
     const errorContainer = document.getElementById('error-message') as HTMLElement;
     const errorText = errorContainer?.querySelector('p') as HTMLElement;
-    const videoPreview = document.getElementById('video-preview') as HTMLVideoElement;
     
     function showError(message: string) {
         errorText.textContent = message;
@@ -122,21 +121,19 @@ const { surveyId, currentVideoUrl } = Astro.props;
                 body: formData,
             });
 
-            if (!response.ok) {
-                throw new Error('Failed to upload video');
-            }
-
             const data = await response.json();
 
-            // Update video preview if successful
-            if (videoPreview) {
-                videoPreview.src = data.url;
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to upload video');
             }
 
-            // Dispatch success event
+            // Dispatch success event and reload to show new video
             window.dispatchEvent(new CustomEvent('video-uploaded', {
                 detail: { url: data.url }
             }));
+            
+            // Reload the page to show the new video with VideoPlayer
+            window.location.reload();
 
         } catch (error) {
             console.error('Upload error:', error);

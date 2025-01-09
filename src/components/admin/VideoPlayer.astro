@@ -1,0 +1,167 @@
+---
+interface Props {
+    videoUrl: string;
+    width?: string;
+    height?: string;
+    className?: string;
+}
+
+const { 
+    videoUrl, 
+    width = "100%", 
+    height = "auto",
+    className = "" 
+} = Astro.props;
+---
+
+<div class={`video-player-container ${className}`} data-video-url={videoUrl}>
+    <div class="video-loading hidden">
+        <div class="loading-spinner"></div>
+        <span>Loading video...</span>
+    </div>
+    
+    <div class="video-error hidden">
+        <span>Error loading video. Please try again.</span>
+        <button class="retry-button">Retry</button>
+    </div>
+    
+    <video 
+        class="video-player"
+        controls
+        style={`width: ${width}; height: ${height};`}
+    >
+        <source src={videoUrl} type="video/mp4">
+        Your browser does not support the video tag.
+    </video>
+</div>
+
+<style>
+    .video-player-container {
+        position: relative;
+        background: #f3f4f6;
+        border-radius: 0.5rem;
+        overflow: hidden;
+    }
+
+    .video-player {
+        display: block;
+        max-width: 100%;
+        border-radius: 0.5rem;
+    }
+
+    .video-loading,
+    .video-error {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: rgba(243, 244, 246, 0.9);
+        color: #4b5563;
+    }
+
+    .loading-spinner {
+        width: 2rem;
+        height: 2rem;
+        border: 3px solid #e5e7eb;
+        border-top-color: #3b82f6;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-bottom: 0.5rem;
+    }
+
+    .retry-button {
+        margin-top: 0.5rem;
+        padding: 0.5rem 1rem;
+        background: #3b82f6;
+        color: white;
+        border-radius: 0.25rem;
+        border: none;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+
+    .retry-button:hover {
+        background: #2563eb;
+    }
+
+    .hidden {
+        display: none;
+    }
+
+    @keyframes spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+</style>
+
+<script>
+    class VideoPlayerManager {
+        private video: HTMLVideoElement;
+        private loadingEl: HTMLElement;
+        private errorEl: HTMLElement;
+        private videoUrl: string;
+
+        constructor(container: HTMLElement) {
+            this.video = container.querySelector('.video-player') as HTMLVideoElement;
+            this.loadingEl = container.querySelector('.video-loading') as HTMLElement;
+            this.errorEl = container.querySelector('.video-error') as HTMLElement;
+            this.videoUrl = container.dataset.videoUrl || '';
+
+            this.initializePlayer();
+            this.setupEventListeners();
+        }
+
+        private initializePlayer() {
+            if (!this.videoUrl) {
+                this.showError();
+                return;
+            }
+
+            this.showLoading();
+            this.video.src = this.videoUrl;
+        }
+
+        private setupEventListeners() {
+            this.video.addEventListener('loadstart', () => this.showLoading());
+            this.video.addEventListener('canplay', () => this.hideLoading());
+            this.video.addEventListener('error', () => this.showError());
+
+            const retryButton = this.errorEl.querySelector('.retry-button');
+            if (retryButton) {
+                retryButton.addEventListener('click', () => this.retryLoading());
+            }
+        }
+
+        private showLoading() {
+            this.loadingEl.classList.remove('hidden');
+            this.errorEl.classList.add('hidden');
+        }
+
+        private hideLoading() {
+            this.loadingEl.classList.add('hidden');
+        }
+
+        private showError() {
+            this.loadingEl.classList.add('hidden');
+            this.errorEl.classList.remove('hidden');
+        }
+
+        private retryLoading() {
+            this.video.load();
+            this.initializePlayer();
+        }
+    }
+
+    // Initialize all video players on the page
+    document.addEventListener('DOMContentLoaded', () => {
+        document.querySelectorAll('.video-player-container').forEach(container => {
+            new VideoPlayerManager(container as HTMLElement);
+        });
+    });
+</script>
