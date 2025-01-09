@@ -10,27 +10,28 @@ export default defineConfig({
       enabled: true
     },
     imageService: true,
-    // Remove includeFiles that was causing the error
     functionPerRoute: false,
-    deploymentSuffix: String(Date.now()),
+    includeFiles: ['**/*'],
+    assets: 'static'
   }),
   vite: {
     build: {
-      assetsInlineLimit: 0,
-      cssCodeSplit: false,
+      cssCodeSplit: true,
       rollupOptions: {
         output: {
           format: 'esm',
-          entryFileNames: '[name].mjs',
           chunkFileNames: 'chunks/[name].[hash].mjs',
           assetFileNames: 'assets/[name].[hash][extname]',
-          inlineDynamicImports: false,
-          manualChunks: undefined
+          manualChunks(id) {
+            if (id.includes('node_modules')) {
+              return 'vendor';
+            }
+          }
         }
       }
     },
     ssr: {
-      noExternal: true
+      noExternal: ['howler']
     }
   }
 });
