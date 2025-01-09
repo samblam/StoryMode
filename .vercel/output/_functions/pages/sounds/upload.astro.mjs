@@ -3,7 +3,7 @@ import { c as createComponent, r as renderTemplate, m as maybeRenderHead, a as a
 import 'kleur/colors';
 import { $ as $$Layout } from '../../chunks/Layout_gjCW3zoU.mjs';
 import 'clsx';
-import { g as getSoundProfiles } from '../../chunks/profileUtils_BDqZCIHa.mjs';
+import { g as getSoundProfiles } from '../../chunks/profileUtils_BmAPKBfM.mjs';
 export { renderers } from '../../renderers.mjs';
 
 const $$SoundUploader = createComponent(async ($$result, $$props, $$slots) => {

@@ -1,5 +1,4 @@
-import fs from 'fs/promises';
-import path from 'path';
+import { createClient } from '@supabase/supabase-js';
 export { renderers } from '../../renderers.mjs';
 
 const POST = async ({ request }) => {
@@ -29,34 +28,38 @@ const POST = async ({ request }) => {
         { status: 400 }
       );
     }
-    const publicDir = path.join(process.cwd(), "public");
-    const soundsDir = path.join(publicDir, "sounds", profile);
-    await fs.mkdir(soundsDir, { recursive: true });
+    const supabase = createClient(
+      "https://iubzudsaueifxrwrqfjw.supabase.co",
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml1Ynp1ZHNhdWVpZnhyd3JxZmp3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzM3Njc2NzQsImV4cCI6MjA0OTM0MzY3NH0.SNXX_0_NMSJqOKSMMxM5WP6sfR3zokgCgdJkH4s-xfg"
+    );
     const extension = file.type.split("/")[1];
     const safeName = name.toLowerCase().replace(/[^a-z0-9]/g, "-");
-    const filename = `${safeName}.${extension}`;
-    const filepath = path.join(soundsDir, filename);
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    await fs.writeFile(filepath, buffer);
-    const soundsDataPath = path.join(publicDir, "sounds", "sounds-data.json");
-    let soundsData = [];
-    try {
-      const data = await fs.readFile(soundsDataPath, "utf-8");
-      soundsData = JSON.parse(data);
-    } catch (error) {
+    const filePath = `${profile}/${safeName}.${extension}`;
+    const { data: uploadData, error: uploadError } = await supabase.storage.from("sounds").upload(filePath, file);
+    if (uploadError) {
+      return new Response(
+        JSON.stringify({ error: uploadError.message }),
+        { status: 500 }
+      );
     }
-    soundsData.push({
+    const { data: urlData } = supabase.storage.from("sounds").getPublicUrl(filePath);
+    const { error: dbError } = await supabase.from("sounds").insert({
       profile,
       name,
       description,
-      file: `/sounds/${profile}/${filename}`
+      file_path: filePath,
+      url: urlData.publicUrl
     });
-    await fs.writeFile(soundsDataPath, JSON.stringify(soundsData, null, 2));
+    if (dbError) {
+      return new Response(
+        JSON.stringify({ error: dbError.message }),
+        { status: 500 }
+      );
+    }
     return new Response(
       JSON.stringify({
         success: true,
-        url: `/sounds/${profile}/${filename}`
+        url: urlData.publicUrl
       }),
       { status: 200 }
     );
