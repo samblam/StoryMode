@@ -20,6 +20,17 @@
 - Client state requires initialized Supabase client in window context
 - Components should verify client availability before operations
 
+## Audio Management Patterns
+- Singleton AudioManager instance for centralized control
+- Lazy loading of audio resources
+- URL refresh mechanism for signed URLs
+- Memory management with cleanup routines
+- Event-based playback control
+- Volume state management
+- Error handling and retry logic
+- Button state synchronization
+- Performance monitoring capabilities
+
 ## Storage Access Patterns
 - Server-side: Uses service role key for admin operations
 - Client-side: Uses anon key with bucket policies
@@ -40,3 +51,12 @@
   * Path validation
   * Object not found errors
 - Proper error messages displayed to users
+
+## Performance Patterns
+- Lazy loading of resources
+- Caching mechanisms where appropriate
+- Progress indicators for long operations
+- Memory cleanup routines
+- Resource unloading when not needed
+- Performance monitoring and metrics
+- Error recovery strategies

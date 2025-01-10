@@ -23,8 +23,8 @@ export const POST: APIRoute = async ({ request }) => {
       throw new Error('Sound not found');
     }
 
-    // Get new signed URL
-    const signedUrl = await getSignedUrl(sound.storage_path);
+    // Get new signed URL for sounds bucket
+    const signedUrl = await getSignedUrl(sound.storage_path, 'sounds');
 
     // Update sound with new URL
     const { error: updateError } = await supabaseAdmin

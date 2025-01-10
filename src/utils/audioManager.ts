@@ -1,5 +1,11 @@
 import { Howl } from 'howler';
 
+interface LoadingState {
+  status: 'idle' | 'loading' | 'loaded' | 'error';
+  progress: number;
+  error?: string;
+}
+
 class AudioManager {
   private static instance: AudioManager;
   private sounds: Map<string, { howl: Howl; lastUsed: number }> = new Map();
@@ -8,6 +14,8 @@ class AudioManager {
   private refreshTimeouts: Map<string, ReturnType<typeof setTimeout>> = new Map();
   private loadingPromises: Map<string, Promise<Howl>> = new Map();
   private soundButtonStates: Map<string, boolean> = new Map();
+  private loadingStates: Map<string, LoadingState> = new Map();
+  private debug = false;
 
   private constructor() {
     console.log('AudioManager - constructor');
@@ -18,6 +26,24 @@ class AudioManager {
       AudioManager.instance = new AudioManager();
     }
     return AudioManager.instance;
+  }
+
+  private updateLoadingState(soundId: string, state: Partial<LoadingState>) {
+    const current = this.loadingStates.get(soundId) || {
+      status: 'idle',
+      progress: 0
+    };
+    const newState = { ...current, ...state };
+    this.loadingStates.set(soundId, newState);
+    
+    // Emit loading state change event
+    document.dispatchEvent(new CustomEvent('audioLoadingStateChange', {
+      detail: { soundId, state: newState }
+    }));
+
+    if (this.debug) {
+      console.log(`AudioManager - Loading state update for ${soundId}:`, newState);
+    }
   }
 
   private async refreshUrl(soundId: string): Promise<string | null> {
@@ -37,41 +63,81 @@ class AudioManager {
     }
   }
 
-  private async loadSound(soundFile: string, soundId: string): Promise<Howl> {
-    console.log('AudioManager - loadSound - soundFile:', soundFile);
+  private async loadSound(soundFile: string, soundId: string, retryCount = 0): Promise<Howl> {
+    // Update loading state to loading with 0 progress
+    this.updateLoadingState(soundId, { status: 'loading', progress: 0 });
+    
+    if (this.debug) {
+      console.log('AudioManager - loadSound - soundFile:', soundFile);
+    }
+    
+    // Pre-fetch and validate the URL
+    if (retryCount === 0) {
+      try {
+        this.updateLoadingState(soundId, { progress: 10 });
+        const freshUrl = await this.refreshUrl(soundId);
+        if (freshUrl) {
+          soundFile = freshUrl;
+          this.updateLoadingState(soundId, { progress: 20 });
+        }
+      } catch (error) {
+        if (this.debug) {
+          console.error('Pre-fetch URL failed:', error);
+        }
+      }
+    }
+
     return new Promise((resolve, reject) => {
+      let loadStartTime = Date.now();
+      const progressInterval = setInterval(() => {
+        // Simulate progress based on time elapsed (max 5 seconds)
+        const elapsed = Date.now() - loadStartTime;
+        const progress = Math.min(90, 20 + (elapsed / 5000) * 70);
+        this.updateLoadingState(soundId, { progress });
+      }, 100);
+
       const sound = new Howl({
         src: [soundFile],
         html5: true,
-        preload: true,
+        preload: 'metadata',
         volume: this.volume,
         format: ['mp3'],
         onload: () => {
-          console.log('AudioManager - loadSound - onload - soundFile:', soundFile);
+          clearInterval(progressInterval);
+          if (this.debug) {
+            console.log('AudioManager - loadSound - onload - soundFile:', soundFile);
+          }
+          this.updateLoadingState(soundId, { status: 'loaded', progress: 100 });
           resolve(sound);
         },
         onloaderror: async (_id, error) => {
-          console.error('AudioManager - loadSound - onloaderror - soundFile:', soundFile, 'error:', error);
-          // Try to refresh URL on load error
-          const freshUrl = await this.refreshUrl(soundId);
-          if (freshUrl) {
-            sound.unload();
-            const newSound = new Howl({
-              src: [freshUrl],
-              html5: true,
-              preload: true,
-              volume: this.volume,
-              format: ['mp3'],
-              onload: () => resolve(newSound),
-              onloaderror: (_id, error) => {
-                console.error('AudioManager - loadSound - onloaderror - freshUrl failed - soundFile:', soundFile, 'error:', error);
-                reject(new Error(`Failed to load sound after refreshing URL: ${error}`));
-              }
-            });
-            
-          } else {
-            reject(new Error(`Failed to load sound: ${error}`));
+          clearInterval(progressInterval);
+          if (this.debug) {
+            console.error('AudioManager - loadSound - onloaderror - soundFile:', soundFile, 'error:', error);
           }
+          
+          // If this is the first attempt, try refreshing URL
+          if (retryCount === 0) {
+            try {
+              this.updateLoadingState(soundId, { progress: 50 });
+              const freshUrl = await this.refreshUrl(soundId);
+              if (freshUrl) {
+                sound.unload();
+                // Retry with fresh URL
+                return resolve(this.loadSound(freshUrl, soundId, retryCount + 1));
+              }
+            } catch (refreshError) {
+              console.error('URL refresh failed:', refreshError);
+            }
+          }
+          
+          // If we've already retried or refresh failed, update state and reject
+          this.updateLoadingState(soundId, { 
+            status: 'error', 
+            progress: 0,
+            error: `Failed to load sound: ${error}`
+          });
+          reject(new Error(`Failed to load sound: ${error}`));
         }
       });
     });
@@ -111,28 +177,57 @@ class AudioManager {
     return loadingPromise;
   }
 
-  // Fixed play method with correct button state management
   async play(soundFile: string, soundId: string): Promise<void> {
     try {
       // Stop current sound if different
       if (this.currentSoundId && this.currentSoundId !== soundId) {
         await this.pause();
       }
-  
+   
       const sound = await this.getSound(soundFile, soundId);
       
       if (sound.playing()) {
         sound.pause();
         this.currentSoundId = null;
         this.updatePlayButton(soundId, false);
-        console.log('AudioManager - play - sound paused - soundFile:', soundFile);
+        if (this.debug) {
+          console.log('AudioManager - play - sound paused - soundFile:', soundFile);
+        }
         return;
       }
   
-      sound.play();
+      // Play with proper event handling and timeout
+      await new Promise<void>((resolve, reject) => {
+        const playHandler = () => resolve();
+        const errorHandler = () => reject(new Error('Play failed'));
+        
+        // Set up event listeners
+        sound.once('play', playHandler);
+        sound.once('playerror', errorHandler);
+        
+        // Start playback
+        sound.play();
+        
+        // Set timeout for playback start
+        const timeout = setTimeout(() => {
+          sound.off('play', playHandler);
+          sound.off('playerror', errorHandler);
+          reject(new Error('Playback timeout'));
+        }, 2000);
+        
+        // Cleanup on success
+        sound.once('end', () => {
+          clearTimeout(timeout);
+          sound.off('play', playHandler);
+          sound.off('playerror', errorHandler);
+        });
+      });
+      
       this.currentSoundId = soundId;
       this.updatePlayButton(soundId, true);
-      console.log('AudioManager - play - sound playing - soundFile:', soundFile);
+      if (this.debug) {
+        console.log('AudioManager - play - sound playing - soundFile:', soundFile);
+      }
       
       // Handle sound ending
       sound.once('end', () => {
@@ -147,7 +242,7 @@ class AudioManager {
           }
         }));
       });
-  
+   
     } catch (error) {
       console.error('AudioManager - play - Error playing sound:', error);
       this.currentSoundId = null;
@@ -189,6 +284,13 @@ class AudioManager {
     return this.currentSoundId;
   }
 
+  getLoadingState(soundId: string): LoadingState {
+    return this.loadingStates.get(soundId) || {
+      status: 'idle',
+      progress: 0
+    };
+  }
+
   setVolume(volume: number): void {
     this.volume = Math.max(0, Math.min(1, volume));
     this.sounds.forEach(({ howl }) => {
@@ -210,6 +312,7 @@ class AudioManager {
     this.sounds.forEach(({ howl }) => howl.unload());
     this.sounds.clear();
     this.loadingPromises.clear();
+    this.loadingStates.clear();
     this.currentSoundId = null;
     console.log('AudioManager - cleanup');
   }

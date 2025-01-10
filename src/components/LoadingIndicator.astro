@@ -1,0 +1,109 @@
+---
+interface Props {
+  soundId: string;
+}
+
+const { soundId } = Astro.props;
+---
+
+<div 
+  class="loading-indicator hidden" 
+  data-sound-id={soundId}
+>
+  <div class="flex items-center space-x-2">
+    <!-- Spinner -->
+    <div class="spinner w-4 h-4 border-2 border-gray-300 border-t-green-500 rounded-full animate-spin"></div>
+    <!-- Progress Text -->
+    <span class="progress-text text-sm text-gray-600">Loading... 0%</span>
+  </div>
+  <!-- Progress Bar -->
+  <div class="relative w-full h-1 bg-gray-200 rounded mt-2">
+    <div class="progress-bar absolute h-full bg-green-500 rounded" style="width: 0%"></div>
+  </div>
+  <!-- Error Message -->
+  <div class="error-message hidden mt-1 text-sm text-red-500"></div>
+</div>
+
+<script>
+  class LoadingIndicatorController {
+    private element: HTMLElement;
+    private progressBar: HTMLElement;
+    private progressText: HTMLElement;
+    private errorMessage: HTMLElement;
+    private soundId: string;
+
+    constructor(element: HTMLElement) {
+      this.element = element;
+      this.soundId = element.dataset.soundId || '';
+      this.progressBar = element.querySelector('.progress-bar') as HTMLElement;
+      this.progressText = element.querySelector('.progress-text') as HTMLElement;
+      this.errorMessage = element.querySelector('.error-message') as HTMLElement;
+
+      this.initializeEventListeners();
+    }
+
+    private initializeEventListeners() {
+      document.addEventListener('audioLoadingStateChange', ((event: CustomEvent) => {
+        if (event.detail.soundId === this.soundId) {
+          this.updateState(event.detail.state);
+        }
+      }) as EventListener);
+    }
+
+    private updateState(state: { status: string; progress: number; error?: string }) {
+      // Show/hide the loading indicator based on status
+      if (state.status === 'idle') {
+        this.element.classList.add('hidden');
+        return;
+      }
+
+      this.element.classList.remove('hidden');
+
+      // Update progress
+      const progress = Math.round(state.progress);
+      this.progressBar.style.width = `${progress}%`;
+      this.progressText.textContent = `Loading... ${progress}%`;
+
+      // Handle error state
+      if (state.status === 'error') {
+        this.errorMessage.textContent = state.error || 'Error loading sound';
+        this.errorMessage.classList.remove('hidden');
+        this.progressBar.classList.add('bg-red-500');
+        this.progressText.classList.add('text-red-500');
+      } else {
+        this.errorMessage.classList.add('hidden');
+        this.progressBar.classList.remove('bg-red-500');
+        this.progressText.classList.remove('text-red-500');
+      }
+
+      // Hide when loaded
+      if (state.status === 'loaded') {
+        setTimeout(() => {
+          this.element.classList.add('hidden');
+        }, 500); // Short delay to show completion
+      }
+    }
+  }
+
+  // Initialize all loading indicators
+  document.querySelectorAll('.loading-indicator[data-sound-id]').forEach(indicator => {
+    if (indicator instanceof HTMLElement) {
+      new LoadingIndicatorController(indicator);
+    }
+  });
+</script>
+
+<style>
+  .spinner {
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  .progress-bar {
+    transition: width 0.2s ease-in-out;
+  }
+</style>
