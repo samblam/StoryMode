@@ -6,9 +6,17 @@ interface Props {
 
 const { surveyId, active } = Astro.props;
 const isPublished = active;
+
+// Get auth token from Astro.cookies at render time
+const token = Astro.cookies.get('sb-token')?.value;
+
+// If no token, redirect to login
+if (!token) {
+    return Astro.redirect('/login?redirect=' + encodeURIComponent(Astro.url.pathname));
+}
 ---
 
-<div class="bg-white p-6 rounded-lg shadow">
+<div class="bg-white p-6 rounded-lg shadow" data-auth-token={token}>
     <div class="flex items-center justify-between">
         <div>
             <h3 class="text-lg font-semibold">Survey Controls</h3>
@@ -81,12 +89,14 @@ const isPublished = active;
         window.supabase = supabase;
     }
 
-    // Get survey ID from data attribute
+    // Get survey ID and auth token from data attributes
     const saveButton = document.getElementById('save-survey');
     const publishButton = document.getElementById('toggle-publish');
     const statusMessage = document.getElementById('status-message');
     const statusText = statusMessage?.querySelector('p');
+    const container = document.querySelector('[data-auth-token]') as HTMLElement;
     const surveyId = publishButton?.dataset.surveyId;
+    const token = container?.dataset.authToken;
 
     import { saveSurveyData, publishSurvey, unpublishSurvey } from '../../utils/surveyDataManager';
 
@@ -101,9 +111,20 @@ const isPublished = active;
         }
     }
 
+    function redirectToLogin() {
+        const currentPath = encodeURIComponent(window.location.pathname);
+        window.location.href = `/login?redirect=${currentPath}`;
+    }
+
     // Handle save
     saveButton?.addEventListener('click', async () => {
         try {
+            // Verify token exists
+            if (!token) {
+                redirectToLogin();
+                return;
+            }
+
             // Get current form data and ensure surveyId is included
             const form = document.querySelector('form');
             if (!form) {
@@ -115,16 +136,6 @@ const isPublished = active;
                 ...Object.fromEntries(formData)
             };
 
-            // Get auth token from cookie
-            const token = document.cookie
-                .split('; ')
-                .find(row => row.startsWith('sb-token='))
-                ?.split('=')[1];
-
-            if (!token) {
-                throw new Error('No authentication token found');
-            }
-
             // Save survey data with token and baseUrl
             const baseUrl = window.location.origin;
             await saveSurveyData(surveyData, baseUrl, token);
@@ -134,7 +145,11 @@ const isPublished = active;
             window.dispatchEvent(new CustomEvent('survey-saved'));
         } catch (error) {
             console.error('Save error:', error);
-            showStatus('Failed to save survey. Please try again.', true);
+            if (error instanceof Error && error.message.includes('auth')) {
+                redirectToLogin();
+            } else {
+                showStatus('Failed to save survey. Please try again.', true);
+            }
         }
     });
 
@@ -146,14 +161,10 @@ const isPublished = active;
         if (!surveyId) return;
 
         try {
-            // Get auth token
-            const token = document.cookie
-                .split('; ')
-                .find(row => row.startsWith('sb-token='))
-                ?.split('=')[1];
-
+            // Verify token exists
             if (!token) {
-                throw new Error('No authentication token found');
+                redirectToLogin();
+                return;
             }
 
             const baseUrl = window.location.origin;
@@ -170,7 +181,11 @@ const isPublished = active;
             window.location.reload();
         } catch (error) {
             console.error('Publish/unpublish error:', error);
-            showStatus(`Failed to ${isPublished ? 'unpublish' : 'publish'} survey. Please try again.`, true);
+            if (error instanceof Error && error.message.includes('auth')) {
+                redirectToLogin();
+            } else {
+                showStatus(`Failed to ${isPublished ? 'unpublish' : 'publish'} survey. Please try again.`, true);
+            }
         }
     });
 

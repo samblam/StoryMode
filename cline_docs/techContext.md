@@ -7,6 +7,31 @@
 - Authentication: Supabase Auth
 - Storage: Supabase Storage
 - Audio: Howler.js
+- UI: Sortable.js for drag-and-drop functionality
+
+## Authentication System
+- Supabase Auth for user management
+- Token-based authentication:
+  * Access tokens stored in cookies
+  * Refresh tokens for session management
+  * Token cleanup on logout
+- Client-side auth:
+  * Browser-based Supabase client
+  * Loading state management
+  * Error handling
+  * Request debouncing
+- Server-side auth:
+  * Service role access for admin operations
+  * Session validation
+  * Cookie management
+- Logout flow:
+  * Client-side state cleanup
+  * Server-side session termination
+  * Cookie removal
+  * Local storage cleanup
+  * Error handling
+  * Loading states
+  * User feedback
 
 ## Key Technical Details
 - Supabase client initialization is required both server-side and client-side
@@ -17,22 +42,46 @@
   - PUBLIC_SUPABASE_ANON_KEY
   - SUPABASE_SERVICE_ROLE_KEY (for admin operations)
 
+## Sortable.js Configuration
+- Version: 1.15.0
+- Integration:
+  * Loaded via CDN in Layout.astro
+  * Global window.Sortable availability
+  * DOM-ready initialization
+- Features used:
+  * Drag handles
+  * Animation
+  * Order tracking
+  * Event callbacks
+- Error handling:
+  * Script loading verification
+  * Initialization checks
+  * Event error handling
+  * State recovery
+
 ## Audio System Configuration
 - Library: Howler.js for audio management
 - Format: MP3 audio files
 - Loading strategy: 
-  * Metadata preload by default
-  * HTML5 Audio used for better compatibility
-  * URL refresh mechanism for signed URLs
+  * Lazy loading with progress tracking
+  * Loading state management
+  * Visual progress indicators
+  * Error state handling
 - Memory management:
   * Cleanup routines for unused resources
   * Timeout handling for operations
   * Event listener cleanup
-- Performance considerations:
-  * Initial page load time
-  * Memory usage with multiple sounds
-  * Browser audio limitations
-  * Mobile device constraints
+  * Cache invalidation strategy
+- Performance features:
+  * Loading state tracking
+  * Progress monitoring
+  * Error recovery
+  * Memory optimization
+- User experience:
+  * Loading indicators
+  * Progress bars
+  * Error visualization
+  * Button state management
 
 ## Storage Configuration
 - Bucket: 'videos' for video storage
@@ -46,12 +95,21 @@
   * Path must not include bucket prefix in operations
 
 ## Current Technical Issues
-- Audio loading performance on sounds page
-- Client-side storage access failing with "Object not found"
-- Path handling inconsistencies between components
-- Service role key may be required for some operations
-- Authentication state affecting storage access
-- Potential race conditions in client initialization
+- Authentication:
+  * Logout functionality failing
+  * Token handling inconsistencies
+  * Cookie cleanup issues
+  * Error handling gaps
+- Storage:
+  * Client-side storage access failing with "Object not found"
+  * Path handling inconsistencies between components
+  * Service role key may be required for some operations
+  * Authentication state affecting storage access
+  * Potential race conditions in client initialization
+- UI Components:
+  * Sortable.js initialization failures
+  * Multiple client instances detected
+  * Service role key configuration missing
 
 ## Technical Constraints
 - Storage paths must be properly normalized
@@ -65,6 +123,11 @@
   * Network bandwidth
   * User experience impact
   * Browser audio limitations
+- UI interactions must handle:
+  * Script loading failures
+  * Initialization timing
+  * Event propagation
+  * State synchronization
 
 ## Browser Support
 - Modern browsers (Chrome, Firefox, Safari, Edge)
@@ -74,3 +137,29 @@
   * Audio autoplay restrictions
   * Memory constraints
   * Background playback limitations
+- Drag-and-drop support:
+  * Touch events for mobile
+  * Mouse events for desktop
+  * Fallback interactions
+
+## Performance Monitoring
+- Audio loading metrics:
+  * Loading time tracking
+  * Progress monitoring
+  * Error rate tracking
+  * Memory usage patterns
+- User experience metrics:
+  * Loading indicator effectiveness
+  * Error handling clarity
+  * Progress accuracy
+  * Cleanup efficiency
+- Authentication metrics:
+  * Login/logout success rates
+  * Token refresh success rates
+  * Session duration tracking
+  * Error frequency monitoring
+- UI interaction metrics:
+  * Drag-and-drop responsiveness
+  * Event handling performance
+  * State update efficiency
+  * Error recovery speed

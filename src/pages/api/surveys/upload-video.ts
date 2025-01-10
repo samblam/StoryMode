@@ -56,7 +56,7 @@ export const POST: APIRoute = async ({ request }) => {
         // Upload the video
         const fileExt = videoFile.name.split('.').pop();
         const fileName = `video.${fileExt}`;
-        const filePath = `${surveyId}/${fileName}`;
+        const filePath = `${surveyId}/${fileName}`; // Store without 'videos/' prefix
 
         const { error: uploadError, data } = await supabase
             .storage
@@ -74,11 +74,10 @@ export const POST: APIRoute = async ({ request }) => {
             }), { status: 500 });
         }
 
-        // Update the survey with the full video path including bucket
-        const fullPath = `videos/${filePath}`;
+        // Store just the file path in the database, without 'videos/' prefix
         const { error: updateError } = await supabase
             .from('surveys')
-            .update({ video_url: fullPath })
+            .update({ video_url: filePath })
             .eq('id', surveyId);
 
         if (updateError) {

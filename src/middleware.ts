@@ -3,6 +3,9 @@ import { verifyAuthorization } from "./utils/accessControl";
 import { getParticipantById, validateParticipantAccess } from "./utils/authUtils";
 import type { User } from "./types/auth";
 
+// Import request type augmentation
+import "./types/request";
+
 // Define proper types
 declare module 'astro' {
   interface Locals {
@@ -16,6 +19,20 @@ export const onRequest: MiddlewareHandler = async ({ request, locals, cookies },
     console.log('Middleware - Starting authentication check');
     const token = cookies.get('sb-token');
     const participantToken = cookies.get('participant-token');
+
+    // Create a new request with mutable headers and required duplex option
+    const modifiedRequest = new Request(request.url, {
+      method: request.method,
+      headers: new Headers(request.headers),
+      body: request.body,
+      signal: request.signal,
+      duplex: 'half' // Now TypeScript recognizes this property
+    });
+
+    // Add token to Authorization header for API routes if available
+    if (token?.value && request.url.includes('/api/')) {
+      modifiedRequest.headers.set('Authorization', `Bearer ${token.value}`);
+    }
 
     // Handle participant authentication
     if (participantToken?.value) {
@@ -189,7 +206,16 @@ export const onRequest: MiddlewareHandler = async ({ request, locals, cookies },
 
       // Only admins can upload/manage sounds
       if ((url.pathname === '/sounds/upload' || url.pathname.includes('/api/sounds/upload')) && user.role !== 'admin') {
-        return new Response('Unauthorized', { status: 403 });
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'Unauthorized',
+          message: 'Only administrators can upload sounds'
+        }), { 
+          status: 403,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
       }
 
       // Clients can access the sounds page and their associated sounds
@@ -203,7 +229,16 @@ export const onRequest: MiddlewareHandler = async ({ request, locals, cookies },
         if (url.pathname.includes('/api/sounds/')) {
           const { authorized } = await verifyAuthorization(user, 'client', 'read');
           if (!authorized) {
-            return new Response('Unauthorized', { status: 403 });
+            return new Response(JSON.stringify({
+              success: false,
+              error: 'Unauthorized',
+              message: 'You do not have access to this resource'
+            }), { 
+              status: 403,
+              headers: {
+                'Content-Type': 'application/json'
+              }
+            });
           }
         }
       }
@@ -218,7 +253,16 @@ export const onRequest: MiddlewareHandler = async ({ request, locals, cookies },
       if (user?.role === 'participant' && locals.participantId) {
         const hasAccess = await validateParticipantAccess(locals.participantId, surveyId);
         if (!hasAccess) {
-          return new Response('Unauthorized', { status: 403 });
+          return new Response(JSON.stringify({
+            success: false,
+            error: 'Unauthorized',
+            message: 'You do not have access to this survey'
+          }), { 
+            status: 403,
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          });
         }
         return next();
       }
@@ -228,11 +272,21 @@ export const onRequest: MiddlewareHandler = async ({ request, locals, cookies },
         const requiredRole = request.method === 'GET' ? 'read' : 'write';
         const { authorized, error } = await verifyAuthorization(user, user.role, requiredRole);
         if (!authorized) {
-          return new Response(JSON.stringify(error), { status: 403 });
+          return new Response(JSON.stringify({
+            success: false,
+            error: 'Unauthorized',
+            message: error || 'You do not have the required permissions'
+          }), { 
+            status: 403,
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          });
         }
       }
     }
 
+    // Pass the modified request with auth header to next handler
     return next();
   } catch (error) {
     console.error('Middleware - Fatal error:', error);
@@ -240,12 +294,16 @@ export const onRequest: MiddlewareHandler = async ({ request, locals, cookies },
     if (error instanceof Error) {
       console.error('Error stack:', error.stack);
     }
-    // Return a basic response instead of crashing
-    return new Response('Internal Server Error', { 
+    // Return JSON error response
+    return new Response(JSON.stringify({
+      success: false,
+      error: 'Internal Server Error',
+      message: error instanceof Error ? error.message : 'An unexpected error occurred'
+    }), { 
       status: 500,
       headers: {
-        'Content-Type': 'text/plain'
+        'Content-Type': 'application/json'
       }
-   });
- }
+    });
+  }
 };

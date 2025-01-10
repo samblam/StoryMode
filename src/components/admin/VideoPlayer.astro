@@ -23,47 +23,72 @@ const supabase = getClient({ requiresAdmin: true });
 
 // Generate signed URL server-side if authenticated
 let signedUrl = null;
+let errorMessage = null;
+
 if (isAuthenticated && videoUrl) {
-    // Remove 'videos/' prefix if present for storage operations
-    const storagePath = videoUrl.startsWith('videos/') ? videoUrl.slice(7) : videoUrl;
-    
     try {
-        const { data, error } = await supabase
+        // Remove 'videos/' prefix if present for storage operations
+        const storagePath = videoUrl.startsWith('videos/') ? videoUrl.slice(7) : videoUrl;
+        
+        // First check if file exists using getPublicUrl
+        const { data: publicUrlData } = await supabase
             .storage
             .from('videos')
-            .createSignedUrl(storagePath, 3600);
+            .getPublicUrl(storagePath);
 
-        if (!error && data) {
-            signedUrl = data.signedUrl;
+        // Verify the file exists by attempting to fetch headers
+        const fileCheck = await fetch(publicUrlData.publicUrl, { method: 'HEAD' });
+        
+        if (fileCheck.status === 404) {
+            errorMessage = 'Video file not found in storage';
+        } else {
+            const { data, error } = await supabase
+                .storage
+                .from('videos')
+                .createSignedUrl(storagePath, 3600);
+
+            if (error) {
+                errorMessage = error.message;
+            } else if (data) {
+                signedUrl = data.signedUrl;
+            }
         }
     } catch (error) {
+        errorMessage = error instanceof Error ? error.message : 'Unknown error';
         console.error('Error generating signed URL:', error);
     }
 }
 ---
 
-<div class={`video-player-container ${className}`}>
+<div class={`video-player-container ${className}`} data-video-path={videoUrl}>
     {!isAuthenticated && (
         <div class="video-error">
             <span>Authentication required to view video.</span>
         </div>
     )}
     
-    {isAuthenticated && !signedUrl && (
+    {isAuthenticated && errorMessage && (
         <div class="video-error">
-            <span>Error loading video. Please try again.</span>
+            <span>Error: {errorMessage}</span>
+            <button class="retry-button">Retry</button>
         </div>
     )}
     
     {isAuthenticated && signedUrl && (
-        <video
-            class="video-player"
-            controls
-            style={`width: ${width}; height: ${height};`}
-        >
-            <source src={signedUrl} type="video/mp4">
-            Your browser does not support the video tag.
-        </video>
+        <>
+            <div class="video-loading hidden">
+                <div class="loading-spinner"></div>
+                <span>Loading video...</span>
+            </div>
+            <video
+                class="video-player"
+                controls
+                style={`width: ${width}; height: ${height};`}
+            >
+                <source src={signedUrl} type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+        </>
     )}
 </div>
 
@@ -133,133 +158,47 @@ if (isAuthenticated && videoUrl) {
 </style>
 
 <script>
-    import { createClient } from '@supabase/supabase-js';
-    import type { SupabaseClient } from '@supabase/supabase-js';
-    import type { Database } from '../../types/database';
-
     class VideoPlayerManager {
-        private supabase: SupabaseClient<Database>;
-        private video: HTMLVideoElement;
-        private loadingEl: HTMLElement;
-        private errorEl: HTMLElement;
-        private videoPath: string;
+        private video: HTMLVideoElement | null;
+        private loadingEl: HTMLElement | null;
+        private errorEl: HTMLElement | null;
         private refreshTimer: NodeJS.Timeout | null = null;
 
         constructor(container: HTMLElement) {
-            console.log('Initializing VideoPlayerManager');
+            this.video = container.querySelector('.video-player');
+            this.loadingEl = container.querySelector('.video-loading');
+            this.errorEl = container.querySelector('.video-error');
             
-            // Initialize Supabase client
-            const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
-            const supabaseAnonKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY;
-            
-            if (!supabaseUrl || !supabaseAnonKey) {
-                throw new Error('Missing Supabase configuration');
-            }
-            
-            this.supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
-            
-            this.video = container.querySelector('.video-player') as HTMLVideoElement;
-            this.loadingEl = container.querySelector('.video-loading') as HTMLElement;
-            this.errorEl = container.querySelector('.video-error') as HTMLElement;
-            this.videoPath = container.dataset.videoPath || '';
-            
-            console.log('Video path from container:', this.videoPath);
-
-            this.initializePlayer();
-            this.setupEventListeners();
-        }
-
-        private async getSignedUrl(): Promise<string | null> {
-            console.log('Getting signed URL for video path:', this.videoPath);
-            
-            if (!this.videoPath) {
-                console.error('No video path provided');
-                return null;
-            }
-    
-            try {
-                console.log('Attempting to create signed URL');
-                console.log('Original video path:', this.videoPath);
-                
-                // Remove 'videos/' prefix if present
-                const storagePath = this.videoPath.startsWith('videos/')
-                    ? this.videoPath.slice(7)
-                    : this.videoPath;
-                
-                console.log('Using storage path:', storagePath);
-                
-                const { data, error } = await this.supabase.storage
-                    .from('videos')
-                    .createSignedUrl(storagePath, 3600);
-
-                if (error) {
-                    console.error('Error getting signed URL:', error);
-                    return null;
-                }
-
-                if (!data?.signedUrl) {
-                    console.error('No signed URL returned');
-                    return null;
-                }
-
-                console.log('Successfully created signed URL');
-                return data.signedUrl;
-            } catch (error) {
-                const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-                console.error('Error getting signed URL:', errorMessage);
-                return null;
+            if (this.video) {
+                this.initializePlayer();
+                this.setupEventListeners();
             }
         }
 
-        private async initializePlayer() {
+        private initializePlayer() {
             try {
-                console.log('Initializing video player with path:', this.videoPath);
+                if (!this.video) return;
                 
-                if (!this.videoPath) {
-                    console.error('No video path provided');
-                    this.showError();
-                    return;
-                }
-
                 this.showLoading();
-                console.log('Getting signed URL for path:', this.videoPath);
-                const url = await this.getSignedUrl();
                 
-                if (!url) {
-                    console.error('Failed to get signed URL');
+                const source = this.video.querySelector('source');
+                if (!source || !source.src) {
                     this.showError();
                     return;
-                }
-                console.log('Got signed URL:', url);
-
-                const source = this.video.querySelector('source');
-                if (source) {
-                    console.log('Setting video source to signed URL');
-                    source.src = url;
-                    this.video.load(); // Needed to refresh the video element after changing source
-                } else {
-                    console.error('No source element found in video player');
-                    this.showError();
                 }
 
                 // Set up URL refresh timer (refresh every 50 minutes)
                 if (this.refreshTimer) {
                     clearInterval(this.refreshTimer);
                 }
-                this.refreshTimer = setInterval(async () => {
-                    const newUrl = await this.getSignedUrl();
-                    if (newUrl) {
-                        const source = this.video.querySelector('source');
-                        if (source) {
-                            const currentTime = this.video.currentTime;
-                            const isPaused = this.video.paused;
-                            source.src = newUrl;
-                            this.video.load();
-                            this.video.currentTime = currentTime;
-                            if (!isPaused) {
-                                this.video.play();
-                            }
-                        }
+                this.refreshTimer = setInterval(() => {
+                    if (!this.video) return;
+                    const currentTime = this.video.currentTime;
+                    const isPaused = this.video.paused;
+                    this.video.load();
+                    this.video.currentTime = currentTime;
+                    if (!isPaused) {
+                        this.video.play();
                     }
                 }, 50 * 60 * 1000); // 50 minutes
             } catch (error) {
@@ -269,6 +208,8 @@ if (isAuthenticated && videoUrl) {
         }
 
         private setupEventListeners() {
+            if (!this.video || !this.errorEl) return;
+
             this.video.addEventListener('loadstart', () => this.showLoading());
             this.video.addEventListener('canplay', () => this.hideLoading());
             this.video.addEventListener('error', () => this.showError());
@@ -287,20 +228,24 @@ if (isAuthenticated && videoUrl) {
         }
 
         private showLoading() {
+            if (!this.loadingEl || !this.errorEl) return;
             this.loadingEl.classList.remove('hidden');
             this.errorEl.classList.add('hidden');
         }
 
         private hideLoading() {
+            if (!this.loadingEl) return;
             this.loadingEl.classList.add('hidden');
         }
 
         private showError() {
+            if (!this.loadingEl || !this.errorEl) return;
             this.loadingEl.classList.add('hidden');
             this.errorEl.classList.remove('hidden');
         }
 
         private async retryLoading() {
+            if (!this.video) return;
             this.video.load();
             await this.initializePlayer();
         }

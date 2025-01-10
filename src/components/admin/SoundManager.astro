@@ -238,21 +238,52 @@ try {
     declare global {
         interface Window {
             supabase: typeof import('../../lib/supabase').supabase;
-            Sortable: new (element: HTMLElement, options: any) => any;
+            Sortable: any;
         }
     }
 
-    // Initialize Supabase client
+    // Initialize Supabase client - singleton pattern
+    let supabaseInstance: typeof import('../../lib/supabase').supabase | null = null;
     const initSupabase = async () => {
-        if (!window.supabase) {
+        if (!supabaseInstance) {
             const { createClient } = await import('@supabase/supabase-js');
-            window.supabase = createClient(
-                import.meta.env.PUBLIC_SUPABASE_URL,
-                import.meta.env.PUBLIC_SUPABASE_ANON_KEY
-            );
+            const url = import.meta.env.PUBLIC_SUPABASE_URL;
+            const key = import.meta.env.PUBLIC_SUPABASE_ANON_KEY;
+            if (!url || !key) {
+                throw new Error('Missing Supabase environment variables');
+            }
+            supabaseInstance = createClient<Database>(url, key);
         }
-        return window.supabase;
+        return supabaseInstance;
     };
+
+    // Initialize Sortable when DOM is ready
+    function initializeSortable() {
+        const mappingContainer = document.getElementById('mapping-container');
+        if (!mappingContainer) return;
+
+        if (typeof window.Sortable === 'undefined') {
+            console.error('Sortable.js not loaded');
+            return;
+        }
+
+        try {
+            new window.Sortable(mappingContainer, {
+                animation: 150,
+                handle: '.cursor-move',
+                onEnd: updateMappingOrder
+            });
+        } catch (error) {
+            console.error('Error initializing Sortable:', error);
+        }
+    }
+
+    // Initialize when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initializeSortable);
+    } else {
+        initializeSortable();
+    }
 
     // Listen for function changes
     document.addEventListener('surveyFunctionsChanged', async () => {
@@ -305,16 +336,6 @@ try {
             console.error('Error updating functions:', error);
         }
     });
-
-    // Initialize Sortable.js for drag-and-drop reordering
-    const mappingContainer = document.getElementById('mapping-container');
-    if (mappingContainer) {
-        new (window as any).Sortable(mappingContainer, {
-            animation: 150,
-            handle: '.cursor-move',
-            onEnd: updateMappingOrder
-        });
-    }
 
     // Initialize preview buttons
     document.querySelectorAll('.preview-sound').forEach(button => {
@@ -417,8 +438,8 @@ try {
                 audioState = { ...audioState, loading: true, error: null };
                 button.classList.add('animate-pulse');
 
-                // Get signed URL
-                const signedUrl = await getSignedUrl(storagePath);
+                // Get signed URL with bucket parameter
+                const signedUrl = await getSignedUrl(storagePath, 'sounds');
                 
                 const audio = new Audio(signedUrl);
                 
