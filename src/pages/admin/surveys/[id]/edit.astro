@@ -32,36 +32,89 @@ try {
     // Store survey ID for component use
     surveyId = id;
 
+    // Log route entry
+    console.log("[EDIT_ROUTE][ENTRY]", {
+        timestamp: new Date().toISOString(),
+        user: Astro.locals.user,
+        surveyId: id
+    });
+
     // Check admin access and get user data
     const user = await getCurrentUser(Astro.cookies);
     
     if (!user) {
+        console.log("[EDIT_ROUTE][AUTH_CHECK]", {
+            timestamp: new Date().toISOString(),
+            status: "failed",
+            reason: "no_user",
+            redirect: `/login?error=no_user&redirect=${encodeURIComponent(Astro.url.pathname)}`
+        });
         Astro.cookies.delete('sb-token', { path: '/' });
         return Astro.redirect(`/login?error=no_user&redirect=${encodeURIComponent(Astro.url.pathname)}`);
     }
     
     if (user.role !== 'admin') {
+        console.log("[EDIT_ROUTE][AUTH_CHECK]", {
+            timestamp: new Date().toISOString(),
+            status: "failed",
+            reason: "not_admin",
+            userRole: user.role,
+            redirect: '/login?error=not_admin'
+        });
         Astro.cookies.delete('sb-token', { path: '/' });
         return Astro.redirect('/login?error=not_admin');
     }
 
     const accessGranted = await checkAdminAccess(Astro);
     if (!accessGranted) {
+        console.log("[EDIT_ROUTE][AUTH_CHECK]", {
+            timestamp: new Date().toISOString(),
+            status: "failed",
+            reason: "access_denied",
+            redirect: `/login?error=access_denied&redirect=${encodeURIComponent(Astro.url.pathname)}`
+        });
         Astro.cookies.delete('sb-token', { path: '/' });
         return Astro.redirect(`/login?error=access_denied&redirect=${encodeURIComponent(Astro.url.pathname)}`);
     }
 
+    console.log("[EDIT_ROUTE][AUTH_CHECK]", {
+        timestamp: new Date().toISOString(),
+        status: "success",
+        userId: user.id,
+        userRole: user.role
+    });
+
     // Fetch survey and client data
     const token = Astro.cookies.get('sb-token')?.value;
     if (!token) {
+        console.log("[EDIT_ROUTE][TOKEN_CHECK]", {
+            timestamp: new Date().toISOString(),
+            status: "failed",
+            reason: "no_token",
+            redirect: '/login?error=no_token'
+        });
         return Astro.redirect('/login?error=no_token');
     }
 
     // Fetch survey data
     survey = await getSurveyById(id, Astro.url.origin, token);
     if (!survey) {
+        console.log("[EDIT_ROUTE][SURVEY_FETCH]", {
+            timestamp: new Date().toISOString(),
+            status: "failed",
+            reason: "survey_not_found",
+            surveyId: id,
+            redirect: '/admin/surveys?error=survey_not_found'
+        });
         return Astro.redirect('/admin/surveys?error=survey_not_found');
     }
+
+    console.log("[EDIT_ROUTE][SURVEY_FETCH]", {
+        timestamp: new Date().toISOString(),
+        status: "success",
+        surveyId: id,
+        surveyTitle: survey.title
+    });
 
     // Fetch client data
     const clientsResponse = await getAllClients(token);

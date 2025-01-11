@@ -17,7 +17,19 @@ declare module 'astro' {
 export const onRequest: MiddlewareHandler = async ({ request, locals, cookies }, next) => {
   try {
     console.log('Middleware - Starting authentication check');
-    const token = cookies.get('sb-token');
+    
+    // Get token from cookie or Authorization header
+    let token = cookies.get('sb-token')?.value;
+    
+    // Check Authorization header if no cookie token
+    if (!token) {
+      const authHeader = request.headers.get('Authorization');
+      if (authHeader?.startsWith('Bearer ')) {
+        token = authHeader.substring(7);
+        console.log('Middleware - Found token in Authorization header');
+      }
+    }
+
     const participantToken = cookies.get('participant-token');
 
     // Create a new request with mutable headers and required duplex option
@@ -26,12 +38,12 @@ export const onRequest: MiddlewareHandler = async ({ request, locals, cookies },
       headers: new Headers(request.headers),
       body: request.body,
       signal: request.signal,
-      duplex: 'half' // Now TypeScript recognizes this property
+      duplex: 'half'
     });
 
     // Add token to Authorization header for API routes if available
-    if (token?.value && request.url.includes('/api/')) {
-      modifiedRequest.headers.set('Authorization', `Bearer ${token.value}`);
+    if (token && request.url.includes('/api/')) {
+      modifiedRequest.headers.set('Authorization', `Bearer ${token}`);
     }
 
     // Handle participant authentication
@@ -56,8 +68,8 @@ export const onRequest: MiddlewareHandler = async ({ request, locals, cookies },
       }
     }
 
-    if (!token?.value) {
-      console.log('Middleware - No token found');
+    if (!token) {
+      console.log('Middleware - No token found in cookies or headers');
       return next();
     }
 
@@ -66,7 +78,7 @@ export const onRequest: MiddlewareHandler = async ({ request, locals, cookies },
       console.log('Middleware - Verifying token');
       const { supabaseAdmin } = await import('./lib/supabase');
       const { data: { user: authUser }, error: authError } =
-        await supabaseAdmin.auth.getUser(token.value);
+        await supabaseAdmin.auth.getUser(token);
       
       if (authError) {
         console.error('Middleware - Auth error:', authError);

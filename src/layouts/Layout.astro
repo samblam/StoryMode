@@ -70,6 +70,34 @@ const isAdmin = user?.role === 'admin';
     </footer>
 
     <script>
+      // Initialize Sortable.js
+      const initSortable = () => {
+        // Check if Sortable is loaded
+        if (typeof window.Sortable === 'undefined') {
+          console.error('Sortable.js not loaded. Retrying in 100ms...');
+          // Retry initialization after a short delay
+          setTimeout(initSortable, 100);
+          return;
+        }
+
+        // Set up global error handler for Sortable
+        window.addEventListener('error', (event) => {
+          if (event.error?.toString().includes('Sortable')) {
+            console.error('Sortable.js error:', event.error);
+          }
+        });
+
+        console.log('Sortable.js initialized successfully');
+      };
+
+      // Initialize Sortable after DOM content is loaded
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initSortable);
+      } else {
+        initSortable();
+      }
+
+      // Logout functionality
       let isLoggingOut = false;
   
       document.getElementById('logout-button')?.addEventListener('click', async () => {
@@ -132,6 +160,12 @@ const isAdmin = user?.role === 'admin';
         } finally {
           isLoggingOut = false;
         }
+      });
+
+      // Cleanup on page unload
+      window.addEventListener('unload', () => {
+        // Remove error event listener
+        window.removeEventListener('error', () => {});
       });
     </script>
   </body>

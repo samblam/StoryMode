@@ -70,24 +70,8 @@ if (!token) {
 </div>
 
 <script>
-    import { createClient } from '@supabase/supabase-js';
-    
-    // Initialize Supabase client
-    const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY;
-    
-    if (!supabaseUrl || !supabaseAnonKey) {
-        console.error('Missing Supabase configuration');
-        throw new Error('Missing required Supabase configuration');
-    }
-    
-    // Create Supabase client instance
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
-    
-    // Assign to window for other components
-    if (!window.supabase) {
-        window.supabase = supabase;
-    }
+    import { getClient } from '../../lib/supabase';
+    import { saveSurveyData, publishSurvey, unpublishSurvey } from '../../utils/surveyDataManager';
 
     // Get survey ID and auth token from data attributes
     const saveButton = document.getElementById('save-survey');
@@ -97,8 +81,6 @@ if (!token) {
     const container = document.querySelector('[data-auth-token]') as HTMLElement;
     const surveyId = publishButton?.dataset.surveyId;
     const token = container?.dataset.authToken;
-
-    import { saveSurveyData, publishSurvey, unpublishSurvey } from '../../utils/surveyDataManager';
 
     function showStatus(message: string, isError = false) {
         if (statusMessage && statusText) {
