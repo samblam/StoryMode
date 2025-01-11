@@ -85,8 +85,6 @@ export async function getCurrentUser(cookies?: AstroCookies): Promise<User | nul
       return user;
     }
 
-    // Rest of the file remains the same...
-
     // If no token or no cookies provided, try session
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
