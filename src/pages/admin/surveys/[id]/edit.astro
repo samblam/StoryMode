@@ -9,12 +9,14 @@ import { getSurveyById, type SurveyWithRelations } from '../../../../utils/surve
 import { checkAdminAccess } from '../../../../utils/accessControl';
 import { getCurrentUser } from '../../../../utils/authUtils';
 import { getAllClients } from '../../../../utils/clientUtils';
+import { getSoundProfiles } from '../../../../utils/profileUtils';
 import type { Database } from '../../../../types/database';
 
 // Initialize error state
 let error: string | null = null;
 let survey: SurveyWithRelations | null = null;
 let clients: Database['public']['Tables']['clients']['Row'][] = [];
+let soundProfiles: Database['public']['Tables']['sound_profiles']['Row'][] = [];
 let surveyId: string | null = null;
 
 try {
@@ -132,6 +134,14 @@ try {
         throw new Error(clientsResponse.error);
     }
 
+    // Fetch sound profiles
+    const profilesResponse = await getSoundProfiles(token, survey.client_id);
+    if (!profilesResponse.error) {
+        soundProfiles = profilesResponse.data;
+    } else {
+        throw new Error(profilesResponse.error);
+    }
+
 } catch (e) {
     console.error('Error in survey edit page:', e);
     error = e instanceof Error ? e.message : 'An unexpected error occurred';
@@ -214,7 +224,11 @@ const pageTitle = error ? 'Error' : `Edit Survey - ${survey?.title || ''}`;
                 <div class="space-y-6 pb-20">
                     {survey && surveyId && (
                         <>
-                            <SurveyDetails survey={survey} clients={clients} />
+                            <SurveyDetails 
+                                survey={survey} 
+                                clients={clients}
+                                soundProfiles={soundProfiles}
+                            />
                             <SurveyFunctions surveyId={surveyId} />
                             <SoundManager surveyId={surveyId} />
                             <VideoUploader surveyId={surveyId} currentVideoUrl={survey.video_url || ''} />
