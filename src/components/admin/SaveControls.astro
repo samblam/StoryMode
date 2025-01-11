@@ -70,7 +70,6 @@ if (!token) {
 </div>
 
 <script>
-    import { getClient } from '../../lib/supabase';
     import { saveSurveyData, publishSurvey, unpublishSurvey } from '../../utils/surveyDataManager';
 
     // Get survey ID and auth token from data attributes
@@ -112,11 +111,16 @@ if (!token) {
             if (!form) {
                 throw new Error('Form not found');
             }
+
+            // Get form data and convert to object
             const formData = new FormData(form);
             const surveyData = {
-                id: surveyId, // Ensure surveyId is included
+                id: surveyId,
                 ...Object.fromEntries(formData)
             };
+
+            // Log the data being sent
+            console.log('Saving survey with data:', surveyData);
 
             // Save survey data with token and baseUrl
             const baseUrl = window.location.origin;
@@ -152,9 +156,13 @@ if (!token) {
             const baseUrl = window.location.origin;
             
             if (isPublished) {
+                // Log the unpublish attempt
+                console.log('Attempting to unpublish survey:', surveyId);
                 await unpublishSurvey(surveyId, baseUrl, token);
                 showStatus('Survey unpublished successfully');
             } else {
+                // Log the publish attempt
+                console.log('Attempting to publish survey:', surveyId);
                 await publishSurvey(surveyId, baseUrl, token);
                 showStatus('Survey published successfully');
             }

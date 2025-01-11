@@ -4,13 +4,26 @@ import { verifyAuthorization } from '../../../utils/accessControl';
 
 // Add PUT handler for complete survey update
 export const PUT: APIRoute = async ({ request, params, locals }) => {
+    console.log('Survey PUT: Starting request processing');
     try {
+        // Log request details
+        console.log('Survey PUT: Request details', {
+            params,
+            user: locals.user,
+            headers: {
+                contentType: request.headers.get('Content-Type'),
+                authorization: request.headers.get('Authorization')
+            }
+        });
+
         // Verify admin authorization
+        console.log('Survey PUT: Verifying authorization');
         const { authorized, error: authError } = await verifyAuthorization(locals.user, 'admin', 'write');
         if (!authorized) {
             console.error('Survey PUT: Authorization failed:', authError);
             return new Response(JSON.stringify({ error: authError }), {
-                status: 403
+                status: 403,
+                headers: { 'Content-Type': 'application/json' }
             });
         }
 
@@ -18,41 +31,127 @@ export const PUT: APIRoute = async ({ request, params, locals }) => {
         if (!id) {
             console.error('Survey PUT: No ID provided');
             return new Response(JSON.stringify({ error: 'Survey ID required' }), {
-                status: 400
+                status: 400,
+                headers: { 'Content-Type': 'application/json' }
             });
         }
 
-        const data = await request.json();
+        // Parse request body
+        console.log('Survey PUT: Parsing request body');
+        const rawData = await request.text();
+        console.log('Survey PUT: Raw request body:', rawData);
         
-        // Validate required fields
-        const requiredFields = ['title', 'description', 'status'];
-        const missingFields = requiredFields.filter(field => !(field in data));
-        if (missingFields.length > 0) {
-            console.error('Survey PUT: Missing required fields:', missingFields);
+        let data;
+        try {
+            data = JSON.parse(rawData);
+        } catch (parseError) {
+            console.error('Survey PUT: JSON parse error:', parseError);
             return new Response(JSON.stringify({ 
-                error: 'Missing required fields',
-                details: `Required fields missing: ${missingFields.join(', ')}`
-            }), {
-                status: 400
+                error: 'Invalid JSON in request body',
+                details: parseError instanceof Error ? parseError.message : 'Unknown parse error'
+            }), { 
+                status: 400,
+                headers: { 'Content-Type': 'application/json' }
             });
         }
 
-        // Update survey with complete data
-        const { error: updateError } = await supabase
+        console.log('Survey PUT: Parsed data:', data);
+
+        // Fetch existing survey data
+        console.log('Survey PUT: Fetching existing survey data');
+        const { data: existingSurvey, error: fetchError } = await supabase
             .from('surveys')
-            .update({
-                title: data.title,
-                description: data.description,
-                status: data.status,
-                client_id: data.client_id,
-                sound_profile_id: data.sound_profile_id,
-                updated_at: new Date().toISOString()
-            })
-            .eq('id', id);
+            .select('*')
+            .eq('id', id)
+            .single();
+
+        if (fetchError) {
+            console.error('Survey PUT: Error fetching existing survey:', fetchError);
+            return new Response(JSON.stringify({ 
+                error: 'Failed to fetch existing survey',
+                details: fetchError.message
+            }), { 
+                status: 500,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        if (!existingSurvey) {
+            console.error('Survey PUT: Survey not found:', id);
+            return new Response(JSON.stringify({ 
+                error: 'Survey not found'
+            }), { 
+                status: 404,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        // Check if this is a status update only
+        const isStatusUpdate = Object.keys(data).length === 1 && ('active' in data);
+        console.log('Survey PUT: Operation type:', isStatusUpdate ? 'status update' : 'full update');
+
+        // Prepare update data by merging with existing data
+        const updateData: Record<string, any> = {
+            ...existingSurvey,
+            ...data
+        };
+
+        // Validate the merged data
+        if (!isStatusUpdate) {
+            if (!updateData.title || typeof updateData.title !== 'string' || !updateData.title.trim()) {
+                return new Response(JSON.stringify({ 
+                    error: 'Title is required and must be a non-empty string' 
+                }), { 
+                    status: 400,
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            }
+
+            // Clean up the data
+            updateData.title = updateData.title.trim();
+            updateData.description = updateData.description ? String(updateData.description).trim() : null;
+            updateData.client_id = updateData.client_id || null;
+            updateData.sound_profile_id = updateData.sound_profile_id || null;
+            updateData.video_url = updateData.video_url || null;
+            updateData.functions = Array.isArray(updateData.functions) ? updateData.functions : null;
+        }
+
+        // Ensure boolean fields are properly typed
+        updateData.active = typeof updateData.active === 'boolean' ? updateData.active : existingSurvey.active;
+        updateData.approved = typeof updateData.approved === 'boolean' ? updateData.approved : existingSurvey.approved;
+        updateData.visible_to_client = typeof updateData.visible_to_client === 'boolean' ? updateData.visible_to_client : existingSurvey.visible_to_client;
+
+        console.log('Survey PUT: Final update data:', updateData);
+
+        // Update survey
+        console.log('Survey PUT: Executing database update');
+        const { data: updatedData, error: updateError } = await supabase
+            .from('surveys')
+            .update(updateData)
+            .eq('id', id)
+            .select()
+            .single();
 
         if (updateError) {
             console.error('Survey PUT: Database error:', updateError);
-            throw updateError;
+            return new Response(JSON.stringify({ 
+                error: 'Database update failed',
+                details: updateError.message
+            }), { 
+                status: 500,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        if (!updatedData) {
+            console.error('Survey PUT: No data returned after update');
+            return new Response(JSON.stringify({ 
+                error: 'Survey not found or update failed',
+                details: 'No data returned from database'
+            }), { 
+                status: 404,
+                headers: { 'Content-Type': 'application/json' }
+            });
         }
 
         // Log successful update
@@ -60,72 +159,21 @@ export const PUT: APIRoute = async ({ request, params, locals }) => {
 
         return new Response(JSON.stringify({ 
             success: true,
-            message: 'Survey updated successfully'
+            message: 'Survey updated successfully',
+            data: updatedData
         }), {
             status: 200,
-            headers: {
-                'Content-Type': 'application/json'
-            }
+            headers: { 'Content-Type': 'application/json' }
         });
     } catch (error) {
         console.error('Survey PUT: Unexpected error:', error);
-        return new Response(
-            JSON.stringify({ 
-                error: 'Failed to update survey',
-                details: error instanceof Error ? error.message : 'Unknown error'
-            }),
-            { 
-                status: 500,
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            }
-        );
-    }
-};
-
-// Add PATCH handler
-export const PATCH: APIRoute = async ({ request, params, locals }) => {
-    try {
-        // Verify admin authorization
-        const { authorized, error: authError } = await verifyAuthorization(locals.user, 'admin', 'write');
-        if (!authorized) {
-            console.error('Authorization failed:', authError);
-            return new Response(JSON.stringify({ error: authError }), {
-                status: 403
-            });
-        }
-
-        const { id } = params;
-        if (!id) {
-            return new Response(JSON.stringify({ error: 'Survey ID required' }), {
-                status: 400
-            });
-        }
-
-        const data = await request.json();
-        
-        // Update survey
-        const { error: updateError } = await supabase
-            .from('surveys')
-            .update(data)
-            .eq('id', id);
-
-        if (updateError) {
-            throw updateError;
-        }
-
-        return new Response(JSON.stringify({ success: true }), {
-            status: 200
+        return new Response(JSON.stringify({ 
+            error: 'Failed to update survey',
+            details: error instanceof Error ? error.message : 'Unknown error'
+        }), { 
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
         });
-    } catch (error) {
-        console.error('Survey update error:', error);
-        return new Response(
-            JSON.stringify({ 
-                error: error instanceof Error ? error.message : 'Failed to update survey' 
-            }),
-            { status: 500 }
-        );
     }
 };
 
