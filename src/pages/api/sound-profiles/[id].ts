@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { supabaseAdmin } from '../../../lib/supabase';
+import { getClient } from '../../../lib/supabase';
 import { RateLimiter, RATE_LIMITS, rateLimitMiddleware } from '../../../utils/rateLimit';
 
 export const DELETE: APIRoute = async ({ params, locals, request }) => {
@@ -8,6 +8,8 @@ export const DELETE: APIRoute = async ({ params, locals, request }) => {
   };
 
   try {
+    const supabase = getClient({ requiresAdmin: true });
+
     // Apply rate limiting middleware
     const rateLimitResponse = await rateLimitMiddleware('DELETE')(request);
     if (rateLimitResponse instanceof Response) {
@@ -18,8 +20,8 @@ export const DELETE: APIRoute = async ({ params, locals, request }) => {
     // Check user is admin
     if (!locals.user || locals.user.role !== 'admin') {
       return new Response(
-        JSON.stringify({ error: 'Unauthorized' }), 
-        { 
+        JSON.stringify({ error: 'Unauthorized' }),
+        {
           status: 401,
           headers
         }
@@ -29,16 +31,20 @@ export const DELETE: APIRoute = async ({ params, locals, request }) => {
     const { id } = params;
     if (!id) {
       return new Response(
-        JSON.stringify({ error: 'Profile ID is required' }), 
-        { 
+        JSON.stringify({ error: 'Profile ID is required' }),
+        {
           status: 400,
           headers
         }
       );
     }
 
+    interface Sound {
+      storage_path: string | null;
+    }
+
     // 1. Get all sounds in the profile
-    const { data: sounds, error: fetchError } = await supabaseAdmin
+    const { data: sounds, error: fetchError } = await supabase
       .from('sounds')
       .select('storage_path')
       .eq('profile_id', id);
@@ -51,11 +57,11 @@ export const DELETE: APIRoute = async ({ params, locals, request }) => {
     // 2. Delete all sound files from storage
     if (sounds && sounds.length > 0) {
       const storagePaths = sounds
-        .map(sound => sound.storage_path)
-        .filter((path): path is string => !!path);
+        .map((sound: Sound) => sound.storage_path)
+        .filter((path: string | null): path is string => !!path);
 
       if (storagePaths.length > 0) {
-        const { error: storageError } = await supabaseAdmin.storage
+        const { error: storageError } = await supabase.storage
           .from('sounds')
           .remove(storagePaths);
 
@@ -67,7 +73,7 @@ export const DELETE: APIRoute = async ({ params, locals, request }) => {
     }
 
     // 3. Delete all sounds in the profile from the database
-    const { error: soundsDeleteError } = await supabaseAdmin
+    const { error: soundsDeleteError } = await supabase
       .from('sounds')
       .delete()
       .eq('profile_id', id);
@@ -78,7 +84,7 @@ export const DELETE: APIRoute = async ({ params, locals, request }) => {
     }
 
     // 4. Finally delete the profile itself
-    const { error: profileDeleteError } = await supabaseAdmin
+    const { error: profileDeleteError } = await supabase
       .from('sound_profiles')
       .delete()
       .eq('id', id);

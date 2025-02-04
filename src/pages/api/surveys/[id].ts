@@ -57,6 +57,9 @@ export const PUT: APIRoute = async ({ request, params, locals }) => {
 
         console.log('Survey PUT: Parsed data:', data);
 
+        // Log the request payload
+        console.log('Survey PUT: Request payload:', data);
+
         // Fetch existing survey data
         console.log('Survey PUT: Fetching existing survey data');
         const { data: existingSurvey, error: fetchError } = await supabase
@@ -123,21 +126,100 @@ export const PUT: APIRoute = async ({ request, params, locals }) => {
 
         console.log('Survey PUT: Final update data:', updateData);
 
-        // Update survey
-        console.log('Survey PUT: Executing database update');
-        const { data: updatedData, error: updateError } = await supabase
-            .from('surveys')
-            .update(updateData)
-            .eq('id', id)
-            .select()
-            .single();
+        // Log survey_data and sound_mappings before database call
+        console.log('Survey PUT: Logging data before database call');
+        console.log('Survey PUT: survey_data (updateData):', updateData);
+        console.log('Survey PUT: sound_mappings (updateData.survey_sounds):', updateData.survey_sounds);
+
+        // Validate UUIDs and required fields
+        console.log('Survey PUT: Validating UUIDs and required fields');
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[4][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        if (updateData.client_id && !uuidRegex.test(updateData.client_id)) {
+            console.error('Survey PUT: Invalid client_id UUID:', updateData.client_id);
+            return new Response(JSON.stringify({ error: 'Invalid client_id UUID' }), {
+                status: 400,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+        if (updateData.sound_profile_id && !uuidRegex.test(updateData.sound_profile_id)) {
+            console.error('Survey PUT: Invalid sound_profile_id UUID:', updateData.sound_profile_id);
+            return new Response(JSON.stringify({ error: 'Invalid sound_profile_id UUID' }), {
+                status: 400,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+        if (!updateData.title || typeof updateData.title !== 'string') {
+            console.error('Survey PUT: Title is missing or not a string:', updateData.title);
+            return new Response(JSON.stringify({ error: 'Title is required and must be a string' }), {
+                status: 400,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+        if (typeof updateData.active !== 'boolean') {
+            console.error('Survey PUT: Active is missing or not a boolean:', updateData.active);
+            return new Response(JSON.stringify({ error: 'Active is required and must be a boolean' }), {
+                status: 400,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+        if (typeof updateData.approved !== 'boolean') {
+            console.error('Survey PUT: Approved is missing or not a boolean:', updateData.approved);
+            return new Response(JSON.stringify({ error: 'Approved is required and must be a boolean' }), {
+                status: 400,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+        if (typeof updateData.visible_to_client !== 'boolean') {
+            console.error('Survey PUT: Visible_to_client is missing or not a boolean:', updateData.visible_to_client);
+            return new Response(JSON.stringify({ error: 'Visible_to_client is required and must be a boolean' }), {
+                status: 400,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        // Start a transaction for survey update and sound mappings
+        console.log('Survey PUT: Starting database transaction');
+        // Prepare the data for the stored procedure
+        const procedureData = {
+            survey_id: id,
+            survey_data: {
+                title: updateData.title,
+                description: updateData.description,
+                client_id: updateData.client_id,
+                sound_profile_id: updateData.sound_profile_id,
+                video_url: updateData.video_url,
+                functions: updateData.functions,
+                active: updateData.active,
+                approved: updateData.approved,
+                visible_to_client: updateData.visible_to_client
+            },
+            sound_mappings: Array.isArray(updateData.survey_sounds)
+                ? updateData.survey_sounds.map(sound => ({
+                    sound_id: sound.sound_id,
+                    intended_function: sound.intended_function,
+                    order_index: sound.order_index
+                }))
+                : []
+        };
+
+        console.log('Survey PUT: Procedure data:', procedureData);
+        console.log('Survey PUT: Calling update_survey_with_sounds RPC with procedureData:', procedureData); // Added logging
+        // Enhanced logging to inspect parameter types and values
+        console.log('Survey PUT: procedureData.survey_id - Type:', typeof procedureData.survey_id, ', Value:', procedureData.survey_id);
+        console.log('Survey PUT: procedureData.survey_data - Type:', typeof procedureData.survey_data, ', Value:', procedureData.survey_data);
+        console.log('Survey PUT: procedureData.sound_mappings - Type:', typeof procedureData.sound_mappings, ', Value:', procedureData.sound_mappings);
+        const { data: updatedData, error: updateError } = await supabase.rpc('update_survey_with_sounds', procedureData);
 
         if (updateError) {
             console.error('Survey PUT: Database error:', updateError);
-            return new Response(JSON.stringify({ 
+            // Check for deadlock or timeout errors
+            if (updateError.message.includes('deadlock') || updateError.message.includes('timeout')) {
+                console.error('Survey PUT: Potential deadlock or timeout detected');
+            }
+            return new Response(JSON.stringify({
                 error: 'Database update failed',
                 details: updateError.message
-            }), { 
+            }), {
                 status: 500,
                 headers: { 'Content-Type': 'application/json' }
             });

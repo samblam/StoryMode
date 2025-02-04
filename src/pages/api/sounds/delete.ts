@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { supabaseAdmin } from '../../../lib/supabase';
+import { getClient } from '../../../lib/supabase';
 import { RateLimiter, RATE_LIMITS, rateLimitMiddleware } from '../../../utils/rateLimit';
 
 export const POST: APIRoute = async ({ request, locals }) => {
@@ -8,6 +8,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
   };
 
   try {
+    const supabase = getClient({ requiresAdmin: true });
+
     // Apply rate limiting middleware
     const rateLimitResponse = await rateLimitMiddleware('DELETE')(request);
     if (rateLimitResponse instanceof Response) {
@@ -18,8 +20,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // Check user is admin
     if (!locals.user || locals.user.role !== 'admin') {
       return new Response(
-        JSON.stringify({ error: 'Unauthorized' }), 
-        { 
+        JSON.stringify({ error: 'Unauthorized' }),
+        {
           status: 401,
           headers
         }
@@ -30,8 +32,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
     
     if (!soundId) {
       return new Response(
-        JSON.stringify({ error: 'Sound ID is required' }), 
-        { 
+        JSON.stringify({ error: 'Sound ID is required' }),
+        {
           status: 400,
           headers
         }
@@ -39,7 +41,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
 
     // 1. Get the sound details first
-    const { data: sound, error: fetchError } = await supabaseAdmin
+    const { data: sound, error: fetchError } = await supabase
       .from('sounds')
       .select('storage_path')
       .eq('id', soundId)
@@ -52,8 +54,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     if (!sound) {
       return new Response(
-        JSON.stringify({ error: 'Sound not found' }), 
-        { 
+        JSON.stringify({ error: 'Sound not found' }),
+        {
           status: 404,
           headers
         }
@@ -62,7 +64,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     // 2. Delete from storage first
     if (sound.storage_path) {
-      const { error: storageError } = await supabaseAdmin.storage
+      const { error: storageError } = await supabase.storage
         .from('sounds')
         .remove([sound.storage_path]);
 
@@ -73,7 +75,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
 
     // 3. Delete from database
-    const { error: dbError } = await supabaseAdmin
+    const { error: dbError } = await supabase
       .from('sounds')
       .delete()
       .eq('id', soundId);

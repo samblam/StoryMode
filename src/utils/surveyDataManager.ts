@@ -95,7 +95,7 @@ export async function saveSurveyData(data: Record<string, any>, baseUrl?: string
             throw new Error('Survey ID is required');
         }
 
-        // Clean and prepare the data, only including fields that exist in the database
+        // Clean and prepare the data, including sound mappings
         const cleanData = {
             id: data.id,
             title: data.title?.trim() || '',
@@ -107,7 +107,13 @@ export async function saveSurveyData(data: Record<string, any>, baseUrl?: string
             // Only include boolean fields if they're explicitly set
             ...(typeof data.active === 'boolean' && { active: data.active }),
             ...(typeof data.approved === 'boolean' && { approved: data.approved }),
-            ...(typeof data.visible_to_client === 'boolean' && { visible_to_client: data.visible_to_client })
+            ...(typeof data.visible_to_client === 'boolean' && { visible_to_client: data.visible_to_client }),
+            // Include sound mappings if present
+            survey_sounds: Array.isArray(data.survey_sounds) ? data.survey_sounds.map((mapping: any) => ({
+                sound_id: mapping.sound_id,
+                intended_function: mapping.intended_function,
+                order_index: mapping.order_index
+            })) : []
         };
 
         // Validate required fields

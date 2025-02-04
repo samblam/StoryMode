@@ -187,20 +187,30 @@ if (isAuthenticated && videoUrl) {
                     return;
                 }
 
-                // Set up URL refresh timer (refresh every 50 minutes)
-                if (this.refreshTimer) {
-                    clearInterval(this.refreshTimer);
-                }
-                this.refreshTimer = setInterval(() => {
-                    if (!this.video) return;
-                    const currentTime = this.video.currentTime;
-                    const isPaused = this.video.paused;
-                    this.video.load();
-                    this.video.currentTime = currentTime;
-                    if (!isPaused) {
-                        this.video.play();
+                // Setup refresh timer only when video starts playing
+                const setupRefreshTimer = () => {
+                    if (this.refreshTimer) {
+                        clearInterval(this.refreshTimer);
                     }
-                }, 50 * 60 * 1000); // 50 minutes
+                    this.refreshTimer = setInterval(() => {
+                        if (!this.video) return;
+                        const currentTime = this.video.currentTime;
+                        const isPaused = this.video.paused;
+                        this.video.load();
+                        this.video.currentTime = currentTime;
+                        if (!isPaused) {
+                            this.video.play();
+                        }
+                    }, 50 * 60 * 1000); // 50 minutes
+                };
+
+                // Set up the timer only on first play
+                const onFirstPlay = () => {
+                    setupRefreshTimer();
+                    this.video?.removeEventListener('play', onFirstPlay);
+                };
+                this.video.addEventListener('play', onFirstPlay, { once: true });
+
             } catch (error) {
                 console.error('Error initializing player:', error);
                 this.showError();
@@ -251,10 +261,25 @@ if (isAuthenticated && videoUrl) {
         }
     }
 
-    // Initialize all video players on the page
-    document.addEventListener('DOMContentLoaded', () => {
-        document.querySelectorAll('.video-player-container').forEach(container => {
-            new VideoPlayerManager(container as HTMLElement);
+    // Initialize video players when they become visible
+    const initializeVisiblePlayers = () => {
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    new VideoPlayerManager(entry.target as HTMLElement);
+                    observer.unobserve(entry.target); // Stop observing once initialized
+                }
+            });
+        }, {
+            rootMargin: '50px' // Start loading slightly before they come into view
         });
-    });
+
+        // Start observing all video containers
+        document.querySelectorAll('.video-player-container').forEach(container => {
+            observer.observe(container);
+        });
+    };
+
+    // Initialize observer when script loads
+    initializeVisiblePlayers();
 </script>

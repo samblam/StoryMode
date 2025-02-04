@@ -1,17 +1,40 @@
 ---
+import { getClient } from '../../lib/supabase';
+
 interface Props {
   surveyId: string;
 }
 
 const { surveyId } = Astro.props;
 
-// TODO: Fetch actual survey data
-const summaryData = {
+let summaryData = {
   totalParticipants: 0,
   completionRate: 0,
   averageScore: 0,
   totalResponses: 0
 };
+
+try {
+  const supabase = getClient();
+  const { data: responses, error } = await supabase
+    .from('survey_responses')
+    .select('*')
+    .eq('survey_id', surveyId);
+
+  if (error) {
+    console.error('Error fetching survey responses:', error);
+  } else if (responses) {
+    const completedResponses = responses.filter(r => r.completed);
+    summaryData = {
+      totalParticipants: responses.length,
+      completionRate: responses.length ? Math.round((completedResponses.length / responses.length) * 100) : 0,
+      averageScore: responses.length ? Math.round(responses.reduce((acc, r) => acc + (r.score || 0), 0) / responses.length) : 0,
+      totalResponses: completedResponses.length
+    };
+  }
+} catch (error) {
+  console.error('Failed to fetch survey results:', error);
+}
 ---
 
 <div class="bg-white shadow rounded-lg p-6 mb-6">
@@ -20,26 +43,139 @@ const summaryData = {
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
     <div class="bg-gray-50 p-4 rounded-lg">
       <h4 class="text-sm font-medium text-gray-500">Total Participants</h4>
-      <p class="text-2xl font-bold text-gray-900">{summaryData.totalParticipants}</p>
+      <p class="text-2xl font-bold text-gray-900" data-total-participants>{summaryData.totalParticipants}</p>
     </div>
     
     <div class="bg-gray-50 p-4 rounded-lg">
       <h4 class="text-sm font-medium text-gray-500">Completion Rate</h4>
-      <p class="text-2xl font-bold text-gray-900">{summaryData.completionRate}%</p>
+      <p class="text-2xl font-bold text-gray-900" data-completion-rate>{summaryData.completionRate}%</p>
     </div>
     
     <div class="bg-gray-50 p-4 rounded-lg">
       <h4 class="text-sm font-medium text-gray-500">Average Score</h4>
-      <p class="text-2xl font-bold text-gray-900">{summaryData.averageScore}%</p>
+      <p class="text-2xl font-bold text-gray-900" data-average-score>{summaryData.averageScore}%</p>
     </div>
     
     <div class="bg-gray-50 p-4 rounded-lg">
       <h4 class="text-sm font-medium text-gray-500">Total Responses</h4>
-      <p class="text-2xl font-bold text-gray-900">{summaryData.totalResponses}</p>
+      <p class="text-2xl font-bold text-gray-900" data-total-responses>{summaryData.totalResponses}</p>
     </div>
   </div>
 </div>
 
-<script>
-  // TODO: Add real-time updates using survey data manager
+<script define:vars={{ surveyId }}>
+  import { createClient } from '@supabase/supabase-js';
+
+  // Initialize Supabase client
+  const supabase = createClient(
+    import.meta.env.PUBLIC_SUPABASE_URL,
+    import.meta.env.PUBLIC_SUPABASE_ANON_KEY
+  );
+
+  // Get DOM elements
+  const elements = {
+    totalParticipants: document.querySelector('[data-total-participants]'),
+    completionRate: document.querySelector('[data-completion-rate]'),
+    averageScore: document.querySelector('[data-average-score]'),
+    totalResponses: document.querySelector('[data-total-responses]')
+  };
+
+  // Verify all elements exist
+  if (!Object.values(elements).every(el => el)) {
+    console.error('Required DOM elements not found');
+    throw new Error('Summary UI initialization failed');
+  }
+
+  /**
+   * Update summary data in the UI
+   * @param {Array<{ id: string, survey_id: string, completed: boolean, score?: number }>} responses
+   */
+  function updateSummaryUI(responses) {
+    const completedResponses = responses.filter(r => r.completed);
+    const summaryData = {
+      totalParticipants: responses.length,
+      completionRate: responses.length ? Math.round((completedResponses.length / responses.length) * 100) : 0,
+      averageScore: responses.length ? Math.round(responses.reduce((acc, r) => acc + (r.score || 0), 0) / responses.length) : 0,
+      totalResponses: completedResponses.length
+    };
+
+    // Update DOM elements if they exist
+    if (elements.totalParticipants) {
+      elements.totalParticipants.textContent = summaryData.totalParticipants.toString();
+    }
+    if (elements.completionRate) {
+      elements.completionRate.textContent = `${summaryData.completionRate}%`;
+    }
+    if (elements.averageScore) {
+      elements.averageScore.textContent = `${summaryData.averageScore}%`;
+    }
+    if (elements.totalResponses) {
+      elements.totalResponses.textContent = summaryData.totalResponses.toString();
+    }
+  }
+
+  // Subscribe to real-time changes
+  const subscription = supabase
+    .channel('survey_responses')
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'survey_responses',
+        filter: `survey_id=eq.${surveyId}`
+      },
+      async () => {
+        try {
+          // Fetch updated data
+          const { data: responses, error } = await supabase
+            .from('survey_responses')
+            .select('*')
+            .eq('survey_id', surveyId);
+
+          if (error) {
+            console.error('Error fetching updated survey responses:', error);
+            return;
+          }
+
+          if (responses) {
+            updateSummaryUI(responses);
+          }
+        } catch (error) {
+          console.error('Failed to process real-time update:', error);
+        }
+      }
+    )
+    .subscribe();
+
+  /**
+   * Cleanup function to handle subscription and observers
+   */
+  function cleanup() {
+    try {
+      subscription.unsubscribe();
+      console.log('Successfully unsubscribed from survey responses');
+    } catch (error) {
+      console.error('Error unsubscribing from survey responses:', error);
+    }
+  }
+
+  // Cleanup on page unload
+  window.addEventListener('beforeunload', cleanup);
+
+  // Additional cleanup when component is removed from DOM
+  const observer = new MutationObserver((mutations) => {
+    for (const mutation of mutations) {
+      const nodes = Array.from(mutation.removedNodes);
+      for (const node of nodes) {
+        if (node instanceof Element && node.contains(elements.totalParticipants)) {
+          cleanup();
+          observer.disconnect();
+          return;
+        }
+      }
+    }
+  });
+
+  observer.observe(document.body, { childList: true, subtree: true });
 </script>

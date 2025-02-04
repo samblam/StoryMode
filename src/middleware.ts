@@ -76,9 +76,10 @@ export const onRequest: MiddlewareHandler = async ({ request, locals, cookies },
     try {
       // Step 1: Verify token
       console.log('Middleware - Verifying token');
-      const { supabaseAdmin } = await import('./lib/supabase');
+      const { getClient } = await import('./lib/supabase');
+      const adminClient = getClient({ requiresAdmin: true });
       const { data: { user: authUser }, error: authError } =
-        await supabaseAdmin.auth.getUser(token);
+        await adminClient.auth.getUser(token);
       
       if (authError) {
         console.error('Middleware - Auth error:', authError);
@@ -100,7 +101,7 @@ export const onRequest: MiddlewareHandler = async ({ request, locals, cookies },
         // Step 3: Try to get additional user data
         try {
           console.log('Middleware - Fetching additional user data');
-          const { data: userData } = await supabaseAdmin
+          const { data: userData } = await adminClient
             .from('users')
             .select(`
               role,

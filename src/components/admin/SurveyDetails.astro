@@ -27,9 +27,13 @@ const { survey, clients, soundProfiles } = Astro.props;
 console.log('SurveyDetails props:', { survey, clients, soundProfiles });
 
 // Filter sound profiles based on selected client
-const availableProfiles = soundProfiles.filter(profile => 
+const availableProfiles = soundProfiles.filter(profile =>
     profile.is_template || profile.client_id === survey.client_id
 );
+
+// @ts-ignore
+// Create JSON string for sound profiles
+const soundProfilesJSON = JSON.stringify(soundProfiles).replace(/\//g, '\\/');
 ---
 
 <div class="bg-white p-6 rounded-lg shadow">
@@ -81,7 +85,7 @@ const availableProfiles = soundProfiles.filter(profile =>
             >
                 <option value="">No Client</option>
                 {clients.map(client => (
-                    <option 
+                    <option
                         value={client.id}
                         selected={client.id === (survey.clients?.id || survey.client_id)}
                     >
@@ -104,7 +108,7 @@ const availableProfiles = soundProfiles.filter(profile =>
             >
                 <option value="">Select a Sound Profile</option>
                 {availableProfiles.map(profile => (
-                    <option 
+                    <option
                         value={profile.id}
                         selected={profile.id === survey.sound_profile_id}
                     >
@@ -145,6 +149,7 @@ const availableProfiles = soundProfiles.filter(profile =>
     let hasUnsavedChanges = false;
 
     // Get initial sound profiles data
+    console.log('JSON string:', document.getElementById('sound-profiles-data')?.textContent);
     const soundProfiles = JSON.parse(document.getElementById('sound-profiles-data')?.textContent || '[]');
 
     // Handle client selection change
@@ -152,7 +157,7 @@ const availableProfiles = soundProfiles.filter(profile =>
         const selectedClientId = clientSelect.value;
         
         // Filter profiles based on selected client
-        const availableProfiles = soundProfiles.filter((profile: any) => 
+        const availableProfiles = soundProfiles.filter((profile: any) =>
             profile.is_template || profile.client_id === selectedClientId
         );
 
@@ -187,6 +192,5 @@ const availableProfiles = soundProfiles.filter(profile =>
 </script>
 
 <!-- Hidden data for client-side use -->
-<script id="sound-profiles-data" type="application/json">
-    {JSON.stringify(soundProfiles)}
+<script id="sound-profiles-data" type="application/json" set:html={soundProfilesJSON}>
 </script>

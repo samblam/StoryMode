@@ -73,29 +73,32 @@ if (error) {
         }
     }
 
-    // Initialize Supabase client in browser
-    const initializeSupabase = () => {
-        if (!window.supabase) {
-            const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
-            const supabaseAnonKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY;
+    // Initialize Supabase client in browser (singleton pattern)
+    let supabaseInstance: SupabaseClient<Database> | null = null;
 
-            if (!supabaseUrl || !supabaseAnonKey) {
-                throw new Error('Missing Supabase configuration');
-            }
+    const getSupabase = () => {
+        if (supabaseInstance) return supabaseInstance;
 
-            window.supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
-                auth: {
-                    persistSession: true,
-                    autoRefreshToken: true,
-                    detectSessionInUrl: true
-                }
-            });
+        const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
+        const supabaseAnonKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY;
+
+        if (!supabaseUrl || !supabaseAnonKey) {
+            throw new Error('Missing Supabase configuration');
         }
-        return window.supabase;
+
+        supabaseInstance = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+            auth: {
+                persistSession: true,
+                autoRefreshToken: true,
+                detectSessionInUrl: true
+            }
+        });
+
+        return supabaseInstance;
     };
 
-    // Initialize on load
-    document.addEventListener('DOMContentLoaded', initializeSupabase);
+    // Initialize once and store in window
+    window.supabase = getSupabase();
 </script>
 
 <script define:vars={{ surveyId }}>
@@ -133,15 +136,10 @@ if (error) {
         if (!functionName) return;
 
         try {
-            // Ensure Supabase is initialized
-            if (!window.supabase) {
-                try {
-                    initializeSupabase();
-                } catch (error) {
-                    console.error('Failed to initialize Supabase:', error);
-                    alert('Failed to initialize database connection. Please refresh the page and try again.');
-                    return;
-                }
+            // Get Supabase instance
+            const supabase = window.supabase;
+            if (!supabase) {
+                throw new Error('Supabase client not initialized');
             }
 
             console.log('Adding function:', functionName);
@@ -229,15 +227,10 @@ if (error) {
         if (!confirm(`Are you sure you want to delete the function "${functionName}"?`)) return;
 
         try {
-            // Ensure Supabase is initialized
-            if (!window.supabase) {
-                try {
-                    initializeSupabase();
-                } catch (error) {
-                    console.error('Failed to initialize Supabase:', error);
-                    alert('Failed to initialize database connection. Please refresh the page and try again.');
-                    return;
-                }
+            // Get Supabase instance
+            const supabase = window.supabase;
+            if (!supabase) {
+                throw new Error('Supabase client not initialized');
             }
 
             // Get current functions

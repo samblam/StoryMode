@@ -1,4 +1,4 @@
-import { supabase, supabaseAdmin } from '../lib/supabase';
+import { getClient } from '../lib/supabase';
 import type { User, ClientInfo, AuthErrorCode, AuthError } from '../types/auth';
 import type { Database } from '../types/database';
 import type { AstroGlobal } from 'astro';
@@ -174,10 +174,12 @@ export async function getAccessibleSoundProfiles(user: User | undefined): Promis
   }
 
   try {
+    const adminClient = getClient({ requiresAdmin: true });
+
     // For admin users, get all profiles
     if (isAdmin(user)) {
       console.log('getAccessibleSoundProfiles - Admin user, getting all profiles');
-      const { data, error } = await supabaseAdmin
+      const { data, error } = await adminClient
         .from('sound_profiles')
         .select(`
           *,
@@ -201,7 +203,7 @@ export async function getAccessibleSoundProfiles(user: User | undefined): Promis
     // For client users, only get their associated profiles
     if (user.role === 'client' && user.client?.id) {
       console.log('getAccessibleSoundProfiles - Client user, filtering by clientId:', user.client.id);
-      const { data, error } = await supabaseAdmin
+      const { data, error } = await adminClient
         .from('sound_profiles')
         .select(`
           *,
@@ -245,10 +247,12 @@ export async function getAccessibleSounds(user: User | undefined) {
   }
 
   try {
+    const adminClient = getClient({ requiresAdmin: true });
+
     // For admin users, get all sounds
     if (isAdmin(user)) {
       console.log('getAccessibleSounds - Admin user, getting all sounds');
-      const { data, error } = await supabaseAdmin
+      const { data, error } = await adminClient
         .from('sounds')
         .select(`
           *,
@@ -274,7 +278,7 @@ export async function getAccessibleSounds(user: User | undefined) {
     // For client users, only get their associated sounds
     if (user.role === 'client' && user.client?.id) {
       console.log('getAccessibleSounds - Client user, filtering by clientId:', user.client.id);
-      const { data, error } = await supabaseAdmin
+      const { data, error } = await adminClient
         .from('sounds')
         .select(`
           *,

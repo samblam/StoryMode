@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { supabaseAdmin } from '../../../lib/supabase';
+import { getClient } from '../../../lib/supabase';
 import { uploadSound } from '../../../utils/storageUtils';
 import { RateLimiter, RATE_LIMITS, rateLimitMiddleware } from '../../../utils/rateLimit';
 
@@ -9,6 +9,8 @@ export const POST: APIRoute = async ({ request, cookies }) => {
   };
 
   try {
+    const supabase = getClient({ requiresAdmin: true });
+
     // Apply rate limiting middleware
     const rateLimitResponse = await rateLimitMiddleware('UPLOAD')(request);
     if (rateLimitResponse instanceof Response) {
@@ -22,7 +24,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     if (!token) {
       return new Response(
         JSON.stringify({ error: 'Authentication token not found' }),
-        { 
+        {
           status: 401,
           headers
         }
@@ -30,18 +32,18 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     }
 
     // Verify admin user
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     if (authError || !user) {
       return new Response(
         JSON.stringify({ error: 'Invalid authentication token' }),
-        { 
+        {
           status: 401,
           headers
         }
       );
     }
 
-    const { data: userData } = await supabaseAdmin
+    const { data: userData } = await supabase
       .from('users')
       .select('role')
       .eq('id', user.id)
@@ -50,7 +52,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     if (!userData || userData.role !== 'admin') {
       return new Response(
         JSON.stringify({ error: 'Unauthorized - Admin access required' }),
-        { 
+        {
           status: 403,
           headers
         }
@@ -103,7 +105,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       storagePath = path;
 
       // Create database entry
-      const { data: newSound, error: dbError } = await supabaseAdmin
+      const { data: newSound, error: dbError } = await supabase
         .from('sounds')
         .insert({
           name,
@@ -133,7 +135,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       // Clean up uploaded file if it exists and there was an error
       if (storagePath) {
         try {
-          await supabaseAdmin.storage.from('sounds').remove([storagePath]);
+          await supabase.storage.from('sounds').remove([storagePath]);
         } catch (cleanupError) {
           console.error('Failed to cleanup uploaded file:', cleanupError);
         }

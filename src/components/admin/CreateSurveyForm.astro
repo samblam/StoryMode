@@ -10,13 +10,6 @@ interface Props {
   user?: User;
 }
 
-const { user } = Astro.props;
-
-if (!user) {
-  console.error('User not available in component');
-  return;
-}
-
 type Client = Database['public']['Tables']['clients']['Row'];
 type ClientBasic = Pick<Client, 'id' | 'name'>;
 type SoundProfile = Database['public']['Tables']['sound_profiles']['Row'];
@@ -27,6 +20,15 @@ let loading = true;
 let soundProfilesLoading = false;
 let errorMessage = '';
 let soundProfileError = '';
+
+const { user } = Astro.props;
+
+if (!user) {
+  errorMessage = 'User not available in component';
+  loading = false;
+  clients = [];
+  return Astro.redirect('/login');
+}
 
 // Fetch clients after component mounts
 try {
@@ -158,6 +160,11 @@ try {
 </form>
 
 <script>
+interface Sound {
+  id: string;
+  description?: string;
+}
+
 interface SoundProfile {
   id: string;
   title: string;
@@ -166,52 +173,70 @@ interface SoundProfile {
 const form = document.getElementById('createSurveyForm') as HTMLFormElement;
 const clientSelect = document.getElementById('client_id');
 const soundProfileSelect = document.getElementById('soundProfileId');
+const submitButton = form?.querySelector('button[type="submit"]') as HTMLButtonElement;
+const cancelButton = document.getElementById('cancelButton');
 
-form?.addEventListener('submit', async (e) => {
+if (!form || !clientSelect || !soundProfileSelect || !submitButton || !cancelButton) {
+  console.error('Required form elements not found');
+  throw new Error('Form initialization failed');
+}
+
+// Handle cancel button click
+cancelButton.addEventListener('click', () => {
+  window.location.href = '/admin/surveys';
+});
+
+form.addEventListener('submit', async (e) => {
   e.preventDefault();
   console.log('Form submission started');
 
-  const formData = new FormData(form);
-  // Get the selected sound profile's sounds
-  const soundProfileId = formData.get('soundProfileId') as string;
-  let profileSounds = [];
-  
-  if (soundProfileId) {
-    try {
-      const response = await fetch(`/api/sound-profiles/${soundProfileId}`);
-      if (response.ok) {
+  // Disable form elements during submission
+  submitButton.disabled = true;
+  submitButton.textContent = 'Creating...';
+  const formElements = form.querySelectorAll('input, select, textarea, button');
+  formElements.forEach(el => (el as HTMLElement).setAttribute('disabled', 'true'));
+
+  try {
+    const formData = new FormData(form);
+    // Get the selected sound profile's sounds
+    const soundProfileId = formData.get('soundProfileId') as string;
+    let profileSounds = [];
+    
+    if (soundProfileId) {
+      try {
+        const response = await fetch(`/api/sound-profiles/${soundProfileId}`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch sound profile');
+        }
         const profile = await response.json();
-        profileSounds = profile.sounds.map((sound: any, index: number) => ({
+        profileSounds = profile.sounds.map((sound: Sound, index: number) => ({
           id: sound.id,
           intended_function: sound.description || '',
           order_index: index
         }));
+      } catch (error) {
+        console.error('Error fetching sound profile sounds:', error);
+        throw new Error('Failed to load sound profile data');
       }
-    } catch (error) {
-      console.error('Error fetching sound profile sounds:', error);
     }
-  }
 
-  const data = {
-    title: formData.get('title'),
-    description: formData.get('description'),
-    client_id: formData.get('client_id'),
-    sound_profile_id: soundProfileId,
-    sounds: profileSounds,
-    status: 'draft'
-  };
+    const data = {
+      title: formData.get('title'),
+      description: formData.get('description'),
+      client_id: formData.get('client_id'),
+      sound_profile_id: soundProfileId,
+      sounds: profileSounds,
+      status: 'draft'
+    };
 
-  console.log('Submitting survey data:', data);
+    console.log('Submitting survey data:', data);
 
-  try {
     const response = await fetch('/api/surveys', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
 
-    console.log('API Response status:', response.status);
-    
     if (!response.ok) {
       const errorData = await response.json();
       console.error('API Error:', errorData);
@@ -220,23 +245,28 @@ form?.addEventListener('submit', async (e) => {
 
     const result = await response.json();
     console.log('Survey created successfully:', result);
-    
-    // Redirect to surveys list
     window.location.href = '/admin/surveys';
   } catch (error) {
     console.error('Survey creation failed:', error);
-    alert('Failed to create survey. Please try again.');
+    const errorMessage = error instanceof Error ? error.message : 'Failed to create survey';
+    alert(errorMessage);
+  } finally {
+    // Re-enable form elements
+    submitButton.disabled = false;
+    submitButton.textContent = 'Create Survey';
+    const formElements = form.querySelectorAll('input, select, textarea, button');
+    formElements.forEach(el => (el as HTMLElement).removeAttribute('disabled'));
   }
 });
 
-clientSelect?.addEventListener('change', async (e) => {
+clientSelect.addEventListener('change', async (e) => {
   const clientId = (e.target as HTMLSelectElement).value;
   if (!clientId) {
-    soundProfileSelect!.innerHTML = '<option value="">Select a sound profile</option>';
+    soundProfileSelect.innerHTML = '<option value="">Select a sound profile</option>';
     return;
   }
 
-  soundProfileSelect!.innerHTML = '<option value="" disabled>Loading sound profiles...</option>';
+  soundProfileSelect.innerHTML = '<option value="" disabled>Loading sound profiles...</option>';
   
   try {
     const response = await fetch('/api/sound-profiles?' + new URLSearchParams({
@@ -249,7 +279,7 @@ clientSelect?.addEventListener('change', async (e) => {
     
     const profiles: SoundProfile[] = await response.json();
     
-    soundProfileSelect!.innerHTML = `
+    soundProfileSelect.innerHTML = `
       <option value="">Select a sound profile</option>
       ${profiles.map((profile: SoundProfile) => `
         <option value="${profile.id}">${profile.title}</option>
@@ -257,7 +287,7 @@ clientSelect?.addEventListener('change', async (e) => {
     `;
   } catch (error) {
     console.error('Failed to load sound profiles:', error);
-    soundProfileSelect!.innerHTML = '<option value="" disabled>Failed to load sound profiles</option>';
+    soundProfileSelect.innerHTML = '<option value="" disabled>Failed to load sound profiles</option>';
   }
 });
 </script>

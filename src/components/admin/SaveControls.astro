@@ -112,12 +112,63 @@ if (!token) {
                 throw new Error('Form not found');
             }
 
-            // Get form data and convert to object
+            // Get sound mappings
+            const mappingContainer = document.getElementById('mapping-container');
+            const mappings = Array.from(mappingContainer?.querySelectorAll('.mapping-row') || [])
+                .map(row => {
+                    const soundSelect = row.querySelector('.sound-select') as HTMLSelectElement;
+                    const functionSelect = row.querySelector('.function-select, .function-input') as HTMLSelectElement | HTMLInputElement;
+                    const order = parseInt(row.getAttribute('data-order') || '0', 10);
+                    
+                    return {
+                        sound_id: soundSelect?.value,
+                        intended_function: functionSelect?.value,
+                        order_index: order
+                    };
+                })
+                // .filter(mapping => mapping.sound_id && mapping.intended_function); // Commented out filter for testing
+
+            // Get form data and convert to object with proper typing
             const formData = new FormData(form);
-            const surveyData = {
+            interface SurveyData {
+                id: string;
+                title?: string;
+                description?: string;
+                client_id?: string;
+                sound_profile_id?: string;
+                video_url?: string;
+                functions?: string[];
+                active?: boolean;
+                approved?: boolean;
+                visible_to_client?: boolean;
+                survey_sounds: {
+                    sound_id: string;
+                    intended_function: string;
+                    order_index: number;
+                }[];
+            }
+
+            if (!surveyId) {
+                throw new Error('Survey ID is required');
+            }
+
+            const formEntries = Object.fromEntries(formData);
+            const surveyData: SurveyData = {
                 id: surveyId,
-                ...Object.fromEntries(formData)
+                title: formEntries.title as string,
+                description: formEntries.description as string,
+                client_id: formEntries.client_id as string,
+                sound_profile_id: formEntries.sound_profile_id as string,
+                video_url: formEntries.video_url as string,
+                functions: formEntries.functions ? JSON.parse(formEntries.functions as string) : undefined,
+                active: formEntries.active === 'true',
+                approved: formEntries.approved === 'true',
+                visible_to_client: formEntries.visible_to_client === 'true',
+                survey_sounds: [...mappings] // Explicitly treat as array
             };
+
+            // Show saving status
+            showStatus('Saving survey...', false);
 
             // Log the data being sent
             console.log('Saving survey with data:', surveyData);
@@ -125,10 +176,24 @@ if (!token) {
             // Save survey data with token and baseUrl
             const baseUrl = window.location.origin;
             await saveSurveyData(surveyData, baseUrl, token);
-            showStatus('Survey saved successfully');
+            
+            // Show success message with details
+            const mappingsCount = surveyData.survey_sounds?.length || 0;
+            const hasVideo = !!surveyData.video_url;
+            const successMessage = `Survey saved successfully. ${
+                mappingsCount ? `${mappingsCount} sound mappings saved. ` : ''
+            }${hasVideo ? 'Video URL saved.' : ''}`;
+            
+            showStatus(successMessage);
 
             // Dispatch save event
-            window.dispatchEvent(new CustomEvent('survey-saved'));
+            window.dispatchEvent(new CustomEvent('survey-saved', {
+                detail: {
+                    surveyData,
+                    mappingsCount,
+                    hasVideo
+                }
+            }));
         } catch (error) {
             console.error('Save error:', error);
             if (error instanceof Error && error.message.includes('auth')) {
@@ -179,8 +244,34 @@ if (!token) {
         }
     });
 
+    // Define custom event type
+    interface VideoUploadEvent extends CustomEvent {
+        detail: {
+            url: string;
+        };
+    }
+
     // Listen for video upload completion
-    window.addEventListener('video-uploaded', () => {
-        showStatus('Video uploaded successfully. Remember to save your changes.');
-    });
+    window.addEventListener('video-uploaded', ((event: VideoUploadEvent) => {
+        const videoUrl = event.detail.url;
+        if (videoUrl) {
+            // Get the form reference
+            const form = document.querySelector('form');
+            if (!form) {
+                console.error('Form not found');
+                return;
+            }
+
+            // Add hidden input for video URL if it doesn't exist
+            let videoInput = form.querySelector('input[name="video_url"]') as HTMLInputElement | null;
+            if (!videoInput) {
+                videoInput = document.createElement('input') as HTMLInputElement;
+                videoInput.type = 'hidden';
+                videoInput.name = 'video_url';
+                form.appendChild(videoInput);
+            }
+            videoInput.value = videoUrl;
+            showStatus('Video uploaded successfully. Remember to save your changes.');
+        }
+    }) as EventListener);
 </script>

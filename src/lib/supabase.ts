@@ -2,61 +2,97 @@ import { createClient } from '@supabase/supabase-js';
 import type { Database } from '../types/database';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-let supabase: SupabaseClient<Database>;
-let supabaseAdmin: SupabaseClient<Database>;
+// Singleton instances
+let supabaseInstance: SupabaseClient<Database> | null = null;
+let supabaseAdminInstance: SupabaseClient<Database> | null = null;
 
-// Store references for checking if clients are initialized
-let isSupabaseInitialized = false;
-let isSupabaseAdminInitialized = false;
+// Initialize regular client
+function getSupabaseClient(): SupabaseClient<Database> {
+  if (supabaseInstance) return supabaseInstance;
 
-function initializeClients() {
-  try {
-    // Only initialize once
-    if (!isSupabaseInitialized) {
-      // Validate required environment variables
-      const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
-      const supabaseAnonKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY;
-      const supabaseServiceRole = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY;
 
-      if (!supabaseUrl || !supabaseAnonKey) {
-        throw new Error(
-          'Missing required Supabase environment variables: PUBLIC_SUPABASE_URL and PUBLIC_SUPABASE_ANON_KEY must be set'
-        );
-      }
-
-      // Initialize regular client
-      supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
-        auth: {
-          persistSession: false,
-          autoRefreshToken: false,
-          detectSessionInUrl: false,
-        },
-      });
-      isSupabaseInitialized = true;
-
-      // Initialize admin client if service role key is available
-      if (supabaseServiceRole) {
-        supabaseAdmin = createClient<Database>(
-          supabaseUrl,
-          supabaseServiceRole,
-          {
-            auth: {
-              persistSession: false,
-              autoRefreshToken: false,
-              detectSessionInUrl: false,
-            },
-          }
-        );
-        isSupabaseAdminInitialized = true;
-      } else {
-        console.warn('SUPABASE_SERVICE_ROLE_KEY not found. Admin functionality will be limited.');
-        supabaseAdmin = supabase; // Fallback to regular client
-      }
-    }
-  } catch (error) {
-    console.error('Error initializing Supabase clients:', error);
-    throw error;
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error(
+      'Missing required Supabase environment variables: PUBLIC_SUPABASE_URL and PUBLIC_SUPABASE_ANON_KEY must be set'
+    );
   }
+
+  supabaseInstance = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      storageKey: 'sb-token',
+      storage: {
+        getItem: (key) => {
+          if (typeof window !== 'undefined') {
+            return window.localStorage.getItem(key);
+          }
+          return null;
+        },
+        setItem: (key, value) => {
+          if (typeof window !== 'undefined') {
+            window.localStorage.setItem(key, value);
+          }
+        },
+        removeItem: (key) => {
+          if (typeof window !== 'undefined') {
+            window.localStorage.removeItem(key);
+          }
+        },
+      },
+    },
+  });
+
+  return supabaseInstance;
+}
+
+// Initialize admin client
+function getSupabaseAdminClient(): SupabaseClient<Database> {
+  if (supabaseAdminInstance) return supabaseAdminInstance;
+
+  const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
+  const supabaseServiceRole = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseServiceRole) {
+    console.warn('SUPABASE_SERVICE_ROLE_KEY not found. Falling back to regular client.');
+    return getSupabaseClient();
+  }
+
+  supabaseAdminInstance = createClient<Database>(
+    supabaseUrl,
+    supabaseServiceRole,
+    {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        storageKey: 'sb-admin-token',
+        storage: {
+          getItem: (key) => {
+            if (typeof window !== 'undefined') {
+              return window.localStorage.getItem(key);
+            }
+            return null;
+          },
+          setItem: (key, value) => {
+            if (typeof window !== 'undefined') {
+              window.localStorage.setItem(key, value);
+            }
+          },
+          removeItem: (key) => {
+            if (typeof window !== 'undefined') {
+              window.localStorage.removeItem(key);
+            }
+          },
+        },
+      },
+    }
+  );
+
+  return supabaseAdminInstance;
 }
 
 /**
@@ -76,21 +112,10 @@ export function requiresAdminClient(context: ClientContext): boolean {
 
 /**
  * Gets the appropriate client based on context
- * Ensures clients are initialized before use
  */
 export function getClient(context: ClientContext = {}): SupabaseClient<Database> {
-  if (!isSupabaseInitialized) {
-    initializeClients();
-  }
-
-  if (requiresAdminClient(context) && !isSupabaseAdminInitialized) {
-    throw new Error('Admin client requested but not initialized. Check SUPABASE_SERVICE_ROLE_KEY.');
-  }
-
-  return requiresAdminClient(context) ? supabaseAdmin : supabase;
+  return requiresAdminClient(context) ? getSupabaseAdminClient() : getSupabaseClient();
 }
 
-// Initialize clients on import
-initializeClients();
-
-export { supabase, supabaseAdmin };
+// Export a default client instance for convenience
+export const supabase = getSupabaseClient();

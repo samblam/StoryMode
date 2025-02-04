@@ -1,5 +1,5 @@
 import type { PostgrestError } from '@supabase/supabase-js';
-import { supabase, supabaseAdmin } from '../lib/supabase';
+import { supabase, getClient } from '../lib/supabase';
 import type { User, AuthError } from '../types/auth';
 import { isRLSError, handleRLSError } from './accessControl';
 import type { AstroCookies } from 'astro';
@@ -22,9 +22,11 @@ export async function getCurrentUser(cookies?: AstroCookies): Promise<User | nul
     const token = cookies?.get('sb-token')?.value;
     
     if (token) {
+      const adminClient = getClient({ requiresAdmin: true });
+
       // If we have a token, verify it first
-      const { data: { user: authUser }, error: authError } = 
-        await supabaseAdmin.auth.getUser(token);
+      const { data: { user: authUser }, error: authError } =
+        await adminClient.auth.getUser(token);
 
       if (authError || !authUser) {
         console.error('Auth error or no user found:', authError);
@@ -32,7 +34,7 @@ export async function getCurrentUser(cookies?: AstroCookies): Promise<User | nul
       }
 
       // Get user data with admin client to bypass RLS
-      const { data: userData, error: userError } = await supabaseAdmin
+      const { data: userData, error: userError } = await adminClient
         .from('users')
         .select(`
           *,
@@ -102,7 +104,8 @@ export async function getCurrentUser(cookies?: AstroCookies): Promise<User | nul
     if (userError) {
       if (isRLSError(userError)) {
         // Fall back to admin client if RLS blocks access
-        const { data: adminData } = await supabaseAdmin
+        const adminClient = getClient({ requiresAdmin: true });
+        const { data: adminData } = await adminClient
           .from('users')
           .select('*')
           .eq('id', session.user.id)
@@ -205,7 +208,8 @@ export async function signIn(
     if (userError) {
       if (isRLSError(userError)) {
         // Fall back to admin client if RLS blocks access
-        const { data: adminData } = await supabaseAdmin
+        const adminClient = getClient({ requiresAdmin: true });
+        const { data: adminData } = await adminClient
           .from('users')
           .select('*')
           .eq('id', data.user.id)
@@ -413,7 +417,8 @@ export async function getParticipantById(
     if (error) {
       if (isRLSError(error)) {
         // Fall back to admin client if RLS blocks access
-        const { data: adminData } = await supabaseAdmin
+        const adminClient = getClient({ requiresAdmin: true });
+        const { data: adminData } = await adminClient
           .from('participants')
           .select('id, email')
           .eq('id', participantId)
@@ -488,7 +493,8 @@ export async function validateParticipantAccess(
     if (error) {
       if (isRLSError(error)) {
         // Fall back to admin client if RLS blocks access
-        const { data: adminData } = await supabaseAdmin
+        const adminClient = getClient({ requiresAdmin: true });
+        const { data: adminData } = await adminClient
           .from('survey_responses')
           .select('id')
           .eq('participant_id', participantId)

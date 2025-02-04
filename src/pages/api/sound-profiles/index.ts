@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { supabaseAdmin } from '../../../lib/supabase';
+import { getClient } from '../../../lib/supabase';
 import { RateLimiter, RATE_LIMITS, rateLimitMiddleware } from '../../../utils/rateLimit';
 
 export const GET: APIRoute = async ({ request, locals }) => {
@@ -29,8 +29,10 @@ export const GET: APIRoute = async ({ request, locals }) => {
       );
     }
 
+    const supabase = getClient({ requiresAdmin: true });
+
     // Build query
-    let query = supabaseAdmin
+    let query = supabase
       .from('sound_profiles')
       .select('*');
 
@@ -144,7 +146,8 @@ export const POST: APIRoute = async ({ request, locals, cookies }) => {
 
     console.log('Sending to Supabase:', profileData);
 
-    const { data: newProfile, error } = await supabaseAdmin
+    const supabase = getClient({ requiresAdmin: true });
+    const { data: newProfile, error } = await supabase
       .from('sound_profiles')
       .insert(profileData)
       .select()
@@ -215,8 +218,10 @@ export const PUT: APIRoute = async ({ request, locals, cookies }) => {
       );
     }
 
+    const supabase = getClient({ requiresAdmin: true });
+
     // Verify user has permission to edit this profile
-    const { data: existingProfile, error: fetchError } = await supabaseAdmin
+    const { data: existingProfile, error: fetchError } = await supabase
       .from('sound_profiles')
       .select('*')
       .eq('id', data.id)
@@ -225,7 +230,7 @@ export const PUT: APIRoute = async ({ request, locals, cookies }) => {
     if (fetchError || !existingProfile) {
       return new Response(
         JSON.stringify({ error: 'Profile not found' }),
-        { 
+        {
           status: 404,
           headers
         }
@@ -236,7 +241,7 @@ export const PUT: APIRoute = async ({ request, locals, cookies }) => {
     if (user.role === 'client' && existingProfile.client_id !== user.clientId) {
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
-        { 
+        {
           status: 403,
           headers
         }
@@ -262,7 +267,7 @@ export const PUT: APIRoute = async ({ request, locals, cookies }) => {
       updateData.client_id = data.clientId || null;
     }
 
-    const { data: updatedProfile, error } = await supabaseAdmin
+    const { data: updatedProfile, error } = await supabase
       .from('sound_profiles')
       .update(updateData)
       .eq('id', data.id)

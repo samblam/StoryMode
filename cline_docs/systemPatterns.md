@@ -1,140 +1,99 @@
 # System Patterns
 
-## Architecture
-- Astro.js for static site generation and server-side rendering
-- Component-based architecture with .astro files
-- Supabase for backend services and authentication
+## Database Access Patterns
 
-## Authentication Patterns
-- Server-side authentication via Supabase client
-- Client-side auth state management
-- Token handling:
-  * Cookie-based token storage
-  * Token validation on requests
-  * Proper token cleanup on logout
-- Logout flow:
-  * Client-side state cleanup
-  * Server-side session termination
-  * Cookie removal
-  * Local storage cleanup
-  * Proper error handling
-  * Loading state management
-  * User feedback
-  * Request debouncing
+### Supabase Client Initialization
+- Use `getClient()` from `src/lib/supabase.ts` to get the appropriate client instance
+- Never import `supabaseAdmin` directly
+- For admin operations, pass context: `getClient({ requiresAdmin: true })`
+- For RLS bypass, pass context: `getClient({ bypassRLS: true })`
+- Regular client operations use: `getClient()`
 
-## Data Flow
-- Server-side: Direct Supabase client usage via src/lib/supabase.ts
-- Client-side: Browser-based Supabase client needed for interactive features
-- Components can have both server-side and client-side scripts
+Example:
+```typescript
+// Good - proper admin client initialization
+const supabase = getClient({ requiresAdmin: true });
+await supabase.from('table').select();
 
-## Component Patterns
-- Server Script: Runs during build/request time
-- Client Script: Runs in browser, needs explicit initialization
-- Components should handle both server and client state appropriately
+// Bad - don't use direct admin import
+import { supabaseAdmin } from '../lib/supabase';
+await supabaseAdmin.from('table').select();
+```
 
-## State Management
-- Server state managed through Supabase queries
-- Client state requires initialized Supabase client in window context
-- Components should verify client availability before operations
+### RLS Handling Patterns
+1. Try Regular Client First:
+```typescript
+// First attempt with regular client
+const { data, error } = await supabase
+  .from('table')
+  .select('*');
 
-## Drag and Drop Patterns
-- Sortable.js integration:
-  * Script loaded in Layout.astro for global availability
-  * Initialization after DOM content loaded
-  * Error handling for script loading failures
-  * Proper event listener cleanup
-- Mapping container management:
-  * Container element verification
-  * Dynamic initialization
-  * Order tracking and updates
-  * Error state handling
-- Event handling:
-  * Order change events
-  * Drag start/end events
-  * Error events
-  * State synchronization
+if (error) {
+  if (isRLSError(error)) {
+    // Fall back to admin client
+    const adminClient = getClient({ requiresAdmin: true });
+    const { data: adminData } = await adminClient
+      .from('table')
+      .select('*');
+    // Handle admin data...
+  }
+  // Handle other errors...
+}
+```
 
-## Audio Management Patterns
-- Singleton AudioManager instance for centralized control
-- Loading state management:
-  * Status tracking (idle, loading, loaded, error)
-  * Progress monitoring
-  * Error state handling
-  * Event-based state updates
-- Resource management:
-  * Lazy loading with progress tracking
-  * Caching with invalidation
-  * Memory cleanup routines
-  * Event listener management
-- User interface patterns:
-  * Loading indicators with progress bars
-  * Button state synchronization
-  * Error visualization
-  * Progress tracking display
-- Error handling:
-  * Retry mechanisms
-  * Error state visualization
-  * User feedback
-  * Recovery procedures
-- Performance patterns:
-  * Progress monitoring
-  * Memory usage tracking
-  * Loading time optimization
-  * Cache management
+2. Direct Admin Access When Required:
+```typescript
+// When admin access is known to be needed
+const adminClient = getClient({ requiresAdmin: true });
+const { data, error } = await adminClient
+  .from('table')
+  .select('*');
+```
 
-## Storage Access Patterns
-- Server-side: Uses service role key for admin operations
-- Client-side: Uses anon key with bucket policies
-- Path handling:
-  * Storage paths should not include bucket name
-  * Paths stored with prefix in DB (e.g., 'videos/path')
-  * Paths used without prefix in storage operations
-- Authentication:
-  * Server operations use admin client
-  * Client operations need proper bucket policies
-  * Some operations may require service role access
+3. Transaction-like Operations:
+```typescript
+// Initialize once for multiple operations
+const supabase = getClient({ requiresAdmin: true });
+
+// Use same client instance
+const { data: first } = await supabase.from('table1').select();
+const { data: second } = await supabase.from('table2').select();
+```
+
+### Client Context Options
+- `requiresAdmin`: For operations requiring admin privileges
+- `bypassRLS`: For operations needing to bypass Row Level Security
+- No context: For regular client operations respecting RLS
 
 ## Error Handling
-- Server-side errors caught in try/catch blocks
-- Client-side operations need initialization checks
-- Storage operations should handle:
-  * Authentication failures
-  * Path validation
-  * Object not found errors
-- Audio operations should handle:
-  * Loading failures
-  * Progress tracking errors
-  * State management issues
-  * Resource cleanup failures
-- Proper error messages displayed to users
+- Always use try-catch blocks for database operations
+- Include specific error handling for RLS errors
+- Log errors with appropriate context for debugging
+- Provide meaningful error messages to clients
 
-## Performance Patterns
-- Lazy loading of resources
-- Progress tracking for long operations
-- Memory cleanup routines
-- Resource unloading when not needed
-- Performance monitoring and metrics
-- Error recovery strategies
-- Cache management strategies
+Example:
+```typescript
+try {
+  const { error } = await supabase.from('table').select();
+  if (error) {
+    if (isRLSError(error)) {
+      // Handle RLS error
+    }
+    throw error;
+  }
+} catch (error) {
+  console.error('Operation failed:', error);
+  throw new Error('Meaningful error message');
+}
+```
 
-## Component Communication
-- Event-based state updates
-- Loading state propagation
-- Progress information sharing
-- Error state broadcasting
-- Resource state synchronization
+## Storage Operations
+- Use `getSignedUrl` utility for generating storage URLs
+- Always include bucket name in storage operations
+- Handle storage path validation before operations
 
-## Resource Management
-- Memory usage optimization
-- Cache invalidation strategies
-- Cleanup routine scheduling
-- Event listener management
-- State cleanup procedures
-
-## User Experience Patterns
-- Loading state visualization
-- Progress indication
-- Error state display
-- Interactive feedback
-- State synchronization
-- Resource availability indication
+## Authentication
+- JWT-based authentication using Supabase Auth
+- Session persistence handled through localStorage
+- Admin routes protected via middleware checks
+- Use RLS fallback patterns for auth operations

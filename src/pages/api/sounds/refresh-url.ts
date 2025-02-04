@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { supabaseAdmin } from '../../../lib/supabase';
+import { getClient } from '../../../lib/supabase';
 import { getSignedUrl } from '../../../utils/storageUtils';
 
 export const POST: APIRoute = async ({ request }) => {
@@ -12,8 +12,10 @@ export const POST: APIRoute = async ({ request }) => {
       });
     }
 
+    const supabase = getClient({ requiresAdmin: true });
+
     // Get sound from database
-    const { data: sound, error: fetchError } = await supabaseAdmin
+    const { data: sound, error: fetchError } = await supabase
       .from('sounds')
       .select('storage_path')
       .eq('id', soundId)
@@ -27,7 +29,7 @@ export const POST: APIRoute = async ({ request }) => {
     const signedUrl = await getSignedUrl(sound.storage_path, 'sounds');
 
     // Update sound with new URL
-    const { error: updateError } = await supabaseAdmin
+    const { error: updateError } = await supabase
       .from('sounds')
       .update({ file_path: signedUrl })
       .eq('id', soundId);
