@@ -8,68 +8,31 @@ let supabaseAdminInstance: SupabaseClient<Database> | null = null;
 
 // Initialize regular client
 function getSupabaseClient(): SupabaseClient<Database> {
-  if (supabaseInstance) return supabaseInstance;
+  console.log('Initializing regular Supabase client'); // Added log
+  if (supabaseInstance) {
+    console.log('Regular Supabase client instance already exists, returning cached instance'); // Added log
+    return supabaseInstance;
+  }
 
   const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY;
 
+  console.log('Supabase URL:', supabaseUrl); // Added log
+  console.log('Supabase Anon Key:', supabaseAnonKey); // Added log
+
   if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error(
-      'Missing required Supabase environment variables: PUBLIC_SUPABASE_URL and PUBLIC_SUPABASE_ANON_KEY must be set'
-    );
+    const errorMessage = 'Missing required Supabase environment variables: PUBLIC_SUPABASE_URL and PUBLIC_SUPABASE_ANON_KEY must be set';
+    console.error(errorMessage); // Added log
+    throw new Error(errorMessage);
   }
 
-  supabaseInstance = createClient<Database>(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
-      storageKey: 'sb-token',
-      storage: {
-        getItem: (key) => {
-          if (typeof window !== 'undefined') {
-            return window.localStorage.getItem(key);
-          }
-          return null;
-        },
-        setItem: (key, value) => {
-          if (typeof window !== 'undefined') {
-            window.localStorage.setItem(key, value);
-          }
-        },
-        removeItem: (key) => {
-          if (typeof window !== 'undefined') {
-            window.localStorage.removeItem(key);
-          }
-        },
-      },
-    },
-  });
-
-  return supabaseInstance;
-}
-
-// Initialize admin client
-function getSupabaseAdminClient(): SupabaseClient<Database> {
-  if (supabaseAdminInstance) return supabaseAdminInstance;
-
-  const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
-  const supabaseServiceRole = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseServiceRole) {
-    console.warn('SUPABASE_SERVICE_ROLE_KEY not found. Falling back to regular client.');
-    return getSupabaseClient();
-  }
-
-  supabaseAdminInstance = createClient<Database>(
-    supabaseUrl,
-    supabaseServiceRole,
-    {
+  try {
+    supabaseInstance = createClient<Database>(supabaseUrl, supabaseAnonKey, {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true,
-        storageKey: 'sb-admin-token',
+        storageKey: 'sb-token',
         storage: {
           getItem: (key) => {
             if (typeof window !== 'undefined') {
@@ -88,9 +51,75 @@ function getSupabaseAdminClient(): SupabaseClient<Database> {
             }
           },
         },
-      },
-    }
-  );
+      }
+    });
+
+    // Disable realtime subscription features
+    supabaseInstance.realtime.disconnect();
+    console.log('Regular Supabase client initialized successfully'); // Added log
+  } catch (error) {
+    console.error('Error initializing regular Supabase client:', error); // Added log
+    throw error;
+  }
+
+  return supabaseInstance;
+}
+
+// Initialize admin client
+function getSupabaseAdminClient(): SupabaseClient<Database> {
+  console.log('Initializing admin Supabase client'); // Added log
+  if (supabaseAdminInstance) {
+    console.log('Admin Supabase client instance already exists, returning cached instance'); // Added log
+    return supabaseAdminInstance;
+  }
+
+  const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
+  const supabaseServiceRole = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  console.log('Supabase URL:', supabaseUrl); // Added log
+  console.log('Supabase Service Role Key:', supabaseServiceRole); // Added log
+
+  if (!supabaseServiceRole) {
+    console.warn('SUPABASE_SERVICE_ROLE_KEY not found. Falling back to regular client.');
+    return getSupabaseClient();
+  }
+
+  try {
+    supabaseAdminInstance = createClient<Database>(
+      supabaseUrl,
+      supabaseServiceRole,
+      {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true,
+          storageKey: 'sb-admin-token',
+          storage: {
+            getItem: (key) => {
+              if (typeof window !== 'undefined') {
+                return window.localStorage.getItem(key);
+              }
+              return null;
+            },
+            setItem: (key, value) => {
+              if (typeof window !== 'undefined') {
+                window.localStorage.setItem(key, value);
+              }
+            },
+            removeItem: (key) => {
+              if (typeof window !== 'undefined') {
+                window.localStorage.removeItem(key);
+              }
+            },
+          },
+        },
+      }
+    );
+    console.log('Admin Supabase client initialized successfully'); // Added log
+  } catch (error) {
+    console.error('Error initializing admin Supabase client:', error); // Added log
+    throw error;
+  }
 
   return supabaseAdminInstance;
 }

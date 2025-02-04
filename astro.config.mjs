@@ -7,12 +7,20 @@ export default defineConfig({
   output: 'server',
   adapter: vercel({
     analytics: true,
-    imageService: true
+    imageService: true,
+    webAnalytics: {
+      enabled: true
+    },
+    functionPerRoute: true,
+    edgeMiddleware: true
   }),
   server: {
     port: 4322
   },
   vite: {
-    logLevel: 'info'
+    logLevel: 'info',
+    build: {
+      sourcemap: true
+    }
   }
 });

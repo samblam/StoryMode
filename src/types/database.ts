@@ -206,6 +206,32 @@ export interface Database {
           functions?: string[] | null;
         };
       };
+      participants: {
+        Row: {
+          id: string;
+          survey_id: string | null;
+          email: string | null;
+          participant_identifier: string | null;
+          created_at: string;
+          status: string | null;
+        };
+        Insert: {
+          id?: string;
+          survey_id?: string | null;
+          email?: string | null;
+          participant_identifier?: string | null;
+          created_at?: string;
+          status?: string | null;
+        };
+        Update: {
+          id?: string;
+          survey_id?: string | null;
+          email?: string | null;
+          participant_identifier?: string | null;
+          created_at?: string;
+          status?: string | null;
+        };
+      };
     };
     Views: {
       [_ in never]: never;

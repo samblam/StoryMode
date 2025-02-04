@@ -1,0 +1,130 @@
+---
+---
+<html>
+<head>
+  <title>API Test Page</title>
+</head>
+<body>
+  <h1>API Test Page</h1>
+  
+  <div>
+    <h2>Test Basic API Endpoint</h2>
+    <button id="testBasicApi">Test Basic API</button>
+    <pre id="basicApiResult"></pre>
+  </div>
+
+  <div style="margin-top: 2rem;">
+    <h2>Test Participant Creation</h2>
+    <form id="participantForm">
+      <div>
+        <label>Survey ID:</label>
+        <input type="text" id="surveyId" value="test-survey-id" />
+      </div>
+      <div>
+        <label>Email:</label>
+        <input type="email" id="email" value="test@example.com" />
+      </div>
+      <div>
+        <label>Participant ID:</label>
+        <input type="text" id="participantId" value="TEST001" />
+      </div>
+      <button type="submit">Create Participant</button>
+    </form>
+    <pre id="participantResult"></pre>
+  </div>
+
+  <script>
+    // Test basic API endpoint
+    const testBasicApiButton = document.getElementById('testBasicApi');
+    const basicApiResult = document.getElementById('basicApiResult');
+    
+    if (testBasicApiButton && basicApiResult) {
+      testBasicApiButton.addEventListener('click', async () => {
+        try {
+          const response = await fetch('/api/test-api', {
+            method: 'POST'
+          });
+          const result = await response.json();
+          basicApiResult.textContent = JSON.stringify(result, null, 2);
+        } catch (error) {
+          basicApiResult.textContent = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
+        }
+      });
+    }
+
+    // Test participant creation
+    const participantForm = document.getElementById('participantForm');
+    const participantResult = document.getElementById('participantResult');
+    
+    if (participantForm && participantResult) {
+      participantForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const surveyIdInput = document.getElementById('surveyId') as HTMLInputElement;
+        const emailInput = document.getElementById('email') as HTMLInputElement;
+        const participantIdInput = document.getElementById('participantId') as HTMLInputElement;
+
+        if (!surveyIdInput || !emailInput || !participantIdInput) {
+          participantResult.textContent = 'Error: Required form fields not found';
+          return;
+        }
+
+        try {
+          const formData = new FormData();
+          formData.append('email', emailInput.value);
+          formData.append('participantIdentifier', participantIdInput.value);
+
+          const response = await fetch(`/api/surveys/${surveyIdInput.value}/participants/manual`, {
+            method: 'POST',
+            body: formData
+          });
+
+          const result = await response.json();
+          participantResult.textContent = JSON.stringify(result, null, 2);
+        } catch (error) {
+          participantResult.textContent = `Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
+        }
+      });
+    }
+  </script>
+
+  <style>
+    body {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 2rem;
+      font-family: system-ui, sans-serif;
+    }
+    form div {
+      margin-bottom: 1rem;
+    }
+    label {
+      display: block;
+      margin-bottom: 0.5rem;
+    }
+    input {
+      padding: 0.5rem;
+      width: 100%;
+      max-width: 300px;
+    }
+    button {
+      padding: 0.5rem 1rem;
+      background: #0066cc;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #0052a3;
+    }
+    pre {
+      background: #f5f5f5;
+      padding: 1rem;
+      border-radius: 4px;
+      white-space: pre-wrap;
+      margin-top: 1rem;
+    }
+  </style>
+</body>
+</html>

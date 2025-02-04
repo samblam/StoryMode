@@ -6,6 +6,12 @@ import type { User } from '../../../../types/auth';
 import type { PostgrestError } from '@supabase/supabase-js';
 import { validateParticipantAccess } from '../../../../utils/authUtils';
 
+interface SoundMappingResponse {
+  soundId: string;
+  mappingData: Record<string, any>;
+  timestamp: string;
+}
+
 function getErrorMessage(error: PostgrestError): string {
   return error?.message || 'Unknown error occurred';
 }
@@ -24,9 +30,9 @@ export const get: APIRoute = async ({ request, params, locals }) => {
     const { id } = params;
 
     if (!id) {
-        return new Response(JSON.stringify({ error: 'Missing survey ID' }), {
-            status: 400,
-        });
+      return new Response(JSON.stringify({ error: 'Missing survey ID' }), {
+        status: 400,
+      });
     }
 
     const { data, error } = await supabase
@@ -35,7 +41,8 @@ export const get: APIRoute = async ({ request, params, locals }) => {
         *,
         participant:participants (
           id,
-          email
+          email,
+          status
         ),
         survey_matches (
           id,
@@ -79,6 +86,18 @@ export const post: APIRoute = async ({ request, params, locals, cookies }) => {
     const participantId = locals.participantId;
     const { id } = params;
 
+    // Check if this is a preview request
+    const url = new URL(request.url);
+    const isPreview = url.searchParams.get('preview') === 'true';
+    if (isPreview) {
+      return new Response(JSON.stringify({ 
+        message: 'Preview response received but not saved',
+        preview: true 
+      }), {
+        status: 200,
+      });
+    }
+
     if (!id) {
       return new Response(JSON.stringify({ error: 'Missing survey ID' }), {
         status: 400,
@@ -102,9 +121,10 @@ export const post: APIRoute = async ({ request, params, locals, cookies }) => {
     }
 
     const body = await request.json();
-    const { matches, completed } = body as {
+    const { matches, completed, soundMappingResponses } = body as {
       matches: { sound_id: string, matched_function: string, correct_match: boolean }[],
-      completed: boolean
+      completed: boolean,
+      soundMappingResponses: SoundMappingResponse[]
     };
 
     if (!Array.isArray(matches)) {
@@ -113,12 +133,14 @@ export const post: APIRoute = async ({ request, params, locals, cookies }) => {
       });
     }
 
+    // Start a transaction
     const { data: response, error: responseError } = await supabase
       .from('survey_responses')
       .insert({
         survey_id: id,
         participant_id: locals.participantId,
-        completed
+        completed,
+        sound_mapping_responses: soundMappingResponses
       })
       .select()
       .single();
@@ -133,6 +155,7 @@ export const post: APIRoute = async ({ request, params, locals, cookies }) => {
       });
     }
 
+    // Insert survey matches
     const surveyMatches = matches.map(match => ({
       response_id: response.id,
       sound_id: match.sound_id,
@@ -154,6 +177,19 @@ export const post: APIRoute = async ({ request, params, locals, cookies }) => {
       });
     }
 
+    // Update participant status to completed if the survey is completed
+    if (completed && locals.participantId) {
+      const { error: updateError } = await supabase
+        .from('participants')
+        .update({ status: 'completed' })
+        .eq('id', locals.participantId);
+
+      if (updateError) {
+        console.error('Error updating participant status:', updateError);
+        // Don't fail the response, just log the error
+      }
+    }
+
     return new Response(JSON.stringify({ data: response }), {
       status: 201,
     });
@@ -166,45 +202,45 @@ export const post: APIRoute = async ({ request, params, locals, cookies }) => {
 };
 
 export const del: APIRoute = async ({ params, locals }) => {
-    try {
-        const user = locals.user as User | undefined;
-        const { authorized, error: authError } = await verifyAuthorization(user, 'admin', 'admin');
+  try {
+    const user = locals.user as User | undefined;
+    const { authorized, error: authError } = await verifyAuthorization(user, 'admin', 'admin');
 
-        if (!authorized) {
-            return new Response(JSON.stringify({ error: authError }), {
-                status: 403,
-            });
-        }
-
-        const { id } = params;
-        if (!id) {
-            return new Response(JSON.stringify({ error: 'Missing survey ID' }), {
-                status: 400,
-            });
-        }
-
-        const { error } = await supabase
-            .from('survey_responses')
-            .delete()
-            .eq('survey_id', id);
-
-        if (error) {
-            const postgrestError = error as PostgrestError;
-            if (isRLSError(postgrestError)) {
-                return handleRLSError(postgrestError);
-            }
-            return new Response(JSON.stringify({ error: getErrorMessage(postgrestError) }), {
-                status: 500,
-            });
-        }
-
-        return new Response(null, {
-            status: 204,
-        });
-    } catch (error) {
-        console.error('Error in DELETE /api/surveys/[id]/responses:', error);
-        return new Response(JSON.stringify({ error: 'Internal server error' }), {
-            status: 500,
-        });
+    if (!authorized) {
+      return new Response(JSON.stringify({ error: authError }), {
+        status: 403,
+      });
     }
+
+    const { id } = params;
+    if (!id) {
+      return new Response(JSON.stringify({ error: 'Missing survey ID' }), {
+        status: 400,
+      });
+    }
+
+    const { error } = await supabase
+      .from('survey_responses')
+      .delete()
+      .eq('survey_id', id);
+
+    if (error) {
+      const postgrestError = error as PostgrestError;
+      if (isRLSError(postgrestError)) {
+        return handleRLSError(postgrestError);
+      }
+      return new Response(JSON.stringify({ error: getErrorMessage(postgrestError) }), {
+        status: 500,
+      });
+    }
+
+    return new Response(null, {
+      status: 204,
+    });
+  } catch (error) {
+    console.error('Error in DELETE /api/surveys/[id]/responses:', error);
+    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+      status: 500,
+    });
+  }
 };

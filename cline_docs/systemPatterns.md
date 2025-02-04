@@ -97,3 +97,78 @@ try {
 - Session persistence handled through localStorage
 - Admin routes protected via middleware checks
 - Use RLS fallback patterns for auth operations
+
+## Bulk Data Operations
+- Use formData for file uploads and form submissions
+- Validate file formats before processing
+- Provide clear format requirements and examples to users
+- Handle bulk operations in chunks when possible
+- Include proper error handling for each record in bulk operations
+
+Example:
+```typescript
+// File upload handling
+const formData = await request.formData();
+const file = formData.get('file') as File;
+
+// Validate file
+if (!file) {
+  return new Response(JSON.stringify({ error: 'File is required' }), {
+    status: 400,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
+// Process file content
+const fileBuffer = await file.arrayBuffer();
+const fileContent = Buffer.from(fileBuffer).toString('utf-8');
+
+// Handle bulk operations with error tracking
+const errors = [];
+const successes = [];
+
+for (const record of records) {
+  try {
+    // Process individual record
+    successes.push(record);
+  } catch (error) {
+    errors.push({ record, error: error.message });
+  }
+}
+
+// Return comprehensive results
+return new Response(JSON.stringify({ successes, errors }), {
+  status: errors.length ? 207 : 200,
+  headers: { 'Content-Type': 'application/json' },
+});
+```
+
+## Component Organization
+- Group related functionality in dedicated components
+- Use tabs for organizing multiple input methods
+- Provide clear feedback for user actions
+- Include format requirements and examples in UI
+- Handle loading and error states appropriately
+
+Example:
+```astro
+<div class="tabs">
+  <nav class="tab-nav">
+    <!-- Tab buttons -->
+  </nav>
+  <div class="tab-content">
+    <!-- Format requirements -->
+    <div class="format-guide">
+      <h3>Format Requirements</h3>
+      <pre class="example"><!-- Format example --></pre>
+    </div>
+    <!-- Input form -->
+    <form class="input-form">
+      <!-- Form fields -->
+    </form>
+    <!-- Error/success messages -->
+    <div class="feedback-message">
+      <!-- User feedback -->
+    </div>
+  </div>
+</div>

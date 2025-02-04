@@ -5,6 +5,8 @@ import SurveyFunctions from '../../../../components/admin/SurveyFunctions.astro'
 import SoundManager from '../../../../components/admin/SoundManager.astro';
 import VideoUploader from '../../../../components/admin/VideoUploader.astro';
 import SaveControls from '../../../../components/admin/SaveControls.astro';
+import ParticipantManager from '../../../../components/admin/ParticipantManager.astro';
+import SurveyPreview from '../../../../components/admin/SurveyPreview.astro';
 import { getSurveyById, type SurveyWithRelations } from '../../../../utils/surveyDataManager';
 import { checkAdminAccess } from '../../../../utils/accessControl';
 import { getCurrentUser } from '../../../../utils/authUtils';
@@ -175,24 +177,29 @@ const pageTitle = error ? 'Error' : `Edit Survey - ${survey?.title || ''}`;
                     <div class="flex items-center justify-between">
                         <h1 class="text-2xl font-bold text-gray-900">Edit Survey</h1>
                         
-                        <a
-                            href="/admin/surveys"
-                            class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                        >
-                            <svg
-                                class="-ml-1 mr-2 h-5 w-5 text-gray-500"
-                                xmlns="http://www.w3.org/2000/svg"
-                                viewBox="0 0 20 20"
-                                fill="currentColor"
+                        <div class="flex space-x-4">
+                            {survey && surveyId && (
+                                <SurveyPreview surveyId={surveyId} />
+                            )}
+                            <a
+                                href="/admin/surveys"
+                                class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                             >
-                                <path
-                                    fill-rule="evenodd"
-                                    d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z"
-                                    clip-rule="evenodd"
-                                />
-                            </svg>
-                            Back to Surveys
-                        </a>
+                                <svg
+                                    class="-ml-1 mr-2 h-5 w-5 text-gray-500"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    viewBox="0 0 20 20"
+                                    fill="currentColor"
+                                >
+                                    <path
+                                        fill-rule="evenodd"
+                                        d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z"
+                                        clip-rule="evenodd"
+                                    />
+                                </svg>
+                                Back to Surveys
+                            </a>
+                        </div>
                     </div>
                     <nav class="mt-3" aria-label="Breadcrumb">
                         <ol class="flex items-center space-x-2 text-sm text-gray-500">
@@ -232,6 +239,7 @@ const pageTitle = error ? 'Error' : `Edit Survey - ${survey?.title || ''}`;
                             <SurveyFunctions surveyId={surveyId} />
                             <SoundManager surveyId={surveyId} />
                             <VideoUploader surveyId={surveyId} currentVideoUrl={survey.video_url || ''} />
+                            <ParticipantManager surveyId={surveyId} />
                             <SaveControls surveyId={surveyId} active={survey.active} />
                         </>
                     )}

@@ -1,0 +1,276 @@
+---
+interface Props {
+    surveyId: string;
+}
+
+const { surveyId } = Astro.props;
+---
+
+<div class="bg-white shadow rounded-lg p-6">
+    <h2 class="text-xl font-bold text-gray-900 mb-4">Participant Management</h2>
+    
+    <div class="border-b border-gray-200">
+        <nav class="-mb-px flex space-x-8" aria-label="Tabs">
+            <button
+                id="manual-tab"
+                class="border-b-2 border-blue-500 text-blue-600 whitespace-nowrap py-4 px-1 font-medium text-sm"
+                aria-controls="manual-panel"
+                role="tab"
+                aria-selected="true"
+                data-tab="manual"
+            >
+                Manual Input
+            </button>
+            <button
+                id="csv-tab"
+                class="border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 font-medium text-sm"
+                aria-controls="csv-panel"
+                role="tab"
+                aria-selected="false"
+                data-tab="csv"
+            >
+                CSV Upload
+            </button>
+            <button
+                id="json-tab"
+                class="border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 font-medium text-sm"
+                aria-controls="json-panel"
+                role="tab"
+                aria-selected="false"
+                data-tab="json"
+            >
+                JSON Upload
+            </button>
+        </nav>
+    </div>
+
+    <div id="tabs-content" class="mt-4">
+        <!-- Manual Input Panel -->
+        <div
+            id="manual-panel"
+            role="tabpanel"
+            aria-labelledby="manual-tab"
+            class="space-y-4"
+        >
+            <form id="manual-form" class="space-y-4">
+                <div>
+                    <label for="email" class="block text-sm font-medium text-gray-700">
+                        Email
+                    </label>
+                    <input
+                        type="email"
+                        name="email"
+                        id="email"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                        required
+                    />
+                </div>
+                <button
+                    type="submit"
+                    class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                    Add Participant
+                </button>
+            </form>
+        </div>
+
+        <!-- CSV Upload Panel -->
+        <div
+            id="csv-panel"
+            role="tabpanel"
+            aria-labelledby="csv-tab"
+            class="space-y-4 hidden"
+        >
+            <div class="bg-gray-50 p-4 rounded-md">
+                <h3 class="text-sm font-medium text-gray-900">CSV Format Requirements:</h3>
+                <ul class="mt-2 text-sm text-gray-600 list-disc list-inside">
+                    <li>File must be in CSV format</li>
+                    <li>Required column: email</li>
+                    <li>First row must contain column header</li>
+                    <li>Example:
+                        <pre class="mt-1 text-xs bg-gray-100 p-2 rounded">email
+john@example.com
+jane@example.com</pre>
+                    </li>
+                </ul>
+            </div>
+            <form id="csv-form" class="space-y-4">
+                <div>
+                    <label for="csvFile" class="block text-sm font-medium text-gray-700">
+                        Upload CSV File
+                    </label>
+                    <input
+                        type="file"
+                        name="csvFile"
+                        id="csvFile"
+                        accept=".csv"
+                        class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                        required
+                    />
+                </div>
+                <button
+                    type="submit"
+                    class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                    Upload CSV
+                </button>
+            </form>
+        </div>
+
+        <!-- JSON Upload Panel -->
+        <div
+            id="json-panel"
+            role="tabpanel"
+            aria-labelledby="json-tab"
+            class="space-y-4 hidden"
+        >
+            <div class="bg-gray-50 p-4 rounded-md">
+                <h3 class="text-sm font-medium text-gray-900">JSON Format Requirements:</h3>
+                <ul class="mt-2 text-sm text-gray-600 list-disc list-inside">
+                    <li>File must be in JSON format</li>
+                    <li>Content must be an array of participant objects</li>
+                    <li>Each object must have an email field</li>
+                    <li>Example:
+                        <pre class="mt-1 text-xs bg-gray-100 p-2 rounded">[
+  {`{`}
+    "email": "john@example.com"
+  {`}`},
+  {`{`}
+    "email": "jane@example.com"
+  {`}`}
+]</pre>
+                    </li>
+                </ul>
+            </div>
+            <form id="json-form" class="space-y-4">
+                <div>
+                    <label for="jsonFile" class="block text-sm font-medium text-gray-700">
+                        Upload JSON File
+                    </label>
+                    <input
+                        type="file"
+                        name="jsonFile"
+                        id="jsonFile"
+                        accept=".json"
+                        class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                        required
+                    />
+                </div>
+                <button
+                    type="submit"
+                    class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                    Upload JSON
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script define:vars={{ surveyId }}>
+    // Tab switching logic
+    const tabButtons = document.querySelectorAll('[role="tab"]');
+    const tabPanels = document.querySelectorAll('[role="tabpanel"]');
+
+    tabButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            // Deactivate all tabs
+            tabButtons.forEach(btn => {
+                btn.setAttribute('aria-selected', 'false');
+                btn.classList.remove('border-blue-500', 'text-blue-600');
+                btn.classList.add('border-transparent', 'text-gray-500');
+            });
+
+            // Hide all panels
+            tabPanels.forEach(panel => {
+                panel.classList.add('hidden');
+            });
+
+            // Activate clicked tab
+            button.setAttribute('aria-selected', 'true');
+            button.classList.remove('border-transparent', 'text-gray-500');
+            button.classList.add('border-blue-500', 'text-blue-600');
+
+            // Show corresponding panel
+            const panelId = button.getAttribute('aria-controls');
+            document.getElementById(panelId)?.classList.remove('hidden');
+        });
+    });
+
+    // Form submission handlers
+    const manualForm = document.getElementById('manual-form');
+    const csvForm = document.getElementById('csv-form');
+    const jsonForm = document.getElementById('json-form');
+
+    manualForm?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        
+        try {
+            const response = await fetch(`${window.location.origin}/api/surveys/${surveyId}/participants/manual`, {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+            
+            if (response.ok) {
+                alert('Participant added successfully');
+                manualForm.reset();
+            } else {
+                alert(result.error || 'Failed to add participant');
+            }
+        } catch (error) {
+            alert('Error adding participant');
+            console.error('Error:', error);
+        }
+    });
+
+    csvForm?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        
+        try {
+            const response = await fetch(`/api/surveys/${surveyId}/participants/csv`, {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+            
+            if (response.ok) {
+                alert('Participants imported successfully from CSV');
+                csvForm.reset();
+            } else {
+                alert(result.error || 'Failed to import participants from CSV');
+            }
+        } catch (error) {
+            alert('Error importing participants from CSV');
+            console.error('Error:', error);
+        }
+    });
+
+    jsonForm?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        
+        try {
+            const response = await fetch(`/api/surveys/${surveyId}/participants/json`, {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+            
+            if (response.ok) {
+                alert('Participants imported successfully from JSON');
+                jsonForm.reset();
+            } else {
+                alert(result.error || 'Failed to import participants from JSON');
+            }
+        } catch (error) {
+            alert('Error importing participants from JSON');
+            console.error('Error:', error);
+        }
+    });
+</script>
