@@ -3,21 +3,23 @@ import { supabase } from '../../lib/supabase';
 
 interface Props {
     surveyId: string;
-    initialMappings?: {
+    initialMappings?: { // Removing this line
         soundId: string;
         intended_function: string;
         order: number;
-    }[];
+    }[]; // Removing this line
 }
 
-const { surveyId, initialMappings = [] } = Astro.props;
+const { surveyId } = Astro.props; // Modified this line
 
 import type { Database } from '../../types/database';
 type Sound = Database['public']['Tables']['sounds']['Row'];
+type SurveySound = Database['public']['Tables']['survey_sounds']['Row'];
 
 // Initialize empty arrays for sounds and functions
 let sounds: Sound[] = [];
 let functions: { id: string; description: string; }[] = [];
+let existingMappings: SurveySound[] = [];
 
 try {
     // First fetch the survey to get its sound profile ID
@@ -87,6 +89,21 @@ try {
 
     console.log('Fetched sounds:', sounds);
     console.log('Fetched functions:', functions);
+
+    // Fetch existing sound mappings
+    const { data: mappingsData, error: mappingsError } = await supabase
+        .from('survey_sounds')
+        .select('*')
+        .eq('survey_id', surveyId);
+
+    if (mappingsError) {
+        console.error('Error fetching sound mappings:', mappingsError);
+    } else {
+        existingMappings = mappingsData || [];
+        console.log('Fetched existing mappings:', existingMappings);
+    }
+
+
 } catch (error) {
     console.error('Error in data fetching:', error);
 }
@@ -96,7 +113,7 @@ try {
 <div class="space-y-6">
     <div class="bg-white p-6 rounded-lg shadow">
         <h3 class="text-lg font-semibold mb-4">Sound Selection & Mapping</h3>
-        
+
         <!-- Sound-Function Mapping Interface -->
         <div
             id="mapping-container"
@@ -108,11 +125,11 @@ try {
             {sounds.length === 0 && functions.length === 0 && (
                 <p class="text-gray-500 italic">No sounds or functions available. Please add some before creating mappings.</p>
             )}
-            {initialMappings.map((mapping) => (
+            {existingMappings.map((mapping) => (
                 <div
                     class="mapping-row bg-gray-50 p-4 rounded-md flex items-center space-x-4"
-                    data-mapping-id={`${mapping.soundId}-${mapping.intended_function}`}
-                    data-order={mapping.order}
+                    data-mapping-id={`${mapping.sound_id}-${mapping.intended_function}`}
+                    data-order={mapping.order_index}
                 >
                     <!-- Drag Handle -->
                     <div class="cursor-move">
@@ -125,13 +142,13 @@ try {
                     <div class="flex-1">
                         <select
                             class="sound-select w-full rounded-md border-gray-300"
-                            data-current-sound={mapping.soundId}
+                            data-current-sound={mapping.sound_id}
                         >
                             <option value="">Select Sound</option>
                             {(sounds || []).map(sound => (
                                 <option
                                     value={sound.id}
-                                    selected={sound.id === mapping.soundId}
+                                    selected={sound.id === mapping.sound_id}
                                     data-sound-url={sound.file_path || ''}
                                     data-storage-path={sound.storage_path || ''}
                                 >
@@ -173,8 +190,8 @@ try {
                         <button
                             type="button"
                             class="preview-sound p-2 text-blue-600 hover:text-blue-800 relative"
-                            data-sound-url={(sounds || []).find(s => s.id === mapping.soundId)?.file_path}
-                            data-storage-path={(sounds || []).find(s => s.id === mapping.soundId)?.storage_path}
+                            data-sound-url={(sounds || []).find(s => s.id === mapping.sound_id)?.file_path}
+                            data-storage-path={(sounds || []).find(s => s.id === mapping.sound_id)?.storage_path}
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                 <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
@@ -222,13 +239,13 @@ try {
 <script>
     import type { Database } from '../../types/database';
     import { getSignedUrl } from '../../utils/storageUtils';
-    
+
     interface AudioState {
         element: HTMLAudioElement | null;
         loading: boolean;
         error: string | null;
     }
-    
+
     let audioState: AudioState = {
         element: null,
         loading: false,
@@ -295,7 +312,7 @@ try {
 
         try {
             const supabase = await initSupabase();
-            
+
             // Fetch updated functions from survey record
             const { data, error: functionsError } = await supabase
                 .from('surveys')
@@ -313,13 +330,13 @@ try {
 
             // Update container's dataset
             mappingContainer.dataset.functions = JSON.stringify(functions);
-            
+
             // Enable/disable add button based on functions availability
             const addButton = document.getElementById('add-mapping');
             if (addButton instanceof HTMLButtonElement) {
                 const hasSound = JSON.parse(mappingContainer.dataset.sounds || '[]').length > 0;
                 const hasFunctions = functions.length > 0;
-                
+
                 addButton.disabled = !hasSound || !hasFunctions;
                 addButton.classList.toggle('text-gray-400', !hasSound || !hasFunctions);
                 addButton.classList.toggle('bg-gray-100', !hasSound || !hasFunctions);
@@ -349,11 +366,11 @@ try {
             console.log('Add Sound Mapping button clicked');
             const container = document.getElementById('mapping-container');
             if (!container) return;
-            
+
             type Sound = Database['public']['Tables']['sounds']['Row'];
             const sounds = JSON.parse(container.dataset.sounds || '[]') as Sound[];
             const functions = JSON.parse(container.dataset.functions || '[]') as { id: string; description: string; }[];
-            
+
             if (sounds.length === 0 || functions.length === 0) {
                 console.warn('Cannot create mapping: No sounds or functions available');
                 return;
@@ -388,7 +405,7 @@ try {
         const rows = container.querySelectorAll<HTMLElement>('.mapping-row');
         rows.forEach((row, index) => {
             row.dataset.order = index.toString();
-            
+
             // Update any visual indicators of order if needed
             const orderIndicator = row.querySelector('.order-indicator');
             if (orderIndicator instanceof HTMLElement) {
@@ -415,7 +432,7 @@ try {
 
         newButton.addEventListener('click', async () => {
             const storagePath = newButton.dataset.storagePath;
-            
+
             if (!storagePath) {
                 console.warn('No storage path available for preview');
                 return;
@@ -440,15 +457,15 @@ try {
 
                 // Get signed URL with bucket parameter
                 const signedUrl = await getSignedUrl(storagePath, 'sounds');
-                
+
                 const audio = new Audio(signedUrl);
-                
+
                 // Set up error handling before attempting to play
                 audio.onerror = () => {
                     console.error('Audio playback error');
                     audioState = { element: null, loading: false, error: 'Failed to play audio' };
                     button.classList.remove('animate-pulse');
-                    
+
                     // Show error message
                     const errorMessage = button.closest('.relative')?.querySelector('.error-message');
                     if (errorMessage instanceof HTMLElement) {
@@ -489,7 +506,7 @@ try {
         type Sound = Database['public']['Tables']['sounds']['Row'];
         const sounds = JSON.parse(container.dataset.sounds || '[]') as Sound[];
         const functions = JSON.parse(container.dataset.functions || '[]') as { id: string; description: string; }[];
-        
+
         const soundOptions = sounds
             .map(sound => `<option value="${sound.id}" data-sound-url="${sound.file_path || ''}" data-storage-path="${sound.storage_path || ''}">${sound.name}</option>`)
             .join('');

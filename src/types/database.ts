@@ -184,6 +184,7 @@ export interface Database {
           visible_to_client: boolean;
           sound_profile_id: string;
           functions: string[] | null;
+          updated_at: string | null;
         };
         Insert: {
           id?: string;
@@ -204,6 +205,29 @@ export interface Database {
           sound_profile_id?: string;
           status?: 'draft' | 'active' | 'completed';
           functions?: string[] | null;
+        };
+      };
+      survey_sounds: {
+        Row: {
+          id: string;
+          survey_id: string;
+          sound_id: string;
+          intended_function: string | null;
+          order_index: number | null;
+        };
+        Insert: {
+          id?: string;
+          survey_id: string;
+          sound_id: string;
+          intended_function?: string | null;
+          order_index?: number | null;
+        };
+        Update: {
+          id?: string;
+          survey_id?: string;
+          sound_id?: string;
+          intended_function?: string | null;
+          order_index?: number | null;
         };
       };
       participants: {
@@ -285,6 +309,7 @@ export type Survey = Database['public']['Tables']['surveys']['Row'] & {
 
 export interface SurveySoundWithSound {
   id: string;
+  survey_id: string;
   sound_id: string;
   intended_function: string;
   order_index: number;

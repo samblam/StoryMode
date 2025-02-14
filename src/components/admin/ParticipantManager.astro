@@ -1,9 +1,33 @@
 ---
+import { supabase } from '../../lib/supabase';
+
 interface Props {
     surveyId: string;
 }
 
 const { surveyId } = Astro.props;
+
+import type { Database } from '../../types/database';
+type Participant = Database['public']['Tables']['participants']['Row'];
+
+let existingParticipants: Participant[] = [];
+
+try {
+    const { data, error } = await supabase
+        .from('participants')
+        .select('*')
+        .eq('survey_id', surveyId);
+
+    if (error) {
+        console.error('Error fetching participants:', error);
+    } else {
+        existingParticipants = data || [];
+        console.log('Fetched existing participants:', existingParticipants);
+    }
+} catch (error) {
+    console.error('Error fetching participants:', error);
+}
+
 ---
 
 <div class="bg-white shadow rounded-lg p-6">
@@ -41,6 +65,16 @@ const { surveyId } = Astro.props;
             >
                 JSON Upload
             </button>
+            <button
+                id="existing-tab"
+                class="border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 font-medium text-sm"
+                aria-controls="existing-panel"
+                role="tab"
+                aria-selected="false"
+                data-tab="existing"
+            >
+                Existing Participants
+            </button>
         </nav>
     </div>
 
@@ -50,7 +84,7 @@ const { surveyId } = Astro.props;
             id="manual-panel"
             role="tabpanel"
             aria-labelledby="manual-tab"
-            class="space-y-4"
+            class="space-y-4 hidden"
         >
             <form id="manual-form" class="space-y-4">
                 <div>
@@ -164,10 +198,132 @@ jane@example.com</pre>
                 </button>
             </form>
         </div>
+
+        <!-- Existing Participants Panel -->
+        <div
+            id="existing-panel"
+            role="tabpanel"
+            aria-labelledby="existing-tab"
+            class="space-y-4 hidden"
+        >
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Participant Identifier</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                            <th scope="col" class="relative px-6 py-3">
+                                <span class="sr-only">Edit</span>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200" id="existing-participants-tbody">
+                        {existingParticipants.map((participant) => (
+                            <tr >
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{participant.email}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{participant.participant_identifier}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{participant.status}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-right font-medium">
+                                    <button 
+                                        class="text-red-600 hover:text-red-900 delete-participant-btn"
+                                        data-participant-id={participant.id}
+                                    >
+                                        Delete
+                                    </button>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 </div>
 
 <script define:vars={{ surveyId }}>
+    import { supabase } from '../../lib/supabase';
+
+    // Function to delete participant
+    async function deleteParticipant(participantId) {
+        if (!confirm('Are you sure you want to delete this participant?')) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/surveys/${surveyId}/participants/delete`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'participant-id': participantId
+                }
+            });
+
+            const result = await response.json();
+
+            if (response.ok) {
+                alert('Participant deleted successfully');
+                // Refresh participant list - re-fetch existing participants
+                const { data, error } = await supabase
+                    .from('participants')
+                    .select('*')
+                    .eq('survey_id', surveyId);
+
+                if (error) {
+                    console.error('Error fetching participants after delete:', error);
+                } else {
+                    existingParticipants = data || [];
+                    // Update the table body with new data
+                    const tbody = document.getElementById('existing-participants-tbody');
+                    if (tbody) {
+                        tbody.innerHTML = existingParticipants.map(participant => `
+                            <tr >
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${participant.email}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${participant.participant_identifier}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${participant.status}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-right font-medium">
+                                    <button 
+                                        class="text-red-600 hover:text-red-900 delete-participant-btn"
+                                        data-participant-id=${participant.id}
+                                    >
+                                        Delete
+                                    </button>
+                                </td>
+                            </tr>
+                        `).join('');
+                         // Re-attach event listeners to the new delete buttons
+                         attachDeleteListeners();
+                    }
+                }
+
+            } else {
+                alert(result.error || 'Failed to delete participant');
+            }
+        } catch (error) {
+            alert('Error deleting participant');
+            console.error('Error:', error);
+        }
+    }
+
+    // Attach event listeners to delete buttons
+    function attachDeleteListeners() {
+        document.querySelectorAll('.delete-participant-btn').forEach(button => {
+            button.addEventListener('click', () => {
+                const participantId = button.dataset.participantId;
+                if (participantId) {
+                    deleteParticipant(participantId);
+                } else {
+                    console.error('Participant ID not found on button');
+                }
+            });
+        });
+    }
+
+    // Initialize delete button listeners after component load
+    document.addEventListener('astro:after-swap', attachDeleteListeners);
+    attachDeleteListeners();
+
+
     // Tab switching logic
     const tabButtons = document.querySelectorAll('[role="tab"]');
     const tabPanels = document.querySelectorAll('[role="tabpanel"]');
