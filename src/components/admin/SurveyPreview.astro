@@ -11,45 +11,75 @@ const { surveyId } = Astro.props;
     type="button"
     class="preview-button"
     data-survey-id={surveyId}
-    onclick="previewSurvey(this.dataset.surveyId)"
   >
     Preview Survey
   </button>
 </div>
 
-<script>
-  async function previewSurvey(surveyId: string) {
+<script define:vars={{ surveyId }}>
+  /**
+   * Generate and open a preview of the survey
+   * @param {string} surveyId - The ID of the survey to preview
+   */
+  async function previewSurvey(surveyId) {
     try {
+      const button = document.querySelector(`.preview-button[data-survey-id="${surveyId}"]`);
+      if (button) {
+        button.disabled = true;
+        button.textContent = 'Loading preview...';
+      }
+
       // Get preview data
       const response = await fetch(`/api/surveys/${surveyId}/preview`);
+      const data = await response.json();
+
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to generate preview');
+        throw new Error(data.error || data.message || 'Failed to generate preview');
+      }
+
+      // Validate preview data
+      if (!data || typeof data !== 'object') {
+        throw new Error('Invalid preview data received');
       }
 
       // Open preview in new window/tab
-      const previewData = await response.json();
-      const previewUrl = `/surveys/${surveyId}?preview=true&context=${encodeURIComponent(JSON.stringify(previewData))}`;
+      const previewUrl = `/surveys/${surveyId}?preview=true&context=${encodeURIComponent(JSON.stringify(data))}`;
       window.open(previewUrl, '_blank');
     } catch (error) {
       console.error('Error previewing survey:', error);
-      alert('Failed to generate survey preview. Please try again.');
+      alert(error.message || 'Failed to generate survey preview. Please try again.');
+    } finally {
+      // Re-enable button
+      const button = document.querySelector(`.preview-button[data-survey-id="${surveyId}"]`);
+      if (button) {
+        button.disabled = false;
+        button.textContent = 'Preview Survey';
+      }
     }
   }
 
   // Add event listener to preview button
-  document.addEventListener('DOMContentLoaded', () => {
-    const previewButtons = document.querySelectorAll('.preview-button');
-    previewButtons.forEach(button => {
-      button.addEventListener('click', (e) => {
-        e.preventDefault();
-        const surveyId = (e.target as HTMLButtonElement).dataset.surveyId;
-        if (surveyId) {
-          previewSurvey(surveyId);
-        }
-      });
+  function initializePreviewButton() {
+    const button = document.querySelector(`.preview-button[data-survey-id="${surveyId}"]`);
+    if (!button) {
+      console.error('Preview button not found');
+      return;
+    }
+
+    button.addEventListener('click', (e) => {
+      e.preventDefault();
+      const targetSurveyId = button.dataset.surveyId;
+      if (targetSurveyId) {
+        previewSurvey(targetSurveyId);
+      } else {
+        console.error('Survey ID not found on button');
+      }
     });
-  });
+  }
+
+  // Initialize on page load and after client-side navigation
+  document.addEventListener('astro:page-load', initializePreviewButton);
+  initializePreviewButton();
 </script>
 
 <style>
@@ -65,7 +95,7 @@ const { surveyId } = Astro.props;
     border: none;
     cursor: pointer;
     font-size: 0.875rem;
-    transition: background-color 0.2s;
+    transition: background-color 0.2s, opacity 0.2s;
   }
 
   .preview-button:hover {
@@ -80,5 +110,6 @@ const { surveyId } = Astro.props;
   .preview-button:disabled {
     background-color: #cbd5e0;
     cursor: not-allowed;
+    opacity: 0.7;
   }
 </style>

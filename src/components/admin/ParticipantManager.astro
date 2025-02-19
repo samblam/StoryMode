@@ -1,5 +1,5 @@
 ---
-import { supabase } from '../../lib/supabase';
+import { getClient } from '../../lib/supabase';
 
 interface Props {
     surveyId: string;
@@ -13,10 +13,12 @@ type Participant = Database['public']['Tables']['participants']['Row'];
 let existingParticipants: Participant[] = [];
 
 try {
+    const supabase = getClient({ requiresAdmin: true });
     const { data, error } = await supabase
         .from('participants')
         .select('*')
-        .eq('survey_id', surveyId);
+        .eq('survey_id', surveyId)
+        .order('created_at', { ascending: true });
 
     if (error) {
         console.error('Error fetching participants:', error);
@@ -84,7 +86,7 @@ try {
             id="manual-panel"
             role="tabpanel"
             aria-labelledby="manual-tab"
-            class="space-y-4 hidden"
+            class="space-y-4"
         >
             <form id="manual-form" class="space-y-4">
                 <div>
@@ -214,16 +216,27 @@ jane@example.com</pre>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Participant Identifier</th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                             <th scope="col" class="relative px-6 py-3">
-                                <span class="sr-only">Edit</span>
+                                <span class="sr-only">Actions</span>
                             </th>
                         </tr>
                     </thead>
-                    <tbody class="bg-white divide-y divide-gray-200" id="existing-participants-tbody">
+                    <tbody id="existing-participants-tbody" class="bg-white divide-y divide-gray-200 sortable-list">
                         {existingParticipants.map((participant) => (
-                            <tr >
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{participant.email}</td>
+                            <tr class="participant-row" data-id={participant.id}>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    <span class="drag-handle cursor-move mr-2">⋮</span>
+                                    {participant.email}
+                                </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{participant.participant_identifier}</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{participant.status}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    <span class={`px-2 py-1 rounded-full text-xs ${
+                                        participant.status === 'active' ? 'bg-green-100 text-green-800' :
+                                        participant.status === 'completed' ? 'bg-blue-100 text-blue-800' :
+                                        'bg-gray-100 text-gray-800'
+                                    }`}>
+                                        {participant.status}
+                                    </span>
+                                </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-right font-medium">
                                     <button 
                                         class="text-red-600 hover:text-red-900 delete-participant-btn"
@@ -242,191 +255,290 @@ jane@example.com</pre>
 </div>
 
 <script define:vars={{ surveyId }}>
-    import { supabase } from '../../lib/supabase';
+import { getClient } from '../../lib/supabase';
 
-    // Function to delete participant
-    async function deleteParticipant(participantId) {
-        if (!confirm('Are you sure you want to delete this participant?')) {
-            return;
-        }
+/**
+ * @typedef {Object} Participant
+ * @property {string} id
+ * @property {string} email
+ * @property {string} participant_identifier
+ * @property {string} status
+ */
 
-        try {
-            const response = await fetch(`/api/surveys/${surveyId}/participants/delete`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'participant-id': participantId
-                }
-            });
+// Import Sortable from CDN
+const sortableScript = document.createElement('script');
+sortableScript.src = 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js';
+document.head.appendChild(sortableScript);
 
-            const result = await response.json();
+sortableScript.onload = () => {
+    console.log('Sortable.js loaded successfully');
+    initializeSortable();
+};
 
-            if (response.ok) {
-                alert('Participant deleted successfully');
-                // Refresh participant list - re-fetch existing participants
-                const { data, error } = await supabase
-                    .from('participants')
-                    .select('*')
-                    .eq('survey_id', surveyId);
+sortableScript.onerror = () => {
+    console.error('Failed to load Sortable.js');
+};
 
-                if (error) {
-                    console.error('Error fetching participants after delete:', error);
-                } else {
-                    existingParticipants = data || [];
-                    // Update the table body with new data
-                    const tbody = document.getElementById('existing-participants-tbody');
-                    if (tbody) {
-                        tbody.innerHTML = existingParticipants.map(participant => `
-                            <tr >
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${participant.email}</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${participant.participant_identifier}</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${participant.status}</td>
-                                <td class="px-6 py-4 whitespace-nowrap text-right font-medium">
-                                    <button 
-                                        class="text-red-600 hover:text-red-900 delete-participant-btn"
-                                        data-participant-id=${participant.id}
-                                    >
-                                        Delete
-                                    </button>
-                                </td>
-                            </tr>
-                        `).join('');
-                         // Re-attach event listeners to the new delete buttons
-                         attachDeleteListeners();
+function initializeSortable() {
+    const tbody = document.getElementById('existing-participants-tbody');
+    if (tbody && window.Sortable) {
+        new Sortable(tbody, {
+            handle: '.drag-handle',
+            animation: 150,
+            onEnd: async function(evt) {
+                const participantId = evt.item.getAttribute('data-id');
+                const newIndex = evt.newIndex;
+                
+                if (!participantId) return;
+                
+                try {
+                    const response = await fetch(`/api/surveys/${surveyId}/participants/reorder`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            participantId,
+                            newIndex
+                        })
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error('Failed to update participant order');
                     }
+                } catch (error) {
+                    console.error('Error updating participant order:', error);
+                    // Optionally refresh the list to restore original order
+                    await refreshParticipantList();
                 }
-
-            } else {
-                alert(result.error || 'Failed to delete participant');
             }
-        } catch (error) {
-            alert('Error deleting participant');
-            console.error('Error:', error);
-        }
-    }
-
-    // Attach event listeners to delete buttons
-    function attachDeleteListeners() {
-        document.querySelectorAll('.delete-participant-btn').forEach(button => {
-            button.addEventListener('click', () => {
-                const participantId = button.dataset.participantId;
-                if (participantId) {
-                    deleteParticipant(participantId);
-                } else {
-                    console.error('Participant ID not found on button');
-                }
-            });
         });
+        console.log('Sortable initialized on participant list');
+    } else {
+        console.error('Required elements not found for Sortable initialization');
+    }
+}
+
+// Function to refresh participant list
+async function refreshParticipantList() {
+    try {
+        const supabase = getClient({ requiresAdmin: true });
+        const { data, error } = await supabase
+            .from('participants')
+            .select('*')
+            .eq('survey_id', surveyId)
+            .order('created_at', { ascending: true });
+
+        if (error) throw error;
+
+        const tbody = document.getElementById('existing-participants-tbody');
+        if (tbody && data) {
+            tbody.innerHTML = data.map((participant) => `
+                <tr class="participant-row" data-id="${participant.id}">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <span class="drag-handle cursor-move mr-2">⋮</span>
+                        ${participant.email}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${participant.participant_identifier}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <span class="px-2 py-1 rounded-full text-xs ${
+                            participant.status === 'active' ? 'bg-green-100 text-green-800' :
+                            participant.status === 'completed' ? 'bg-blue-100 text-blue-800' :
+                            'bg-gray-100 text-gray-800'
+                        }">
+                            ${participant.status}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right font-medium">
+                        <button 
+                            class="text-red-600 hover:text-red-900 delete-participant-btn"
+                            data-participant-id="${participant.id}"
+                        >
+                            Delete
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+            
+            // Re-initialize Sortable
+            initializeSortable();
+            // Re-attach event listeners
+            attachDeleteListeners();
+        }
+    } catch (error) {
+        console.error('Error refreshing participant list:', error);
+    }
+}
+
+// Function to delete participant
+async function deleteParticipant(participantId) {
+    if (!confirm('Are you sure you want to delete this participant?')) {
+        return;
     }
 
-    // Initialize delete button listeners after component load
-    document.addEventListener('astro:after-swap', attachDeleteListeners);
-    attachDeleteListeners();
+    try {
+        const response = await fetch(`/api/surveys/${surveyId}/participants/delete`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ participantId })
+        });
 
+        const result = await response.json();
 
-    // Tab switching logic
-    const tabButtons = document.querySelectorAll('[role="tab"]');
-    const tabPanels = document.querySelectorAll('[role="tabpanel"]');
+        if (response.ok) {
+            await refreshParticipantList();
+            alert('Participant deleted successfully');
+        } else {
+            alert(result.error || 'Failed to delete participant');
+        }
+    } catch (error) {
+        alert('Error deleting participant');
+        console.error('Error:', error);
+    }
+}
 
-    tabButtons.forEach(button => {
+// Attach event listeners to delete buttons
+function attachDeleteListeners() {
+    document.querySelectorAll<HTMLButtonElement>('.delete-participant-btn').forEach(button => {
         button.addEventListener('click', () => {
-            // Deactivate all tabs
-            tabButtons.forEach(btn => {
-                btn.setAttribute('aria-selected', 'false');
-                btn.classList.remove('border-blue-500', 'text-blue-600');
-                btn.classList.add('border-transparent', 'text-gray-500');
-            });
-
-            // Hide all panels
-            tabPanels.forEach(panel => {
-                panel.classList.add('hidden');
-            });
-
-            // Activate clicked tab
-            button.setAttribute('aria-selected', 'true');
-            button.classList.remove('border-transparent', 'text-gray-500');
-            button.classList.add('border-blue-500', 'text-blue-600');
-
-            // Show corresponding panel
-            const panelId = button.getAttribute('aria-controls');
-            document.getElementById(panelId)?.classList.remove('hidden');
+            const participantId = button.dataset.participantId;
+            if (participantId) {
+                deleteParticipant(participantId);
+            } else {
+                console.error('Participant ID not found on button');
+            }
         });
     });
+}
 
-    // Form submission handlers
-    const manualForm = document.getElementById('manual-form');
-    const csvForm = document.getElementById('csv-form');
-    const jsonForm = document.getElementById('json-form');
+// Initialize delete button listeners
+document.addEventListener('astro:page-load', () => {
+    attachDeleteListeners();
+    initializeSortable();
+});
 
-    manualForm?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const formData = new FormData(e.target);
-        
-        try {
-            const response = await fetch(`${window.location.origin}/api/surveys/${surveyId}/participants/manual`, {
-                method: 'POST',
-                body: formData
-            });
+// Tab switching logic
+const tabButtons = document.querySelectorAll('[role="tab"]');
+const tabPanels = document.querySelectorAll('[role="tabpanel"]');
 
-            const result = await response.json();
-            
-            if (response.ok) {
-                alert('Participant added successfully');
-                manualForm.reset();
-            } else {
-                alert(result.error || 'Failed to add participant');
-            }
-        } catch (error) {
-            alert('Error adding participant');
-            console.error('Error:', error);
-        }
+function switchTab(tabId) {
+    // Deactivate all tabs
+    tabButtons.forEach(btn => {
+        btn.setAttribute('aria-selected', 'false');
+        btn.classList.remove('border-blue-500', 'text-blue-600');
+        btn.classList.add('border-transparent', 'text-gray-500');
     });
 
-    csvForm?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const formData = new FormData(e.target);
-        
-        try {
-            const response = await fetch(`/api/surveys/${surveyId}/participants/csv`, {
-                method: 'POST',
-                body: formData
-            });
-
-            const result = await response.json();
-            
-            if (response.ok) {
-                alert('Participants imported successfully from CSV');
-                csvForm.reset();
-            } else {
-                alert(result.error || 'Failed to import participants from CSV');
-            }
-        } catch (error) {
-            alert('Error importing participants from CSV');
-            console.error('Error:', error);
-        }
+    // Hide all panels
+    tabPanels.forEach(panel => {
+        panel.classList.add('hidden');
     });
 
-    jsonForm?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const formData = new FormData(e.target);
-        
-        try {
-            const response = await fetch(`/api/surveys/${surveyId}/participants/json`, {
-                method: 'POST',
-                body: formData
-            });
+    // Activate selected tab
+    const selectedTab = document.getElementById(tabId);
+    if (selectedTab) {
+        selectedTab.setAttribute('aria-selected', 'true');
+        selectedTab.classList.remove('border-transparent', 'text-gray-500');
+        selectedTab.classList.add('border-blue-500', 'text-blue-600');
 
-            const result = await response.json();
-            
-            if (response.ok) {
-                alert('Participants imported successfully from JSON');
-                jsonForm.reset();
-            } else {
-                alert(result.error || 'Failed to import participants from JSON');
-            }
-        } catch (error) {
-            alert('Error importing participants from JSON');
-            console.error('Error:', error);
+        // Show corresponding panel
+        const panelId = selectedTab.getAttribute('aria-controls');
+        if (panelId) {
+            const panel = document.getElementById(panelId);
+            panel?.classList.remove('hidden');
         }
+    }
+}
+
+tabButtons.forEach(button => {
+    button.addEventListener('click', () => {
+        const tabId = button.id;
+        switchTab(tabId);
     });
+});
+
+// Form submission handlers
+const manualForm = document.getElementById('manual-form');
+const csvForm = document.getElementById('csv-form');
+const jsonForm = document.getElementById('json-form');
+
+manualForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    
+    try {
+        const response = await fetch(`/api/surveys/${surveyId}/participants/manual`, {
+            method: 'POST',
+            body: formData
+        });
+
+        const result = await response.json();
+        
+        if (response.ok) {
+            alert('Participant added successfully');
+            await refreshParticipantList();
+            manualForm.reset();
+        } else {
+            alert(result.error || 'Failed to add participant');
+        }
+    } catch (error) {
+        alert('Error adding participant');
+        console.error('Error:', error);
+    }
+});
+
+csvForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    
+    try {
+        const response = await fetch(`/api/surveys/${surveyId}/participants/csv`, {
+            method: 'POST',
+            body: formData
+        });
+
+        const result = await response.json();
+        
+        if (response.ok) {
+            alert('Participants imported successfully from CSV');
+            await refreshParticipantList();
+            csvForm.reset();
+        } else {
+            alert(result.error || 'Failed to import participants from CSV');
+        }
+    } catch (error) {
+        alert('Error importing participants from CSV');
+        console.error('Error:', error);
+    }
+});
+
+jsonForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    
+    try {
+        const response = await fetch(`/api/surveys/${surveyId}/participants/json`, {
+            method: 'POST',
+            body: formData
+        });
+
+        const result = await response.json();
+        
+        if (response.ok) {
+            alert('Participants imported successfully from JSON');
+            await refreshParticipantList();
+            jsonForm.reset();
+        } else {
+            alert(result.error || 'Failed to import participants from JSON');
+        }
+    } catch (error) {
+        alert('Error importing participants from JSON');
+        console.error('Error:', error);
+    }
+});
+
+// Initialize first tab
+switchTab('manual-tab');
 </script>

@@ -34,13 +34,13 @@ if (!user) {
 try {
   console.log('Fetching clients from Supabase...');
   
-  const client = getClient({ requiresAdmin: user?.role === 'admin' });
+  const supabase = getClient({ requiresAdmin: user?.role === 'admin' });
   console.log('Using client with context:', {
     requiresAdmin: user?.role === 'admin',
     role: user?.role
   });
   
-  const { data, error } = await client
+  const { data, error } = await supabase
     .from('clients')
     .select('*');
     
@@ -75,7 +75,7 @@ try {
 ---
 
 <form id="createSurveyForm" class="space-y-6">
-  <div>
+  <div class="form-group">
     <label for="title" class="block text-sm font-medium text-gray-700">Title</label>
     <input
       type="text"
@@ -84,9 +84,10 @@ try {
       required
       class="mt-1 block w-full border rounded-md shadow-sm px-3 py-2"
     />
+    <div id="titleError" class="text-red-500 text-sm mt-1 hidden"></div>
   </div>
 
-  <div>
+  <div class="form-group">
     <label for="description" class="block text-sm font-medium text-gray-700">Description</label>
     <textarea
       id="description"
@@ -94,9 +95,10 @@ try {
       rows="3"
       class="mt-1 block w-full border rounded-md shadow-sm px-3 py-2"
     ></textarea>
+    <div id="descriptionError" class="text-red-500 text-sm mt-1 hidden"></div>
   </div>
 
-  <div>
+  <div class="form-group">
     <label for="client_id" class="block text-sm font-medium text-gray-700">Client</label>
     <select
       id="client_id"
@@ -117,13 +119,14 @@ try {
         <option value="" disabled>No clients found</option>
       )}
     </select>
+    <div id="clientError" class="text-red-500 text-sm mt-1 hidden"></div>
   </div>
 
-  <div>
+  <div class="form-group">
     <label for="soundProfileId" class="block text-sm font-medium text-gray-700">Sound Profile</label>
     <select
-      id="soundProfileId"
-      name="soundProfileId"
+      id="sound_profile_id"
+      name="sound_profile_id"
       required
       class="mt-1 block w-full border rounded-md shadow-sm px-3 py-2"
     >
@@ -140,12 +143,15 @@ try {
         <option value="" disabled>No sound profiles found</option>
       )}
     </select>
+    <div id="soundProfileError" class="text-red-500 text-sm mt-1 hidden"></div>
   </div>
+
+  <div id="formError" class="text-red-500 text-sm mt-4 hidden"></div>
 
   <div class="flex items-center space-x-4">
     <button
       type="submit"
-      class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
+      class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-50 disabled:cursor-not-allowed"
     >
       Create Survey
     </button>
@@ -170,15 +176,46 @@ interface SoundProfile {
   title: string;
 }
 
+interface ValidationErrors {
+  title?: string;
+  description?: string;
+  client_id?: string;
+  sound_profile_id?: string;
+  sounds?: string;
+}
+
 const form = document.getElementById('createSurveyForm') as HTMLFormElement;
 const clientSelect = document.getElementById('client_id');
-const soundProfileSelect = document.getElementById('soundProfileId');
+const soundProfileSelect = document.getElementById('sound_profile_id');
 const submitButton = form?.querySelector('button[type="submit"]') as HTMLButtonElement;
 const cancelButton = document.getElementById('cancelButton');
+const formError = document.getElementById('formError');
 
-if (!form || !clientSelect || !soundProfileSelect || !submitButton || !cancelButton) {
+if (!form || !clientSelect || !soundProfileSelect || !submitButton || !cancelButton || !formError) {
   console.error('Required form elements not found');
   throw new Error('Form initialization failed');
+}
+
+// Clear validation errors
+function clearErrors() {
+  const errorElements = form.querySelectorAll('[id$="Error"]');
+  errorElements.forEach(el => {
+    el.textContent = '';
+    el.classList.add('hidden');
+  });
+}
+
+// Display validation errors
+function displayErrors(errors: ValidationErrors) {
+  clearErrors();
+  
+  Object.entries(errors).forEach(([field, message]) => {
+    const errorElement = document.getElementById(`${field}Error`);
+    if (errorElement && message) {
+      errorElement.textContent = message;
+      errorElement.classList.remove('hidden');
+    }
+  });
 }
 
 // Handle cancel button click
@@ -190,6 +227,9 @@ form.addEventListener('submit', async (e) => {
   e.preventDefault();
   console.log('Form submission started');
 
+  // Clear previous errors
+  clearErrors();
+
   // Disable form elements during submission
   submitButton.disabled = true;
   submitButton.textContent = 'Creating...';
@@ -197,59 +237,113 @@ form.addEventListener('submit', async (e) => {
   formElements.forEach(el => (el as HTMLElement).setAttribute('disabled', 'true'));
 
   try {
-    const formData = new FormData(form);
-    // Get the selected sound profile's sounds
-    const soundProfileId = formData.get('soundProfileId') as string;
-    let profileSounds = [];
-    
-    if (soundProfileId) {
-      try {
-        const response = await fetch(`/api/sound-profiles/${soundProfileId}`);
-        if (!response.ok) {
-          throw new Error('Failed to fetch sound profile');
-        }
-        const profile = await response.json();
-        profileSounds = profile.sounds.map((sound: Sound, index: number) => ({
-          id: sound.id,
-          intended_function: sound.description || '',
-          order_index: index
-        }));
-      } catch (error) {
-        console.error('Error fetching sound profile sounds:', error);
-        throw new Error('Failed to load sound profile data');
-      }
+    // Get and validate form values
+    const title = (document.getElementById('title') as HTMLInputElement)?.value?.trim();
+    const description = (document.getElementById('description') as HTMLTextAreaElement)?.value?.trim();
+    const client_id = (document.getElementById('client_id') as HTMLSelectElement)?.value;
+    const sound_profile_id = (document.getElementById('sound_profile_id') as HTMLSelectElement)?.value;
+
+    console.log('Form values:', { title, description, client_id, sound_profile_id });
+
+    // Validate required fields
+    const validationErrors: Record<string, string> = {};
+    if (!title) validationErrors.title = 'Title is required';
+    if (!client_id) validationErrors.client_id = 'Client is required';
+    if (!sound_profile_id) validationErrors.sound_profile_id = 'Sound profile is required';
+
+    if (Object.keys(validationErrors).length > 0) {
+      displayErrors(validationErrors);
+      throw new Error('Please fill in all required fields');
     }
 
-    const data = {
-      title: formData.get('title'),
-      description: formData.get('description'),
-      client_id: formData.get('client_id'),
-      sound_profile_id: soundProfileId,
+    // Fetch sound profile data
+    let profileSounds = [];
+    try {
+      const response = await fetch(`/api/sound-profiles/${sound_profile_id}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch sound profile');
+      }
+      const profile = await response.json();
+      profileSounds = profile.sounds.map((sound: Sound, index: number) => ({
+        id: sound.id,
+        intended_function: sound.description || '',
+        order_index: index
+      }));
+    } catch (error) {
+      console.error('Error fetching sound profile sounds:', error);
+      displayErrors({ sound_profile_id: 'Failed to load sound profile data' });
+      throw new Error('Failed to load sound profile data');
+    }
+
+    // Validate sounds
+    if (!profileSounds.length) {
+      validationErrors.sounds = 'At least one sound is required';
+      displayErrors(validationErrors);
+      throw new Error('Sound profile must contain at least one sound');
+    }
+
+    // Prepare survey data
+    const surveyData = {
+      title: title || '',
+      description: description || '',
+      client_id: client_id || '',
+      sound_profile_id: sound_profile_id || '',
       sounds: profileSounds,
-      status: 'draft'
+      status: 'draft' as const
     };
 
-    console.log('Submitting survey data:', data);
+    console.log('Prepared survey data:', surveyData);
+
+    console.log('Submitting survey data:', surveyData);
 
     const response = await fetch('/api/surveys', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
+      body: JSON.stringify(surveyData),
     });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error('API Error:', errorData);
-      throw new Error(errorData.message || 'Failed to create survey');
+    let result;
+    try {
+      result = await response.json();
+    } catch (error) {
+      console.error('Error parsing response:', error);
+      formError.textContent = 'Invalid server response';
+      formError.classList.remove('hidden');
+      throw new Error('Invalid server response');
     }
 
-    const result = await response.json();
+    if (!response.ok) {
+      console.error('API Error:', result);
+      
+      // Clear any previous errors
+      clearErrors();
+      
+      if (result.details && typeof result.details === 'object') {
+        // Handle validation errors
+        displayErrors(result.details);
+        const errorMessages = Object.values(result.details).join(', ');
+        formError.textContent = `Validation failed: ${errorMessages}`;
+        formError.classList.remove('hidden');
+      } else {
+        // Handle general error
+        formError.textContent = result.error || 'Failed to create survey';
+        formError.classList.remove('hidden');
+      }
+      
+      throw new Error(result.error || 'Failed to create survey');
+    }
+
+    // Clear any previous errors on success
+    clearErrors();
+
     console.log('Survey created successfully:', result);
     window.location.href = '/admin/surveys';
   } catch (error) {
     console.error('Survey creation failed:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Failed to create survey';
-    alert(errorMessage);
+    if (!formError.textContent) {
+      formError.textContent = error instanceof Error ? error.message : 'Failed to create survey';
+      formError.classList.remove('hidden');
+    }
   } finally {
     // Re-enable form elements
     submitButton.disabled = false;
@@ -288,6 +382,7 @@ clientSelect.addEventListener('change', async (e) => {
   } catch (error) {
     console.error('Failed to load sound profiles:', error);
     soundProfileSelect.innerHTML = '<option value="" disabled>Failed to load sound profiles</option>';
+    displayErrors({ sound_profile_id: 'Failed to load sound profiles' });
   }
 });
 </script>

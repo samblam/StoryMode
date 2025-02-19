@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { supabase } from '../../../lib/supabase';
+import { getClient } from '../../../lib/supabase';
 import { verifyAuthorization } from '../../../utils/accessControl';
 import { handleRLSError, isRLSError } from '../../../utils/accessControl';
 import type { User } from '../../../types/auth';
@@ -14,6 +14,29 @@ function getErrorMessage(error: PostgrestError): string {
   return error?.message || 'Unknown error occurred';
 }
 
+// Validation middleware
+function validateSurveyData(data: any) {
+  const errors: Record<string, string> = {};
+
+  if (!data.title?.trim()) {
+    errors.title = 'Title is required';
+  }
+  if (!data.client_id) {
+    errors.client_id = 'Client is required';
+  }
+  if (!data.sound_profile_id) {
+    errors.sound_profile_id = 'Sound profile is required';
+  }
+  if (data.sounds?.length === 0) {
+    errors.sounds = 'At least one sound is required';
+  }
+
+  return {
+    isValid: Object.keys(errors).length === 0,
+    errors
+  };
+}
+
 export const GET: APIRoute = async ({ request, locals }) => {
   try {
     const user = locals.user as User | undefined;
@@ -25,6 +48,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
       });
     }
 
+    const supabase = getClient({ requiresAdmin: true });
     const { data, error } = await supabase
       .from('surveys')
       .select(`
@@ -83,6 +107,20 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const body = await request.json();
     console.log('Received survey creation request:', body);
 
+    // Validate request data
+    const { isValid, errors } = validateSurveyData(body);
+    if (!isValid) {
+      return new Response(JSON.stringify({
+        error: 'Validation failed',
+        details: errors
+      }), { 
+        status: 400,
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+    }
+
     const {
       title,
       description,
@@ -99,12 +137,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       sounds: SurveySound[];
     };
 
-    // Validate required fields
-    if (!title || !client_id) {
-      return new Response(JSON.stringify({
-        error: 'Missing required fields'
-      }), { status: 400 });
-    }
+    const supabase = getClient({ requiresAdmin: true });
 
     // Start a transaction
     console.log('Creating survey with data:', {
@@ -118,8 +151,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const { data: survey, error: surveyError } = await supabase
       .from('surveys')
       .insert({
-        title,
-        description,
+        title: title.trim(),
+        description: description?.trim(),
         client_id,
         sound_profile_id,
         video_url,
@@ -135,7 +168,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
       if (isRLSError(postgrestError)) {
         return handleRLSError(postgrestError);
       }
-      return new Response(JSON.stringify({ error: getErrorMessage(postgrestError) }), {
+      console.error('Error creating survey:', surveyError);
+      return new Response(JSON.stringify({ 
+        error: 'Failed to create survey',
+        details: getErrorMessage(postgrestError)
+      }), {
         status: 500,
       });
     }
@@ -161,12 +198,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
         if (isRLSError(postgrestError)) {
           return handleRLSError(postgrestError);
         }
-        return new Response(JSON.stringify({ error: getErrorMessage(postgrestError) }), {
-          status: 500,
-        });
+        // Don't fail the whole operation if sounds fail
+        console.warn('Failed to add survey sounds:', getErrorMessage(postgrestError));
+      } else {
+        console.log('Successfully added survey sounds');
       }
-      
-      console.log('Successfully added survey sounds');
     }
 
     return new Response(JSON.stringify({
@@ -174,11 +210,20 @@ export const POST: APIRoute = async ({ request, locals }) => {
       message: 'Survey created successfully'
     }), {
       status: 201,
+      headers: {
+        'Content-Type': 'application/json'
+      }
     });
   } catch (error) {
     console.error('Error in POST /api/surveys:', error);
-    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+    return new Response(JSON.stringify({ 
+      error: 'Internal server error',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }), {
       status: 500,
+      headers: {
+        'Content-Type': 'application/json'
+      }
     });
   }
 };

@@ -2,7 +2,25 @@
 
 ## Current Task
 
-Implementing comprehensive participant and survey management features:
+Fixing critical bugs in the survey system while continuing participant and survey management features:
+
+### Bug Fixes (High Priority)
+1. Survey Creation Bug
+   - 400 (Bad Request) error during form submission
+   - Need to implement proper validation and error handling
+   - Update API endpoint validation
+
+2. Participant Management Bug
+   - UI interaction issues (nothing selectable/viewable)
+   - Sortable.js integration problems
+   - Multiple Supabase client initialization warnings
+
+3. Survey Preview Bug
+   - 404 error on survey preview
+   - previewSurvey function undefined
+   - VideoPlayer callback errors
+
+### Ongoing Feature Work
 1. Participant status management
 2. Survey preview functionality
 3. Survey publishing with unique URLs
@@ -40,31 +58,37 @@ Implementing comprehensive participant and survey management features:
 
 ## Next Steps
 
-1. Database Schema Updates:
+1. Fix Critical Bugs:
+   - Implement proper validation in CreateSurveyForm.astro
+   - Fix Sortable.js integration in ParticipantManager
+   - Implement survey preview functionality
+   - Add comprehensive error handling
+
+2. Database Schema Updates:
    - Add status column to participants table
    - Add sound_mapping_responses column to survey_responses table
    - Create migrations for schema changes
 
-2. Participant Status Management:
+3. Participant Status Management:
    - Update participant creation endpoints to set initial status
    - Implement status update logic for publishing/completion
 
-3. Survey Preview:
+4. Survey Preview:
    - Create preview route and component
    - Implement preview mode logic
 
-4. Survey Publishing:
+5. Survey Publishing:
    - Create publish endpoint
    - Implement URL generation
    - Set up email sending
    - Handle participant status updates
 
-5. Response Saving:
+6. Response Saving:
    - Update response saving logic
    - Add sound mapping data handling
    - Implement participant status updates
 
-6. Testing and Documentation:
+7. Testing and Documentation:
    - Write tests for new functionality
    - Update documentation
    - Create user guides
