@@ -259,6 +259,140 @@ export const PUT: APIRoute = async ({ request, params, locals }) => {
     }
 };
 
+// Add PATCH handler for partial updates (like status changes)
+export const PATCH: APIRoute = async ({ request, params, locals }) => {
+    console.log('Survey PATCH: Starting request processing');
+    try {
+        // Verify admin authorization
+        console.log('Survey PATCH: Verifying authorization');
+        const { authorized, error: authError } = await verifyAuthorization(locals.user, 'admin', 'write');
+        if (!authorized) {
+            console.error('Survey PATCH: Authorization failed:', authError);
+            return new Response(JSON.stringify({ error: authError }), {
+                status: 403,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        const { id } = params;
+        if (!id) {
+            console.error('Survey PATCH: No ID provided');
+            return new Response(JSON.stringify({ error: 'Survey ID required' }), {
+                status: 400,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        // Parse request body
+        console.log('Survey PATCH: Parsing request body');
+        const rawData = await request.text();
+        console.log('Survey PATCH: Raw request body:', rawData);
+        
+        let data;
+        try {
+            data = JSON.parse(rawData);
+        } catch (parseError) {
+            console.error('Survey PATCH: JSON parse error:', parseError);
+            return new Response(JSON.stringify({
+                error: 'Invalid JSON in request body',
+                details: parseError instanceof Error ? parseError.message : 'Unknown parse error'
+            }), {
+                status: 400,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        console.log('Survey PATCH: Parsed data:', data);
+
+        // Fetch existing survey data
+        console.log('Survey PATCH: Fetching existing survey data');
+        const { data: existingSurvey, error: fetchError } = await supabase
+            .from('surveys')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+        if (fetchError) {
+            console.error('Survey PATCH: Error fetching existing survey:', fetchError);
+            return new Response(JSON.stringify({
+                error: 'Failed to fetch existing survey',
+                details: fetchError.message
+            }), {
+                status: 500,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        if (!existingSurvey) {
+            console.error('Survey PATCH: Survey not found:', id);
+            return new Response(JSON.stringify({
+                error: 'Survey not found'
+            }), {
+                status: 404,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        // For PATCH, we only update the fields that are provided
+        const updateData = { ...existingSurvey };
+        
+        // Handle status update
+        if ('active' in data && typeof data.active === 'boolean') {
+            updateData.active = data.active;
+        }
+        
+        // Handle other potential partial updates
+        if ('approved' in data && typeof data.approved === 'boolean') {
+            updateData.approved = data.approved;
+        }
+        
+        if ('visible_to_client' in data && typeof data.visible_to_client === 'boolean') {
+            updateData.visible_to_client = data.visible_to_client;
+        }
+
+        console.log('Survey PATCH: Update data:', updateData);
+
+        // Update the survey
+        const { data: updatedSurvey, error: updateError } = await supabase
+            .from('surveys')
+            .update(updateData)
+            .eq('id', id)
+            .select()
+            .single();
+
+        if (updateError) {
+            console.error('Survey PATCH: Update error:', updateError);
+            return new Response(JSON.stringify({
+                error: 'Failed to update survey',
+                details: updateError.message
+            }), {
+                status: 500,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        console.log('Survey PATCH: Successfully updated survey:', id);
+
+        return new Response(JSON.stringify({
+            success: true,
+            message: 'Survey updated successfully',
+            data: updatedSurvey
+        }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    } catch (error) {
+        console.error('Survey PATCH: Unexpected error:', error);
+        return new Response(JSON.stringify({
+            error: 'Failed to update survey',
+            details: error instanceof Error ? error.message : 'Unknown error'
+        }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    }
+};
+
 // Add GET handler for survey data
 export const GET: APIRoute = async ({ request, params, locals }) => {
     try {

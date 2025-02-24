@@ -233,27 +233,30 @@ export interface Database {
       participants: {
         Row: {
           id: string;
-          survey_id: string | null;
-          email: string | null;
-          participant_identifier: string | null;
+          survey_id: string;
+          email: string;
+          name: string | null;
+          participant_identifier: string;
           created_at: string;
-          status: string | null;
+          status: 'inactive' | 'active' | 'completed';
         };
         Insert: {
           id?: string;
-          survey_id?: string | null;
-          email?: string | null;
-          participant_identifier?: string | null;
+          survey_id: string;
+          email: string;
+          name?: string | null;
+          participant_identifier: string;
           created_at?: string;
-          status?: string | null;
+          status?: 'inactive' | 'active' | 'completed';
         };
         Update: {
           id?: string;
-          survey_id?: string | null;
-          email?: string | null;
-          participant_identifier?: string | null;
+          survey_id?: string;
+          email?: string;
+          name?: string | null;
+          participant_identifier?: string;
           created_at?: string;
-          status?: string | null;
+          status?: 'inactive' | 'active' | 'completed';
         };
       };
     };

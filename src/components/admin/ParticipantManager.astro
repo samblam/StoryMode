@@ -101,6 +101,17 @@ try {
                         required
                     />
                 </div>
+                <div>
+                    <label for="name" class="block text-sm font-medium text-gray-700">
+                        Name
+                    </label>
+                    <input
+                        type="text"
+                        name="name"
+                        id="name"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                    />
+                </div>
                 <button
                     type="submit"
                     class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
@@ -122,11 +133,12 @@ try {
                 <ul class="mt-2 text-sm text-gray-600 list-disc list-inside">
                     <li>File must be in CSV format</li>
                     <li>Required column: email</li>
+                    <li>Optional column: name</li>
                     <li>First row must contain column header</li>
                     <li>Example:
-                        <pre class="mt-1 text-xs bg-gray-100 p-2 rounded">email
-john@example.com
-jane@example.com</pre>
+                        <pre class="mt-1 text-xs bg-gray-100 p-2 rounded">email,name
+john@example.com,John Smith
+jane@example.com,Jane Doe</pre>
                     </li>
                 </ul>
             </div>
@@ -166,13 +178,16 @@ jane@example.com</pre>
                     <li>File must be in JSON format</li>
                     <li>Content must be an array of participant objects</li>
                     <li>Each object must have an email field</li>
+                    <li>Name field is optional</li>
                     <li>Example:
                         <pre class="mt-1 text-xs bg-gray-100 p-2 rounded">[
   {`{`}
-    "email": "john@example.com"
+    "email": "john@example.com",
+    "name": "John Smith"
   {`}`},
   {`{`}
-    "email": "jane@example.com"
+    "email": "jane@example.com",
+    "name": "Jane Doe"
   {`}`}
 ]</pre>
                     </li>
@@ -255,34 +270,82 @@ jane@example.com</pre>
 </div>
 
 <script define:vars={{ surveyId }}>
-import { getClient } from '../../lib/supabase';
+// Note: Sortable.js is already loaded in Layout.astro, no need to load it again
+
+// Import the getClient function directly in the client-side script
+// This is needed because the import at the top of the file is only available in the server-side code
+async function getClientWrapper(options = {}) {
+    // Since we can't directly import getClient in client-side code,
+    // we'll make a fetch request to a simple endpoint that uses the client
+    try {
+        console.log('Fetching participants from API...');
+        console.log(`Request URL: /api/surveys/${surveyId}/participants`);
+        
+        const response = await fetch(`/api/surveys/${surveyId}/participants`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        console.log('Response status:', response.status);
+        console.log('Response status text:', response.statusText);
+        
+        if (!response.ok) {
+            console.error('API response not OK:', response.status, response.statusText);
+            const errorText = await response.text();
+            console.error('Error response body:', errorText);
+            throw new Error(`Failed to fetch participants: ${response.status} ${response.statusText}`);
+        }
+        
+        const result = await response.json();
+        console.log('API response data:', result);
+        console.log('Participants count:', result.data?.length || 0);
+        
+        if (result.error) {
+            console.error('API returned error:', result.error);
+            throw new Error(result.error);
+        }
+        
+        return result;
+    } catch (error) {
+        console.error('Error in getClientWrapper:', error);
+        console.error('Error details:', error.message);
+        return { data: [], error };
+    }
+}
 
 /**
  * @typedef {Object} Participant
  * @property {string} id
  * @property {string} email
+ * @property {string} name
  * @property {string} participant_identifier
  * @property {string} status
  */
 
-// Import Sortable from CDN
-const sortableScript = document.createElement('script');
-sortableScript.src = 'https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js';
-document.head.appendChild(sortableScript);
-
-sortableScript.onload = () => {
-    console.log('Sortable.js loaded successfully');
-    initializeSortable();
-};
-
-sortableScript.onerror = () => {
-    console.error('Failed to load Sortable.js');
-};
-
 function initializeSortable() {
     const tbody = document.getElementById('existing-participants-tbody');
-    if (tbody && window.Sortable) {
-        new Sortable(tbody, {
+    if (!tbody) {
+        console.error('Participant tbody element not found');
+        return;
+    }
+    
+    if (typeof window.Sortable === 'undefined') {
+        console.error('Sortable.js not available. Retrying in 500ms...');
+        setTimeout(initializeSortable, 500);
+        return;
+    }
+    
+    try {
+        // Check if Sortable is already initialized on this element
+        if (tbody.classList.contains('sortable-initialized')) {
+            console.log('Sortable already initialized on this element');
+            return;
+        }
+        
+        // Initialize Sortable
+        new window.Sortable(tbody, {
             handle: '.drag-handle',
             animation: 150,
             onEnd: async function(evt) {
@@ -313,44 +376,65 @@ function initializeSortable() {
                 }
             }
         });
-        console.log('Sortable initialized on participant list');
-    } else {
-        console.error('Required elements not found for Sortable initialization');
+        
+        // Mark as initialized
+        tbody.classList.add('sortable-initialized');
+        console.log('Sortable successfully initialized on participant list');
+    } catch (error) {
+        console.error('Error initializing Sortable:', error);
     }
 }
 
 // Function to refresh participant list
 async function refreshParticipantList() {
     try {
-        const supabase = getClient({ requiresAdmin: true });
-        const { data, error } = await supabase
-            .from('participants')
-            .select('*')
-            .eq('survey_id', surveyId)
-            .order('created_at', { ascending: true });
+        console.log('Refreshing participant list...');
+        const { data, error } = await getClientWrapper();
 
-        if (error) throw error;
+        if (error) {
+            console.error('Error fetching participants:', error);
+            console.error('Error details:', error.message);
+            throw error;
+        }
+
+        console.log(`Fetched ${data?.length || 0} participants`);
+        if (data && data.length > 0) {
+            console.log('First participant:', data[0]);
+        } else {
+            console.log('No participants found');
+        }
 
         const tbody = document.getElementById('existing-participants-tbody');
-        if (tbody && data) {
-            tbody.innerHTML = data.map((participant) => `
+        if (!tbody) {
+            console.error('Participant tbody element not found');
+            return;
+        }
+        
+        if (data) {
+            console.log('Updating participant table with', data.length, 'participants');
+            tbody.innerHTML = data.map((participant) => {
+                // Log each participant for debugging
+                console.log('Processing participant:', participant);
+                
+                return `
                 <tr class="participant-row" data-id="${participant.id}">
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         <span class="drag-handle cursor-move mr-2">⋮</span>
-                        ${participant.email}
+                        ${participant.email || 'No email'}
+                        ${participant.name ? `<br><span class="text-xs text-gray-400">${participant.name}</span>` : ''}
                     </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${participant.participant_identifier}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${participant.participant_identifier || 'No identifier'}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         <span class="px-2 py-1 rounded-full text-xs ${
                             participant.status === 'active' ? 'bg-green-100 text-green-800' :
                             participant.status === 'completed' ? 'bg-blue-100 text-blue-800' :
                             'bg-gray-100 text-gray-800'
                         }">
-                            ${participant.status}
+                            ${participant.status || 'unknown'}
                         </span>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-right font-medium">
-                        <button 
+                        <button
                             class="text-red-600 hover:text-red-900 delete-participant-btn"
                             data-participant-id="${participant.id}"
                         >
@@ -358,7 +442,10 @@ async function refreshParticipantList() {
                         </button>
                     </td>
                 </tr>
-            `).join('');
+            `;
+            }).join('');
+            
+            console.log('Participant table updated');
             
             // Re-initialize Sortable
             initializeSortable();
@@ -367,6 +454,7 @@ async function refreshParticipantList() {
         }
     } catch (error) {
         console.error('Error refreshing participant list:', error);
+        console.error('Error stack:', error.stack);
     }
 }
 
@@ -401,29 +489,78 @@ async function deleteParticipant(participantId) {
 
 // Attach event listeners to delete buttons
 function attachDeleteListeners() {
-    document.querySelectorAll<HTMLButtonElement>('.delete-participant-btn').forEach(button => {
-        button.addEventListener('click', () => {
-            const participantId = button.dataset.participantId;
-            if (participantId) {
-                deleteParticipant(participantId);
-            } else {
-                console.error('Participant ID not found on button');
-            }
-        });
+    const deleteButtons = document.querySelectorAll('.delete-participant-btn');
+    deleteButtons.forEach(button => {
+        // Remove existing listeners to prevent duplicates
+        button.removeEventListener('click', handleDeleteClick);
+        // Add new listener
+        button.addEventListener('click', handleDeleteClick);
+    });
+    console.log(`Attached delete listeners to ${deleteButtons.length} buttons`);
+}
+
+// Handler for delete button clicks
+function handleDeleteClick(event) {
+    const button = event.currentTarget;
+    const participantId = button.getAttribute('data-participant-id');
+    if (participantId) {
+        deleteParticipant(participantId);
+    } else {
+        console.error('Participant ID not found on button');
+    }
+}
+
+// Initialize when DOM is ready
+function initializeComponent() {
+    console.log('Initializing participant manager component');
+    setupTabSwitching();
+    attachDeleteListeners();
+    initializeSortable();
+    // Initialize first tab
+    switchTab('manual-tab');
+}
+
+// Use both DOMContentLoaded and astro:page-load for compatibility
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeComponent);
+} else {
+    initializeComponent();
+}
+
+// Also listen for Astro's page load event
+document.addEventListener('astro:page-load', initializeComponent);
+
+// Tab switching logic
+function setupTabSwitching() {
+    const tabButtons = document.querySelectorAll('[role="tab"]');
+    const tabPanels = document.querySelectorAll('[role="tabpanel"]');
+    
+    console.log(`Found ${tabButtons.length} tab buttons and ${tabPanels.length} tab panels`);
+    
+    // Remove existing listeners to prevent duplicates
+    tabButtons.forEach(button => {
+        button.removeEventListener('click', handleTabClick);
+        button.addEventListener('click', handleTabClick);
     });
 }
 
-// Initialize delete button listeners
-document.addEventListener('astro:page-load', () => {
-    attachDeleteListeners();
-    initializeSortable();
-});
-
-// Tab switching logic
-const tabButtons = document.querySelectorAll('[role="tab"]');
-const tabPanels = document.querySelectorAll('[role="tabpanel"]');
+function handleTabClick(event) {
+    const tabId = event.currentTarget.id;
+    switchTab(tabId);
+}
 
 function switchTab(tabId) {
+    console.log(`Switching to tab: ${tabId}`);
+    
+    // Get fresh references to DOM elements
+    const tabButtons = document.querySelectorAll('[role="tab"]');
+    const tabPanels = document.querySelectorAll('[role="tabpanel"]');
+    
+    if (tabButtons.length === 0 || tabPanels.length === 0) {
+        console.error('Tab elements not found in the DOM');
+        return;
+    }
+
     // Deactivate all tabs
     tabButtons.forEach(btn => {
         btn.setAttribute('aria-selected', 'false');
@@ -447,17 +584,17 @@ function switchTab(tabId) {
         const panelId = selectedTab.getAttribute('aria-controls');
         if (panelId) {
             const panel = document.getElementById(panelId);
-            panel?.classList.remove('hidden');
+            if (panel) {
+                panel.classList.remove('hidden');
+                console.log(`Showing panel: ${panelId}`);
+            } else {
+                console.error(`Panel not found: ${panelId}`);
+            }
         }
+    } else {
+        console.error(`Tab not found: ${tabId}`);
     }
 }
-
-tabButtons.forEach(button => {
-    button.addEventListener('click', () => {
-        const tabId = button.id;
-        switchTab(tabId);
-    });
-});
 
 // Form submission handlers
 const manualForm = document.getElementById('manual-form');
@@ -468,24 +605,85 @@ manualForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
     
+    // Log form data for debugging
+    console.log('Manual form submission - form data:');
+    for (const [key, value] of formData.entries()) {
+        console.log(`- ${key}: ${value}`);
+    }
+    
     try {
+        console.log(`Sending request to /api/surveys/${surveyId}/participants/manual`);
         const response = await fetch(`/api/surveys/${surveyId}/participants/manual`, {
             method: 'POST',
             body: formData
         });
 
+        console.log('Response status:', response.status);
         const result = await response.json();
+        console.log('Response data:', result);
         
         if (response.ok) {
             alert('Participant added successfully');
             await refreshParticipantList();
             manualForm.reset();
         } else {
-            alert(result.error || 'Failed to add participant');
+            // Create a more detailed error message
+            let errorMessage = result.error || 'Failed to add participant';
+            
+            // Add hint if available
+            if (result.hint) {
+                errorMessage += `\n\nPossible cause: ${result.hint}`;
+            }
+            
+            // Add code if available
+            if (result.code) {
+                errorMessage += `\n\nError code: ${result.code}`;
+            }
+            
+            // Add details if available
+            if (result.details) {
+                errorMessage += `\n\nDetails: ${result.details}`;
+            }
+            
+            // Show error in alert and console
+            alert(errorMessage);
+            console.error('API error:', {
+                message: result.error,
+                details: result.details,
+                code: result.code,
+                hint: result.hint
+            });
+            
+            // Add error message to the UI
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'mt-4 p-4 bg-red-100 text-red-700 rounded-md';
+            errorDiv.innerHTML = `
+                <h3 class="font-bold">Error creating participant</h3>
+                <p>${result.error || 'Unknown error'}</p>
+                ${result.hint ? `<p class="text-sm mt-2"><strong>Hint:</strong> ${result.hint}</p>` : ''}
+                ${result.code ? `<p class="text-sm"><strong>Code:</strong> ${result.code}</p>` : ''}
+                ${result.details ? `<p class="text-sm"><strong>Details:</strong> ${result.details}</p>` : ''}
+            `;
+            
+            // Insert error message after the form
+            const formElement = document.getElementById('manual-form');
+            if (formElement && formElement.parentNode) {
+                formElement.parentNode.insertBefore(errorDiv, formElement.nextSibling);
+                
+                // Remove error message after 10 seconds
+                setTimeout(() => {
+                    if (errorDiv.parentNode) {
+                        errorDiv.parentNode.removeChild(errorDiv);
+                    }
+                }, 10000);
+            }
         }
     } catch (error) {
-        alert('Error adding participant');
-        console.error('Error:', error);
+        alert('Error adding participant: ' + (error instanceof Error ? error.message : String(error)));
+        console.error('Fetch error:', error);
+        if (error instanceof Error) {
+            console.error('Error stack:', error.stack);
+        }
     }
 });
 
@@ -493,24 +691,114 @@ csvForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
     
+    // Log form data for debugging
+    console.log('CSV form submission - form data:');
+    for (const [key, value] of formData.entries()) {
+        console.log(`- ${key}: ${value instanceof File ? `File: ${value.name} (${value.size} bytes)` : value}`);
+    }
+    
     try {
+        console.log(`Sending request to /api/surveys/${surveyId}/participants/csv`);
         const response = await fetch(`/api/surveys/${surveyId}/participants/csv`, {
             method: 'POST',
             body: formData
         });
 
+        console.log('Response status:', response.status);
         const result = await response.json();
+        console.log('Response data:', result);
         
         if (response.ok) {
             alert('Participants imported successfully from CSV');
             await refreshParticipantList();
             csvForm.reset();
         } else {
-            alert(result.error || 'Failed to import participants from CSV');
+            // Create a more detailed error message
+            let errorMessage = result.error || 'Failed to import participants from CSV';
+            
+            // Add hint if available
+            if (result.hint) {
+                errorMessage += `\n\nPossible cause: ${result.hint}`;
+            }
+            
+            // Add code if available
+            if (result.code) {
+                errorMessage += `\n\nError code: ${result.code}`;
+            }
+            
+            // Add details if available
+            if (result.details) {
+                errorMessage += `\n\nDetails: ${result.details}`;
+            }
+            
+            // Show error in alert and console
+            alert(errorMessage);
+            console.error('API error:', {
+                message: result.error,
+                details: result.details,
+                code: result.code,
+                hint: result.hint,
+                invalidEmails: result.invalidEmails,
+                existingEmails: result.existingEmails
+            });
+            
+            // Add error message to the UI
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'mt-4 p-4 bg-red-100 text-red-700 rounded-md';
+            
+            let errorHTML = `
+                <h3 class="font-bold">Error importing participants from CSV</h3>
+                <p>${result.error || 'Unknown error'}</p>
+                ${result.hint ? `<p class="text-sm mt-2"><strong>Hint:</strong> ${result.hint}</p>` : ''}
+                ${result.code ? `<p class="text-sm"><strong>Code:</strong> ${result.code}</p>` : ''}
+                ${result.details ? `<p class="text-sm"><strong>Details:</strong> ${result.details}</p>` : ''}
+            `;
+            
+            // Add invalid emails if available
+            if (result.invalidEmails && result.invalidEmails.length > 0) {
+                errorHTML += `
+                    <div class="mt-2">
+                        <p class="font-semibold">Invalid emails found:</p>
+                        <ul class="list-disc list-inside text-sm">
+                            ${result.invalidEmails.map(email => `<li>${email}</li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+            }
+            
+            // Add existing emails if available
+            if (result.existingEmails && result.existingEmails.length > 0) {
+                errorHTML += `
+                    <div class="mt-2">
+                        <p class="font-semibold">Emails already in use:</p>
+                        <ul class="list-disc list-inside text-sm">
+                            ${result.existingEmails.map(email => `<li>${email}</li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+            }
+            
+            errorDiv.innerHTML = errorHTML;
+            
+            // Insert error message after the form
+            const formElement = document.getElementById('csv-form');
+            if (formElement && formElement.parentNode) {
+                formElement.parentNode.insertBefore(errorDiv, formElement.nextSibling);
+                
+                // Remove error message after 15 seconds
+                setTimeout(() => {
+                    if (errorDiv.parentNode) {
+                        errorDiv.parentNode.removeChild(errorDiv);
+                    }
+                }, 15000);
+            }
         }
     } catch (error) {
-        alert('Error importing participants from CSV');
-        console.error('Error:', error);
+        alert('Error importing participants from CSV: ' + (error instanceof Error ? error.message : String(error)));
+        console.error('Fetch error:', error);
+        if (error instanceof Error) {
+            console.error('Error stack:', error.stack);
+        }
     }
 });
 
@@ -518,27 +806,114 @@ jsonForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
     
+    // Log form data for debugging
+    console.log('JSON form submission - form data:');
+    for (const [key, value] of formData.entries()) {
+        console.log(`- ${key}: ${value instanceof File ? `File: ${value.name} (${value.size} bytes)` : value}`);
+    }
+    
     try {
+        console.log(`Sending request to /api/surveys/${surveyId}/participants/json`);
         const response = await fetch(`/api/surveys/${surveyId}/participants/json`, {
             method: 'POST',
             body: formData
         });
 
+        console.log('Response status:', response.status);
         const result = await response.json();
+        console.log('Response data:', result);
         
         if (response.ok) {
             alert('Participants imported successfully from JSON');
             await refreshParticipantList();
             jsonForm.reset();
         } else {
-            alert(result.error || 'Failed to import participants from JSON');
+            // Create a more detailed error message
+            let errorMessage = result.error || 'Failed to import participants from JSON';
+            
+            // Add hint if available
+            if (result.hint) {
+                errorMessage += `\n\nPossible cause: ${result.hint}`;
+            }
+            
+            // Add code if available
+            if (result.code) {
+                errorMessage += `\n\nError code: ${result.code}`;
+            }
+            
+            // Add details if available
+            if (result.details) {
+                errorMessage += `\n\nDetails: ${result.details}`;
+            }
+            
+            // Show error in alert and console
+            alert(errorMessage);
+            console.error('API error:', {
+                message: result.error,
+                details: result.details,
+                code: result.code,
+                hint: result.hint,
+                invalidEmails: result.invalidEmails,
+                existingEmails: result.existingEmails
+            });
+            
+            // Add error message to the UI
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'mt-4 p-4 bg-red-100 text-red-700 rounded-md';
+            
+            let errorHTML = `
+                <h3 class="font-bold">Error importing participants from JSON</h3>
+                <p>${result.error || 'Unknown error'}</p>
+                ${result.hint ? `<p class="text-sm mt-2"><strong>Hint:</strong> ${result.hint}</p>` : ''}
+                ${result.code ? `<p class="text-sm"><strong>Code:</strong> ${result.code}</p>` : ''}
+                ${result.details ? `<p class="text-sm"><strong>Details:</strong> ${result.details}</p>` : ''}
+            `;
+            
+            // Add invalid emails if available
+            if (result.invalidEmails && result.invalidEmails.length > 0) {
+                errorHTML += `
+                    <div class="mt-2">
+                        <p class="font-semibold">Invalid emails found:</p>
+                        <ul class="list-disc list-inside text-sm">
+                            ${result.invalidEmails.map(email => `<li>${email}</li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+            }
+            
+            // Add existing emails if available
+            if (result.existingEmails && result.existingEmails.length > 0) {
+                errorHTML += `
+                    <div class="mt-2">
+                        <p class="font-semibold">Emails already in use:</p>
+                        <ul class="list-disc list-inside text-sm">
+                            ${result.existingEmails.map(email => `<li>${email}</li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+            }
+            
+            errorDiv.innerHTML = errorHTML;
+            
+            // Insert error message after the form
+            const formElement = document.getElementById('json-form');
+            if (formElement && formElement.parentNode) {
+                formElement.parentNode.insertBefore(errorDiv, formElement.nextSibling);
+                
+                // Remove error message after 15 seconds
+                setTimeout(() => {
+                    if (errorDiv.parentNode) {
+                        errorDiv.parentNode.removeChild(errorDiv);
+                    }
+                }, 15000);
+            }
         }
     } catch (error) {
-        alert('Error importing participants from JSON');
-        console.error('Error:', error);
+        alert('Error importing participants from JSON: ' + (error instanceof Error ? error.message : String(error)));
+        console.error('Fetch error:', error);
+        if (error instanceof Error) {
+            console.error('Error stack:', error.stack);
+        }
     }
 });
-
-// Initialize first tab
-switchTab('manual-tab');
 </script>

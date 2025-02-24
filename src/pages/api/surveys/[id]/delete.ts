@@ -1,6 +1,6 @@
 // src/pages/api/surveys/[id]/delete.ts
 import type { APIRoute } from 'astro';
-import { supabaseAdmin } from '../../../../lib/supabase';
+import { getClient } from '../../../../lib/supabase';
 import { rateLimitMiddleware } from '../../../../utils/rateLimit';
 import { verifyAuthorization } from '../../../../utils/accessControl';
 
@@ -34,8 +34,11 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
       });
     }
 
+    // Get admin client
+    const supabase = getClient({ requiresAdmin: true });
+
     // First get survey responses to delete their associated matches
-    const { data: responses } = await supabaseAdmin
+    const { data: responses } = await supabase
       .from('survey_responses')
       .select('id')
       .eq('survey_id', id);
@@ -43,7 +46,7 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
     if (responses && responses.length > 0) {
       // Delete sound matches for each response
       for (const response of responses) {
-        const { error: matchError } = await supabaseAdmin
+        const { error: matchError } = await supabase
           .from('sound_matches')
           .delete()
           .eq('response_id', response.id);
@@ -56,7 +59,7 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
     }
 
     // Delete survey responses
-    const { error: responsesError } = await supabaseAdmin
+    const { error: responsesError } = await supabase
       .from('survey_responses')
       .delete()
       .eq('survey_id', id);
@@ -67,7 +70,7 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
     }
 
     // Delete survey sounds
-    const { error: soundsError } = await supabaseAdmin
+    const { error: soundsError } = await supabase
       .from('survey_sounds')
       .delete()
       .eq('survey_id', id);
@@ -78,7 +81,7 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
     }
 
     // Finally, delete the survey itself
-    const { error: surveyError } = await supabaseAdmin
+    const { error: surveyError } = await supabase
       .from('surveys')
       .delete()
       .eq('id', id);

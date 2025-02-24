@@ -1,8 +1,8 @@
-import { getClient } from '~/lib/supabase';
-import { type Database } from '~/types/database';
+import { getClient } from '../../../../../lib/supabase';
+import { type Database } from '../../../../../types/database';
 import { type APIRoute } from 'astro';
 import { parse } from 'csv-parse/sync';
-import { generateUniqueIdentifier } from '~/utils/participantUtils';
+import { generateUniqueIdentifier } from '../../../../../utils/participantUtils';
 
 type Participant = Database['public']['Tables']['participants']['Row'];
 
@@ -73,7 +73,7 @@ export const POST: APIRoute = async ({ params, request }) => {
     // Process participants in chunks
     const results = {
       success: 0,
-      errors: [] as string[],
+      errors: [] as Array<string | { range: string; error: string; code: string; details: string }>,
     };
 
     // Split records into chunks
@@ -85,6 +85,7 @@ export const POST: APIRoute = async ({ params, request }) => {
         chunk.map(async (record: any) => ({
           survey_id: surveyId,
           email: record.email,
+          name: record.name || null, // Include name field if present
           status: 'inactive' as const,
           participant_identifier: await generateUniqueIdentifier()
         }))
@@ -96,7 +97,26 @@ export const POST: APIRoute = async ({ params, request }) => {
 
       if (error) {
         console.error('Error creating participants chunk:', error);
-        results.errors.push(`Error processing records ${i + 1} to ${i + chunk.length}`);
+        console.error('Error details:', JSON.stringify(error, null, 2));
+        console.error('First participant data:', JSON.stringify(participantsToInsert[0], null, 2));
+        
+        // Log specific error information based on error code
+        if (error.code === '23502') {
+          console.error('NOT NULL constraint violation - a required field is missing');
+        } else if (error.code === '23503') {
+          console.error('Foreign key constraint violation - referenced record does not exist');
+          console.error('This likely means the survey_id is invalid or does not exist');
+        } else if (error.code === '23505') {
+          console.error('Unique constraint violation - record with this key already exists');
+        }
+        
+        // Add more detailed error information
+        results.errors.push({
+          range: `Records ${i + 1} to ${i + chunk.length}`,
+          error: error.message,
+          code: error.code,
+          details: JSON.stringify(error.details || {})
+        });
       } else {
         results.success += chunk.length;
       }
@@ -121,7 +141,18 @@ export const POST: APIRoute = async ({ params, request }) => {
     });
   } catch (error) {
     console.error('Error processing CSV upload:', error);
-    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+    
+    // Create a more detailed error response
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : 'No stack trace available';
+    
+    console.error('Error stack:', errorStack);
+    
+    return new Response(JSON.stringify({
+      error: 'Internal server error',
+      details: errorMessage,
+      hint: 'Check server logs for more information'
+    }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
     });
