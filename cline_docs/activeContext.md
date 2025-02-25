@@ -14,6 +14,7 @@ Fixing critical bugs in the survey system while continuing participant and surve
    - UI interaction issues (nothing selectable/viewable)
    - Sortable.js integration problems
    - Multiple Supabase client initialization warnings
+   - ✅ Fixed: Participant deletion functionality (both individual and bulk delete)
 
 3. Survey Preview Bug
    - 404 error on survey preview
@@ -42,6 +43,16 @@ Fixing critical bugs in the survey system while continuing participant and surve
   - Known issues: The implementation had functional issues that needed to be debugged
   - Resolved: The 500 error during manual participant creation was due to the missing `participant_identifier` column in the `participants` table. This was resolved by manually adding the column in Supabase Studio.
 
+- Fixed participant deletion functionality:
+  - Fixed individual delete functionality by updating the delete.ts endpoint to properly parse the participant ID from the request body instead of looking for it in the request headers
+  - Updated the API endpoint to use the newer Astro API style with proper error handling
+  - Fixed "Delete All" button functionality by:
+    - Adding multiple event listeners to ensure the button is clickable
+    - Making the button explicitly visible and enabled with proper styling
+    - Ensuring event listeners are properly attached when switching tabs
+    - Making the handler function globally accessible
+    - Adding direct click handlers both in HTML and JavaScript
+
 ## Patterns Identified
 
 1. Admin user creation is handled through `src/pages/create-user.astro` and `src/components/UserCreationForm.astro`, but this is for user accounts (admin/client), not survey participants.
@@ -56,6 +67,10 @@ Fixing critical bugs in the survey system while continuing participant and surve
    - Email sending through existing functionality
    - Status management through enum fields
    - Secure URL generation for participants
+5. API endpoints should follow the newer Astro API style with proper error handling:
+   - Use `export const POST: APIRoute = async ({ params, request, locals }) => { ... }` pattern
+   - Parse request body with `await request.json()` or `await request.formData()`
+   - Use consistent error handling and response formatting
 
 
 ## Next Steps
@@ -64,6 +79,7 @@ Fixing critical bugs in the survey system while continuing participant and surve
    - Implemented: Search, filtering, and pagination are now implemented on the Existing Participants tab.
 2. Add a "Delete All" button to the Existing Participants tab in ParticipantManager.astro.
    - Implemented: Added a "Delete All" button to the Existing Participants tab and implemented the client-side and API logic to delete all participants.
+   - Fixed: Resolved issues with the delete functionality for both individual and bulk deletion.
 3. Fix Critical Bugs:
    - Implement proper validation in CreateSurveyForm.astro
    - Fix Sortable.js integration in ParticipantManager

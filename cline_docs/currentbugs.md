@@ -32,3 +32,12 @@ hook.js:608 Survey creation failed: Error: Failed to load sound profile data
     at HTMLFormElement.<anonymous> (CreateSurveyForm.astro:275:13)
 ﻿
 
+2. ✅ FIXED: Participant Deletion Bug
+   - Individual delete action was failing with 404 (Not Found) error
+   - "Delete All" button wasn't clickable
+   - Root causes:
+     - API endpoint was looking for participant ID in request headers instead of request body
+     - Event handling issues with the "Delete All" button
+   - Fixed by:
+     - Updating the API endpoint to properly parse the request body
+     - Adding multiple event listeners and proper styling to the "Delete All" button

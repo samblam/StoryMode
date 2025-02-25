@@ -8,11 +8,12 @@
 - Sound profile creation and management
 - Basic survey response collection
 - Initial implementation of participant generation UI and API endpoints
-- Implemented search, filtering, and pagination on the Existing Participants tab in ParticipantManager.astro.
+- Implemented search, filtering, and pagination on the Existing Participants tab in ParticipantManager.astro
 - Implemented "Delete All" button on the Existing Participants tab in ParticipantManager.astro
-
-## What Works
-- Implemented the "Delete All" button functionality
+- Fixed participant deletion functionality (both individual and bulk delete)
+  - Fixed individual delete API endpoint to properly parse request body
+  - Fixed "Delete All" button with multiple event listeners and proper styling
+  - Improved error handling and user feedback
 
 ## What's Left to Build
 
@@ -48,7 +49,7 @@
 
 ## Progress Status
 
-The project is in active development with core functionality for user management, survey creation, and sound management implemented. Recent work has focused on participant generation features, which require debugging and enhancement. 
+The project is in active development with core functionality for user management, survey creation, and sound management implemented. Recent work has focused on participant management features, with successful implementation of participant creation, listing, and deletion functionality.
 
 New development is now focused on:
 1. Implementing participant status management

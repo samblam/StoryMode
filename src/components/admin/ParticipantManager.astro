@@ -228,6 +228,7 @@ jane@example.com,Jane Doe</pre>
                 <button
                     id="delete-all-button"
                     class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 mb-2 md:mb-0"
+                    onclick="handleDeleteAllClick(event)"
                 >
                     Delete All
                 </button>
@@ -598,6 +599,45 @@ function handleDeleteClick(event) {
     }
 }
 
+// Handler for delete all button clicks
+async function handleDeleteAllClick(event) {
+    console.log('Delete All button clicked!');
+    event.preventDefault(); // Prevent any default behavior
+    
+    if (confirm('Are you sure you want to delete ALL participants for this survey? This action cannot be undone!')) {
+        console.log('User confirmed delete all action');
+        try {
+            console.log('Sending delete-all request to:', `/api/surveys/${surveyId}/participants/delete-all`);
+            const response = await fetch(`/api/surveys/${surveyId}/participants/delete-all`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+            
+            console.log('Delete all response status:', response.status);
+            const result = await response.json();
+            console.log('Delete all response data:', result);
+
+            if (response.ok) {
+                await refreshParticipantList();
+                alert('All participants deleted successfully');
+            } else {
+                alert(result.error || 'Failed to delete all participants');
+            }
+        } catch (error) {
+            alert('Error deleting all participants');
+            console.error('Error deleting all participants:', error);
+            console.error('Error stack:', error.stack);
+        }
+    } else {
+        console.log('User cancelled delete all action');
+    }
+}
+
+// Make handleDeleteAllClick available globally
+window.handleDeleteAllClick = handleDeleteAllClick;
+
 // Initialize when DOM is ready
 function initializeComponent() {
     console.log('Initializing participant manager component');
@@ -606,34 +646,37 @@ function initializeComponent() {
     initializeSortable();
     setupSearchFilterPagination();
     refreshParticipantList(); // Apply pagination on initial load
-
+    attachDeleteAllListener(); // Attach listener to Delete All button
+    
+    // Add a direct click handler for the delete all button
     const deleteAllButton = document.getElementById('delete-all-button');
-    deleteAllButton?.addEventListener('click', async () => {
-        if (confirm('Are you sure you want to delete ALL participants for this survey? This action cannot be undone!')) {
-            try {
-                const response = await fetch(`/api/surveys/${surveyId}/participants/delete-all`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    }
-                });
-
-                const result = await response.json();
-
-                if (response.ok) {
-                    await refreshParticipantList();
-                    alert('All participants deleted successfully');
-                } else {
-                    alert(result.error || 'Failed to delete all participants');
-                }
-            } catch (error) {
-                alert('Error deleting all participants');
-                console.error('Error:', error);
-            }
-        }
-    });
+    if (deleteAllButton) {
+        console.log('Adding direct click handler to Delete All button');
+        deleteAllButton.onclick = handleDeleteAllClick;
+    }
+    
     // Initialize first tab
     switchTab('manual-tab');
+}
+
+// Function to attach event listener to Delete All button
+function attachDeleteAllListener() {
+    const deleteAllButton = document.getElementById('delete-all-button');
+    console.log('Delete All button found:', deleteAllButton);
+    
+    if (deleteAllButton) {
+        // Remove any existing click listeners to prevent duplicates
+        deleteAllButton.removeEventListener('click', handleDeleteAllClick);
+        // Add the click listener
+        deleteAllButton.addEventListener('click', handleDeleteAllClick);
+        console.log('Click listener attached to Delete All button');
+        
+        // Make sure the button is visible and clickable
+        deleteAllButton.style.pointerEvents = 'auto';
+        deleteAllButton.style.opacity = '1';
+    } else {
+        console.error('Delete All button not found in the DOM');
+    }
 }
 
 // Use both DOMContentLoaded and astro:page-load for compatibility
@@ -703,6 +746,15 @@ function switchTab(tabId) {
             if (panel) {
                 panel.classList.remove('hidden');
                 console.log(`Showing panel: ${panelId}`);
+                
+                // If switching to the existing participants tab, ensure delete all button is properly set up
+                if (panelId === 'existing-panel') {
+                    console.log('Switched to existing participants tab, ensuring delete all button is set up');
+                    setTimeout(() => {
+                        attachDeleteAllListener();
+                        attachDeleteListeners();
+                    }, 100); // Small delay to ensure DOM is ready
+                }
             } else {
                 console.error(`Panel not found: ${panelId}`);
             }
