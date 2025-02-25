@@ -21,13 +21,13 @@ try {
         .order('created_at', { ascending: true });
 
     if (error) {
-        console.error('Error fetching participants:', error);
+        console.error('Error fetching participants:', JSON.stringify(error, null, 2));
     } else {
         existingParticipants = data || [];
-        console.log('Fetched existing participants:', existingParticipants);
+        console.log('Fetched existing participants:', JSON.stringify(existingParticipants, null, 2));
     }
 } catch (error) {
-    console.error('Error fetching participants:', error);
+    console.error('Error fetching participants:', JSON.stringify(error, null, 2));
 }
 
 ---
@@ -194,27 +194,27 @@ jane@example.com,Jane Doe</pre>
                 </ul>
             </div>
             <form id="json-form" class="space-y-4">
-                <div>
-                    <label for="jsonFile" class="block text-sm font-medium text-gray-700">
-                        Upload JSON File
-                    </label>
-                    <input
-                        type="file"
-                        name="jsonFile"
-                        id="jsonFile"
-                        accept=".json"
-                        class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                        required
-                    />
-                </div>
-                <button
-                    type="submit"
-                    class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                >
-                    Upload JSON
-                </button>
-            </form>
-        </div>
+            <div>
+                <label for="jsonFile" class="block text-sm font-medium text-gray-700">
+                    Upload JSON File
+                </label>
+                <input
+                    type="file"
+                    name="jsonFile"
+                    id="jsonFile"
+                    accept=".json"
+                    class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                    required
+                />
+            </div>
+            <button
+                type="submit"
+                class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+                Upload JSON
+            </button>
+        </form>
+    </div>
 
         <!-- Existing Participants Panel -->
         <div
@@ -223,6 +223,51 @@ jane@example.com,Jane Doe</pre>
             aria-labelledby="existing-tab"
             class="space-y-4 hidden"
         >
+            {/* Search, Filter, and Pagination Controls */}
+            <div class="flex flex-col md:flex-row justify-between items-center mb-4">
+                <button
+                    id="delete-all-button"
+                    class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 mb-2 md:mb-0"
+                >
+                    Delete All
+                </button>
+                <div class="w-full md:w-1/3 mb-2 md:mb-0">
+                    <label for="search" class="sr-only">Search</label>
+                    <div class="relative rounded-md shadow-sm">
+                        <div class="pointer-events-none absolute inset-y-0 left-0 pl-3 flex items-center">
+                            <svg class="h-5 w-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                                <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
+                            </svg>
+                        </div>
+                        <input
+                            type="text"
+                            name="search"
+                            id="search"
+                            class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                            placeholder="Search participants..."
+                        />
+                    </div>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <div>
+                        <label for="filter-email" class="block text-sm font-medium text-gray-700 sr-only">Filter by Email</label>
+                        <select id="filter-email" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                            <option value="">All Emails</option>
+                            {/* Add email options dynamically here */}
+                        </select>
+                    </div>
+                    <div>
+                        <label for="filter-status" class="block text-sm font-medium text-gray-700 sr-only">Filter by Status</label>
+                        <select id="filter-status" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                            <option value="">All Statuses</option>
+                            <option value="active">Active</option>
+                            <option value="inactive">Inactive</option>
+                            <option value="completed">Completed</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
             <div class="overflow-x-auto">
                 <table class="min-w-full divide-y divide-gray-200">
                     <thead class="bg-gray-50">
@@ -240,7 +285,8 @@ jane@example.com,Jane Doe</pre>
                             <tr class="participant-row" data-id={participant.id}>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                     <span class="drag-handle cursor-move mr-2">⋮</span>
-                                    {participant.email}
+                                    {participant.email || 'No email'}
+                                    {participant.name ? `<br><span class="text-xs text-gray-400">{participant.name}</span>` : ''}
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{participant.participant_identifier}</td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -249,7 +295,7 @@ jane@example.com,Jane Doe</pre>
                                         participant.status === 'completed' ? 'bg-blue-100 text-blue-800' :
                                         'bg-gray-100 text-gray-800'
                                     }`}>
-                                        {participant.status}
+                                        {participant.status || 'unknown'}
                                     </span>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-right font-medium">
@@ -265,6 +311,21 @@ jane@example.com,Jane Doe</pre>
                     </tbody>
                 </table>
             </div>
+
+            {/* Pagination Controls */}
+            <div class="flex justify-between items-center mt-4">
+                <button id="prev-page" class="bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded inline-flex items-center">
+                    <svg class="fill-current w-4 h-4 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z"/></svg>
+                    <span>Previous</span>
+                </button>
+                <div class="text-sm text-gray-700">
+                    Showing <span id="current-page">1</span> to <span id="total-pages">1</span> of <span id="total-participants">0</span> participants
+                </div>
+                <button id="next-page" class="bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded inline-flex items-center">
+                    <span>Next</span>
+                    <svg class="fill-current w-4 h-4 ml-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"/></svg>
+                </button>
+            </div>
         </div>
     </div>
 </div>
@@ -278,18 +339,36 @@ async function getClientWrapper(options = {}) {
     // Since we can't directly import getClient in client-side code,
     // we'll make a fetch request to a simple endpoint that uses the client
     try {
-        console.log('Fetching participants from API...');
-        console.log(`Request URL: /api/surveys/${surveyId}/participants`);
-        
-        const response = await fetch(`/api/surveys/${surveyId}/participants`, {
+        console.log('Fetching participants from API...', JSON.stringify({surveyId}));
+        console.log(`Request URL: /api/surveys/${surveyId}/participants`, JSON.stringify({surveyId}));
+
+        // Get search and filter values
+        const searchTerm = document.getElementById('search')?.value || '';
+        const filterEmail = document.getElementById('filter-email')?.value || '';
+        const filterStatus = document.getElementById('filter-status')?.value || '';
+
+        // Construct API URL with parameters
+        let apiUrl = `/api/surveys/${surveyId}/participants?`;
+        if (searchTerm) apiUrl += `search=${searchTerm}&`;
+        if (filterEmail) apiUrl += `email=${filterEmail}&`;
+        if (filterStatus) apiUrl += `status=${filterStatus}&`;
+
+        // Pagination parameters
+        const currentPage = parseInt(document.getElementById('current-page')?.innerText || '1');
+        const pageSize = 10;
+        apiUrl += `page=${currentPage}&pageSize=${pageSize}`;
+
+        console.log('Constructed API URL:', apiUrl);
+
+        const response = await fetch(apiUrl, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
             }
         });
         
-        console.log('Response status:', response.status);
-        console.log('Response status text:', response.statusText);
+        console.log('Response status:', JSON.stringify(response.status));
+        console.log('Response status text:', JSON.stringify(response.statusText));
         
         if (!response.ok) {
             console.error('API response not OK:', response.status, response.statusText);
@@ -299,12 +378,21 @@ async function getClientWrapper(options = {}) {
         }
         
         const result = await response.json();
-        console.log('API response data:', result);
-        console.log('Participants count:', result.data?.length || 0);
+        console.log('API response data:', JSON.stringify(result));
+        console.log('Participants count:', JSON.stringify(result.data?.length || 0));
         
         if (result.error) {
             console.error('API returned error:', result.error);
             throw new Error(result.error);
+        }
+
+        // Update total participants and total pages in UI
+        const totalParticipantsSpan = document.getElementById('total-participants');
+        const totalPagesSpan = document.getElementById('total-pages');
+
+        if (result.total !== undefined) {
+            totalParticipantsSpan.innerText = result.total.toString();
+            totalPagesSpan.innerText = Math.ceil(result.total / 10).toString(); // Assuming page size of 10
         }
         
         return result;
@@ -516,6 +604,34 @@ function initializeComponent() {
     setupTabSwitching();
     attachDeleteListeners();
     initializeSortable();
+    setupSearchFilterPagination();
+    refreshParticipantList(); // Apply pagination on initial load
+
+    const deleteAllButton = document.getElementById('delete-all-button');
+    deleteAllButton?.addEventListener('click', async () => {
+        if (confirm('Are you sure you want to delete ALL participants for this survey? This action cannot be undone!')) {
+            try {
+                const response = await fetch(`/api/surveys/${surveyId}/participants/delete-all`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    await refreshParticipantList();
+                    alert('All participants deleted successfully');
+                } else {
+                    alert(result.error || 'Failed to delete all participants');
+                }
+            } catch (error) {
+                alert('Error deleting all participants');
+                console.error('Error:', error);
+            }
+        }
+    });
     // Initialize first tab
     switchTab('manual-tab');
 }
@@ -595,325 +711,4 @@ function switchTab(tabId) {
         console.error(`Tab not found: ${tabId}`);
     }
 }
-
-// Form submission handlers
-const manualForm = document.getElementById('manual-form');
-const csvForm = document.getElementById('csv-form');
-const jsonForm = document.getElementById('json-form');
-
-manualForm?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const formData = new FormData(e.target);
-    
-    // Log form data for debugging
-    console.log('Manual form submission - form data:');
-    for (const [key, value] of formData.entries()) {
-        console.log(`- ${key}: ${value}`);
-    }
-    
-    try {
-        console.log(`Sending request to /api/surveys/${surveyId}/participants/manual`);
-        const response = await fetch(`/api/surveys/${surveyId}/participants/manual`, {
-            method: 'POST',
-            body: formData
-        });
-
-        console.log('Response status:', response.status);
-        const result = await response.json();
-        console.log('Response data:', result);
-        
-        if (response.ok) {
-            alert('Participant added successfully');
-            await refreshParticipantList();
-            manualForm.reset();
-        } else {
-            // Create a more detailed error message
-            let errorMessage = result.error || 'Failed to add participant';
-            
-            // Add hint if available
-            if (result.hint) {
-                errorMessage += `\n\nPossible cause: ${result.hint}`;
-            }
-            
-            // Add code if available
-            if (result.code) {
-                errorMessage += `\n\nError code: ${result.code}`;
-            }
-            
-            // Add details if available
-            if (result.details) {
-                errorMessage += `\n\nDetails: ${result.details}`;
-            }
-            
-            // Show error in alert and console
-            alert(errorMessage);
-            console.error('API error:', {
-                message: result.error,
-                details: result.details,
-                code: result.code,
-                hint: result.hint
-            });
-            
-            // Add error message to the UI
-            const errorDiv = document.createElement('div');
-            errorDiv.className = 'mt-4 p-4 bg-red-100 text-red-700 rounded-md';
-            errorDiv.innerHTML = `
-                <h3 class="font-bold">Error creating participant</h3>
-                <p>${result.error || 'Unknown error'}</p>
-                ${result.hint ? `<p class="text-sm mt-2"><strong>Hint:</strong> ${result.hint}</p>` : ''}
-                ${result.code ? `<p class="text-sm"><strong>Code:</strong> ${result.code}</p>` : ''}
-                ${result.details ? `<p class="text-sm"><strong>Details:</strong> ${result.details}</p>` : ''}
-            `;
-            
-            // Insert error message after the form
-            const formElement = document.getElementById('manual-form');
-            if (formElement && formElement.parentNode) {
-                formElement.parentNode.insertBefore(errorDiv, formElement.nextSibling);
-                
-                // Remove error message after 10 seconds
-                setTimeout(() => {
-                    if (errorDiv.parentNode) {
-                        errorDiv.parentNode.removeChild(errorDiv);
-                    }
-                }, 10000);
-            }
-        }
-    } catch (error) {
-        alert('Error adding participant: ' + (error instanceof Error ? error.message : String(error)));
-        console.error('Fetch error:', error);
-        if (error instanceof Error) {
-            console.error('Error stack:', error.stack);
-        }
-    }
-});
-
-csvForm?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const formData = new FormData(e.target);
-    
-    // Log form data for debugging
-    console.log('CSV form submission - form data:');
-    for (const [key, value] of formData.entries()) {
-        console.log(`- ${key}: ${value instanceof File ? `File: ${value.name} (${value.size} bytes)` : value}`);
-    }
-    
-    try {
-        console.log(`Sending request to /api/surveys/${surveyId}/participants/csv`);
-        const response = await fetch(`/api/surveys/${surveyId}/participants/csv`, {
-            method: 'POST',
-            body: formData
-        });
-
-        console.log('Response status:', response.status);
-        const result = await response.json();
-        console.log('Response data:', result);
-        
-        if (response.ok) {
-            alert('Participants imported successfully from CSV');
-            await refreshParticipantList();
-            csvForm.reset();
-        } else {
-            // Create a more detailed error message
-            let errorMessage = result.error || 'Failed to import participants from CSV';
-            
-            // Add hint if available
-            if (result.hint) {
-                errorMessage += `\n\nPossible cause: ${result.hint}`;
-            }
-            
-            // Add code if available
-            if (result.code) {
-                errorMessage += `\n\nError code: ${result.code}`;
-            }
-            
-            // Add details if available
-            if (result.details) {
-                errorMessage += `\n\nDetails: ${result.details}`;
-            }
-            
-            // Show error in alert and console
-            alert(errorMessage);
-            console.error('API error:', {
-                message: result.error,
-                details: result.details,
-                code: result.code,
-                hint: result.hint,
-                invalidEmails: result.invalidEmails,
-                existingEmails: result.existingEmails
-            });
-            
-            // Add error message to the UI
-            const errorDiv = document.createElement('div');
-            errorDiv.className = 'mt-4 p-4 bg-red-100 text-red-700 rounded-md';
-            
-            let errorHTML = `
-                <h3 class="font-bold">Error importing participants from CSV</h3>
-                <p>${result.error || 'Unknown error'}</p>
-                ${result.hint ? `<p class="text-sm mt-2"><strong>Hint:</strong> ${result.hint}</p>` : ''}
-                ${result.code ? `<p class="text-sm"><strong>Code:</strong> ${result.code}</p>` : ''}
-                ${result.details ? `<p class="text-sm"><strong>Details:</strong> ${result.details}</p>` : ''}
-            `;
-            
-            // Add invalid emails if available
-            if (result.invalidEmails && result.invalidEmails.length > 0) {
-                errorHTML += `
-                    <div class="mt-2">
-                        <p class="font-semibold">Invalid emails found:</p>
-                        <ul class="list-disc list-inside text-sm">
-                            ${result.invalidEmails.map(email => `<li>${email}</li>`).join('')}
-                        </ul>
-                    </div>
-                `;
-            }
-            
-            // Add existing emails if available
-            if (result.existingEmails && result.existingEmails.length > 0) {
-                errorHTML += `
-                    <div class="mt-2">
-                        <p class="font-semibold">Emails already in use:</p>
-                        <ul class="list-disc list-inside text-sm">
-                            ${result.existingEmails.map(email => `<li>${email}</li>`).join('')}
-                        </ul>
-                    </div>
-                `;
-            }
-            
-            errorDiv.innerHTML = errorHTML;
-            
-            // Insert error message after the form
-            const formElement = document.getElementById('csv-form');
-            if (formElement && formElement.parentNode) {
-                formElement.parentNode.insertBefore(errorDiv, formElement.nextSibling);
-                
-                // Remove error message after 15 seconds
-                setTimeout(() => {
-                    if (errorDiv.parentNode) {
-                        errorDiv.parentNode.removeChild(errorDiv);
-                    }
-                }, 15000);
-            }
-        }
-    } catch (error) {
-        alert('Error importing participants from CSV: ' + (error instanceof Error ? error.message : String(error)));
-        console.error('Fetch error:', error);
-        if (error instanceof Error) {
-            console.error('Error stack:', error.stack);
-        }
-    }
-});
-
-jsonForm?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const formData = new FormData(e.target);
-    
-    // Log form data for debugging
-    console.log('JSON form submission - form data:');
-    for (const [key, value] of formData.entries()) {
-        console.log(`- ${key}: ${value instanceof File ? `File: ${value.name} (${value.size} bytes)` : value}`);
-    }
-    
-    try {
-        console.log(`Sending request to /api/surveys/${surveyId}/participants/json`);
-        const response = await fetch(`/api/surveys/${surveyId}/participants/json`, {
-            method: 'POST',
-            body: formData
-        });
-
-        console.log('Response status:', response.status);
-        const result = await response.json();
-        console.log('Response data:', result);
-        
-        if (response.ok) {
-            alert('Participants imported successfully from JSON');
-            await refreshParticipantList();
-            jsonForm.reset();
-        } else {
-            // Create a more detailed error message
-            let errorMessage = result.error || 'Failed to import participants from JSON';
-            
-            // Add hint if available
-            if (result.hint) {
-                errorMessage += `\n\nPossible cause: ${result.hint}`;
-            }
-            
-            // Add code if available
-            if (result.code) {
-                errorMessage += `\n\nError code: ${result.code}`;
-            }
-            
-            // Add details if available
-            if (result.details) {
-                errorMessage += `\n\nDetails: ${result.details}`;
-            }
-            
-            // Show error in alert and console
-            alert(errorMessage);
-            console.error('API error:', {
-                message: result.error,
-                details: result.details,
-                code: result.code,
-                hint: result.hint,
-                invalidEmails: result.invalidEmails,
-                existingEmails: result.existingEmails
-            });
-            
-            // Add error message to the UI
-            const errorDiv = document.createElement('div');
-            errorDiv.className = 'mt-4 p-4 bg-red-100 text-red-700 rounded-md';
-            
-            let errorHTML = `
-                <h3 class="font-bold">Error importing participants from JSON</h3>
-                <p>${result.error || 'Unknown error'}</p>
-                ${result.hint ? `<p class="text-sm mt-2"><strong>Hint:</strong> ${result.hint}</p>` : ''}
-                ${result.code ? `<p class="text-sm"><strong>Code:</strong> ${result.code}</p>` : ''}
-                ${result.details ? `<p class="text-sm"><strong>Details:</strong> ${result.details}</p>` : ''}
-            `;
-            
-            // Add invalid emails if available
-            if (result.invalidEmails && result.invalidEmails.length > 0) {
-                errorHTML += `
-                    <div class="mt-2">
-                        <p class="font-semibold">Invalid emails found:</p>
-                        <ul class="list-disc list-inside text-sm">
-                            ${result.invalidEmails.map(email => `<li>${email}</li>`).join('')}
-                        </ul>
-                    </div>
-                `;
-            }
-            
-            // Add existing emails if available
-            if (result.existingEmails && result.existingEmails.length > 0) {
-                errorHTML += `
-                    <div class="mt-2">
-                        <p class="font-semibold">Emails already in use:</p>
-                        <ul class="list-disc list-inside text-sm">
-                            ${result.existingEmails.map(email => `<li>${email}</li>`).join('')}
-                        </ul>
-                    </div>
-                `;
-            }
-            
-            errorDiv.innerHTML = errorHTML;
-            
-            // Insert error message after the form
-            const formElement = document.getElementById('json-form');
-            if (formElement && formElement.parentNode) {
-                formElement.parentNode.insertBefore(errorDiv, formElement.nextSibling);
-                
-                // Remove error message after 15 seconds
-                setTimeout(() => {
-                    if (errorDiv.parentNode) {
-                        errorDiv.parentNode.removeChild(errorDiv);
-                    }
-                }, 15000);
-            }
-        }
-    } catch (error) {
-        alert('Error importing participants from JSON: ' + (error instanceof Error ? error.message : String(error)));
-        console.error('Fetch error:', error);
-        if (error instanceof Error) {
-            console.error('Error stack:', error.stack);
-        }
-    }
-});
 </script>

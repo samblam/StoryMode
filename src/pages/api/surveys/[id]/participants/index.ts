@@ -3,7 +3,7 @@ import type { APIRoute } from 'astro';
 import { getClient } from '../../../../../lib/supabase';
 import { verifyAuthorization } from '../../../../../utils/accessControl';
 
-export const GET: APIRoute = async ({ params, locals }) => {
+export const GET: APIRoute = async ({ params, locals, request }) => {
   console.log('Participants index endpoint called');
   
   const headers = {
@@ -34,16 +34,47 @@ export const GET: APIRoute = async ({ params, locals }) => {
       });
     }
 
+    // Extract query parameters
+    const url = new URL(request.url);
+    const searchTerm = url.searchParams.get('search') || '';
+    const filterEmail = url.searchParams.get('email') || '';
+    const filterStatus = url.searchParams.get('status') || '';
+    const page = parseInt(url.searchParams.get('page') || '1');
+    const pageSize = parseInt(url.searchParams.get('pageSize') || '10');
+
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+
     // Get participants for the survey
     console.log('Initializing Supabase client');
     const supabase = getClient({ requiresAdmin: true });
     console.log('Fetching participants for survey ID:', id);
     
-    const { data, error } = await supabase
+    let query = supabase
       .from('participants')
-      .select('*')
+      .select('*', { count: 'exact' })
       .eq('survey_id', id)
       .order('created_at', { ascending: true });
+
+    // Apply search filter
+    if (searchTerm) {
+      query = query.ilike('email', `%${searchTerm}%`); // Example: searching by email
+    }
+
+    // Apply email filter
+    if (filterEmail) {
+      query = query.eq('email', filterEmail);
+    }
+
+    // Apply status filter
+    if (filterStatus) {
+      query = query.eq('status', filterStatus);
+    }
+
+    // Apply pagination
+    query = query.range(from, to);
+
+    const { data, error, count } = await query;
 
     if (error) {
       console.error('Error fetching participants:', error);
@@ -65,7 +96,11 @@ export const GET: APIRoute = async ({ params, locals }) => {
       console.log('No participants found for this survey');
     }
 
-    return new Response(JSON.stringify({ data, error: null }), {
+    return new Response(JSON.stringify({ 
+      data, 
+      error: null,
+      total: count || 0 // total number of items
+    }), {
       status: 200,
       headers
     });
