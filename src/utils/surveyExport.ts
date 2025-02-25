@@ -1,224 +1,363 @@
-// src/utils/surveyExport.ts
+import { getClient } from '../lib/supabase';
+import type { Survey } from '../types/database';
 
-import type { SurveyResponse, SoundMatch } from '../types/database';
-
-interface CSVOptions {
-  includeTimestamps?: boolean;
+/**
+ * Options for exporting survey data
+ */
+export interface ExportOptions {
+  format: 'csv' | 'json' | 'pdf';
+  includeParticipantInfo?: boolean;
   includeMetadata?: boolean;
-  delimiter?: string;
+  anonymize?: boolean;
+  excludeFields?: string[];
+  includeTimestamps?: boolean;
+  filterByStatus?: string[];
+  sortBy?: string;
+  sortDirection?: 'asc' | 'desc';
 }
 
-interface PDFOptions {
-  includeCharts?: boolean;
-  includeAnalytics?: boolean;
-  template?: 'default' | 'detailed' | 'summary';
-}
+/**
+ * Default export options
+ */
+export const DEFAULT_EXPORT_OPTIONS: ExportOptions = {
+  format: 'csv',
+  includeParticipantInfo: true,
+  includeMetadata: true,
+  anonymize: false,
+  includeTimestamps: true,
+  filterByStatus: ['completed'],
+  sortBy: 'created_at',
+  sortDirection: 'desc'
+};
 
-interface ExportValidation {
-  isValid: boolean;
-  errors: string[];
-}
-
-// Helper function to sanitize CSV values
-function sanitizeCSVValue(value: any): string {
-  if (value === null || value === undefined) return '';
-  const stringValue = String(value);
-  return stringValue.includes(',') ? `"${stringValue}"` : stringValue;
-}
-
-// Helper function to format timestamps
-function formatTimestamp(timestamp: string): string {
-  return new Date(timestamp).toLocaleString();
-}
-
-export function generateCSV(responses: SurveyResponse[], options: CSVOptions = {}): string {
-  const {
-    includeTimestamps = true,
-    includeMetadata = true,
-    delimiter = ','
-  } = options;
-
-  // Define headers based on options
-  const headers = [
-    'Response ID',
-    'Survey ID',
-    includeTimestamps ? 'Timestamp' : null,
-    'Status',
-    'Success Rate',
-    'Time Taken (ms)',
-    'Chosen Sound',
-    'Expected Sound',
-    'Is Correct',
-    includeMetadata ? 'Additional Notes' : null,
-  ].filter(Boolean);
-
-  // Start with headers
-  const csvRows = [headers.join(delimiter)];
-
-  // Process each response
-  responses.forEach(response => {
-    const soundMatches = response.sound_matches || [];
+/**
+ * Fetches survey data for export
+ * @param surveyId The ID of the survey
+ * @param options Export options
+ * @returns The survey data and metadata
+ */
+export async function fetchSurveyDataForExport(
+  surveyId: string,
+  options: Partial<ExportOptions> = {}
+): Promise<{ survey: Survey; responses: any[]; participants: any[] }> {
+  const supabase = getClient({ requiresAdmin: true });
+  
+  // Merge with default options
+  const mergedOptions = { ...DEFAULT_EXPORT_OPTIONS, ...options };
+  
+  // Fetch survey details
+  const { data: survey, error: surveyError } = await supabase
+    .from('surveys')
+    .select('*')
+    .eq('id', surveyId)
+    .single();
     
-    // Handle each sound match as a separate row
-    soundMatches.forEach((match: SoundMatch) => {
-      const row = [
-        sanitizeCSVValue(response.id),
-        sanitizeCSVValue(response.survey_id),
-        includeTimestamps ? sanitizeCSVValue(formatTimestamp(response.created_at)) : null,
-        sanitizeCSVValue(response.status),
-        sanitizeCSVValue(response.success_rate),
-        sanitizeCSVValue(response.time_taken),
-        sanitizeCSVValue(match.sound_id),
-        sanitizeCSVValue(match.function_id),
-        sanitizeCSVValue(match.is_correct),
-        includeMetadata ? sanitizeCSVValue(response.status === 'completed' ? 'Complete response' : 'Incomplete response') : null,
-      ].filter(Boolean);
-
-      csvRows.push(row.join(delimiter));
+  if (surveyError) {
+    throw new Error(`Failed to fetch survey: ${surveyError.message}`);
+  }
+  
+  if (!survey) {
+    throw new Error('Survey not found');
+  }
+  
+  // Build query for responses
+  let responseQuery = supabase
+    .from('survey_responses')
+    .select(`
+      *,
+      participant:participant_id (
+        id,
+        email,
+        name,
+        participant_identifier,
+        status,
+        created_at
+      )
+    `)
+    .eq('survey_id', surveyId);
+    
+  // Apply filters if specified
+  if (mergedOptions.filterByStatus && mergedOptions.filterByStatus.length > 0) {
+    responseQuery = responseQuery.in('status', mergedOptions.filterByStatus);
+  }
+  
+  // Apply sorting
+  if (mergedOptions.sortBy) {
+    responseQuery = responseQuery.order(mergedOptions.sortBy, { 
+      ascending: mergedOptions.sortDirection === 'asc' 
     });
-  });
-
-  return csvRows.join('\n');
-}
-
-export async function createPDFReport(responses: SurveyResponse[], options: PDFOptions = {}): Promise<string> {
-  const {
-    includeCharts = true,
-    includeAnalytics = true,
-    template = 'default'
-  } = options;
-
-  // Generate report content based on template
-  const content = [];
-
-  // Add header
-  content.push('Survey Results Report');
-  content.push(`Generated on: ${new Date().toLocaleString()}`);
-  content.push('---');
-
-  // Add summary statistics
-  const totalResponses = responses.length;
-  const completedResponses = responses.filter(r => r.status === 'completed').length;
-  const averageSuccessRate = responses.reduce((acc, r) => acc + (r.success_rate || 0), 0) / totalResponses;
-
-  content.push('Summary Statistics:');
-  content.push(`Total Responses: ${totalResponses}`);
-  content.push(`Completion Rate: ${((completedResponses / totalResponses) * 100).toFixed(2)}%`);
-  content.push(`Average Success Rate: ${(averageSuccessRate * 100).toFixed(2)}%`);
-
-  if (includeAnalytics) {
-    content.push('\nDetailed Analytics:');
-    // Add response time distribution
-    const times = responses.map(r => r.time_taken || 0);
-    const avgTime = times.reduce((a, b) => a + b, 0) / times.length;
-    content.push(`Average Response Time: ${avgTime.toFixed(2)}ms`);
+  }
+  
+  // Fetch responses
+  const { data: responses, error: responsesError } = await responseQuery;
+  
+  if (responsesError) {
+    throw new Error(`Failed to fetch responses: ${responsesError.message}`);
+  }
+  
+  // Fetch participants
+  const { data: participants, error: participantsError } = await supabase
+    .from('participants')
+    .select('*')
+    .eq('survey_id', surveyId);
     
-    // Add success rate distribution
-    const successRates = responses.map(r => r.success_rate || 0);
-    const successDistribution = {
-      high: successRates.filter(r => r >= 0.8).length,
-      medium: successRates.filter(r => r >= 0.5 && r < 0.8).length,
-      low: successRates.filter(r => r < 0.5).length,
-    };
-    content.push('\nSuccess Rate Distribution:');
-    content.push(`High (>80%): ${successDistribution.high}`);
-    content.push(`Medium (50-80%): ${successDistribution.medium}`);
-    content.push(`Low (<50%): ${successDistribution.low}`);
+  if (participantsError) {
+    throw new Error(`Failed to fetch participants: ${participantsError.message}`);
   }
-
-  if (includeCharts) {
-    content.push('\n[Chart placeholders would be inserted here]');
-    // Note: Actual chart generation would require a PDF generation library
-  }
-
-  // Return formatted content
-  return content.join('\n');
+  
+  return { survey, responses: responses || [], participants: participants || [] };
 }
 
-export function anonymizeData(responses: SurveyResponse[]): SurveyResponse[] {
-  const anonymousPrefix = 'ANON_';
-  let participantCounter = 1;
-  const participantMap = new Map<string, string>();
-
-  return responses.map(response => {
-    // Generate consistent anonymous ID for each participant
-    if (!participantMap.has(response.participant_id)) {
-      participantMap.set(
-        response.participant_id,
-        `${anonymousPrefix}${participantCounter++}`
-      );
-    }
-
-    // Create anonymized copy of response
-    return {
-      ...response,
-      participant_id: participantMap.get(response.participant_id)!,
-      // Remove or obscure any other identifying information
-      created_at: response.created_at.split('T')[0], // Keep only the date
+/**
+ * Processes survey data for export based on options
+ * @param data The raw survey data
+ * @param options Export options
+ * @returns Processed data ready for export
+ */
+export function processSurveyData(
+  data: { survey: Survey; responses: any[]; participants: any[] },
+  options: Partial<ExportOptions> = {}
+): any[] {
+  const { survey, responses } = data;
+  const mergedOptions = { ...DEFAULT_EXPORT_OPTIONS, ...options };
+  
+  // Process each response
+  const processedData = responses.map(response => {
+    const result: Record<string, any> = {
+      response_id: response.id,
+      survey_id: survey.id,
+      survey_title: survey.title,
     };
+    
+    // Add participant info if requested
+    if (mergedOptions.includeParticipantInfo && response.participant) {
+      if (mergedOptions.anonymize) {
+        // Include only anonymized participant info
+        result.participant_id = response.participant.id;
+      } else {
+        // Include full participant info
+        result.participant_id = response.participant.id;
+        result.participant_email = response.participant.email;
+        result.participant_name = response.participant.name;
+      }
+    }
+    
+    // Add response data
+    if (response.responses) {
+      if (typeof response.responses === 'object') {
+        Object.entries(response.responses).forEach(([key, value]) => {
+          result[`response_${key}`] = value;
+        });
+      } else {
+        result.responses = response.responses;
+      }
+    }
+    
+    // Add sound mapping data if available
+    if (response.sound_mapping_responses) {
+      if (typeof response.sound_mapping_responses === 'object') {
+        Object.entries(response.sound_mapping_responses).forEach(([key, value]) => {
+          result[`sound_mapping_${key}`] = value;
+        });
+      } else {
+        result.sound_mapping_responses = response.sound_mapping_responses;
+      }
+    }
+    
+    // Add timestamps if requested
+    if (mergedOptions.includeTimestamps) {
+      result.created_at = response.created_at;
+      result.updated_at = response.updated_at;
+      result.completed_at = response.completed_at;
+    }
+    
+    // Add metadata if requested
+    if (mergedOptions.includeMetadata) {
+      result.status = response.status;
+      result.completion_time = response.completion_time;
+      result.browser_info = response.browser_info;
+    }
+    
+    return result;
   });
-}
-
-export function validateFormat(responses: SurveyResponse[]): ExportValidation {
-  const validation: ExportValidation = {
-    isValid: true,
-    errors: [],
-  };
-
-  // Check for empty dataset
-  if (responses.length === 0) {
-    validation.errors.push('No responses to export');
-    validation.isValid = false;
-    return validation;
-  }
-
-  // Validate each response
-  responses.forEach((response, index) => {
-    // Check required fields
-    if (!response.id) {
-      validation.errors.push(`Response at index ${index} missing ID`);
-      validation.isValid = false;
-    }
-
-    if (!response.survey_id) {
-      validation.errors.push(`Response at index ${index} missing survey ID`);
-      validation.isValid = false;
-    }
-
-    if (!response.participant_id) {
-      validation.errors.push(`Response at index ${index} missing participant ID`);
-      validation.isValid = false;
-    }
-
-    // Validate status
-    if (!['started', 'completed', 'abandoned'].includes(response.status)) {
-      validation.errors.push(`Response at index ${index} has invalid status: ${response.status}`);
-      validation.isValid = false;
-    }
-
-    // Validate numeric fields
-    if (response.success_rate !== null && (response.success_rate < 0 || response.success_rate > 1)) {
-      validation.errors.push(`Response at index ${index} has invalid success rate`);
-      validation.isValid = false;
-    }
-
-    if (response.time_taken !== null && response.time_taken < 0) {
-      validation.errors.push(`Response at index ${index} has invalid time taken`);
-      validation.isValid = false;
-    }
-
-    // Validate sound matches if present
-    if (response.sound_matches) {
-      response.sound_matches.forEach((match, matchIndex) => {
-        if (!match.sound_id || !match.function_id) {
-          validation.errors.push(
-            `Response at index ${index}, sound match ${matchIndex} has missing required fields`
-          );
-          validation.isValid = false;
+  
+  // Filter out excluded fields
+  if (mergedOptions.excludeFields && mergedOptions.excludeFields.length > 0) {
+    return processedData.map(item => {
+      const filteredItem: Record<string, any> = {};
+      Object.entries(item).forEach(([key, value]) => {
+        if (!mergedOptions.excludeFields?.includes(key)) {
+          filteredItem[key] = value;
         }
       });
-    }
-  });
+      return filteredItem;
+    });
+  }
+  
+  return processedData;
+}
 
-  return validation;
+/**
+ * Converts data to CSV format
+ * @param data The data to convert
+ * @param options Export options
+ * @returns CSV string
+ */
+export function convertToCSV(data: any[], options: Partial<ExportOptions> = {}): string {
+  if (!data || data.length === 0) return '';
+  
+  // Get all possible headers from all objects
+  const allHeaders = new Set<string>();
+  data.forEach(item => {
+    Object.keys(item).forEach(key => allHeaders.add(key));
+  });
+  
+  // Filter headers based on options
+  let headers = Array.from(allHeaders);
+  if (options.excludeFields?.length) {
+    headers = headers.filter(h => !options.excludeFields?.includes(h));
+  }
+  
+  // Create header row
+  const headerRow = headers.join(',');
+  
+  // Create data rows
+  const rows = data.map(row => {
+    return headers.map(header => {
+      const value = row[header];
+      
+      // Handle different value types
+      if (value === null || value === undefined) return '';
+      if (typeof value === 'object') return `"${JSON.stringify(value).replace(/"/g, '""')}"`;
+      if (typeof value === 'string') return `"${value.replace(/"/g, '""')}"`;
+      return value;
+    }).join(',');
+  });
+  
+  return [headerRow, ...rows].join('\n');
+}
+
+/**
+ * Converts data to JSON format
+ * @param data The data to convert
+ * @returns JSON string
+ */
+export function convertToJSON(data: any[]): string {
+  return JSON.stringify(data, null, 2);
+}
+
+/**
+ * Generates a summary of survey responses
+ * @param data The survey data
+ * @returns Summary object
+ */
+export function generateSurveySummary(data: { 
+  survey: Survey; 
+  responses: any[]; 
+  participants: any[] 
+}): Record<string, any> {
+  const { survey, responses, participants } = data;
+  
+  // Calculate completion rate
+  const completedResponses = responses.filter(r => r.status === 'completed').length;
+  const completionRate = participants.length > 0 
+    ? (completedResponses / participants.length) * 100 
+    : 0;
+  
+  // Calculate average completion time
+  const completionTimes = responses
+    .filter(r => r.completion_time && r.completion_time > 0)
+    .map(r => r.completion_time);
+    
+  const averageCompletionTime = completionTimes.length > 0
+    ? completionTimes.reduce((sum, time) => sum + time, 0) / completionTimes.length
+    : 0;
+  
+  // Count responses by status
+  const responsesByStatus: Record<string, number> = {};
+  responses.forEach(response => {
+    const status = response.status || 'unknown';
+    responsesByStatus[status] = (responsesByStatus[status] || 0) + 1;
+  });
+  
+  // Count participants by status
+  const participantsByStatus: Record<string, number> = {};
+  participants.forEach(participant => {
+    const status = participant.status || 'unknown';
+    participantsByStatus[status] = (participantsByStatus[status] || 0) + 1;
+  });
+  
+  return {
+    survey_id: survey.id,
+    survey_title: survey.title,
+    total_participants: participants.length,
+    total_responses: responses.length,
+    completed_responses: completedResponses,
+    completion_rate: completionRate.toFixed(2) + '%',
+    average_completion_time: averageCompletionTime.toFixed(2) + ' seconds',
+    responses_by_status: responsesByStatus,
+    participants_by_status: participantsByStatus,
+    created_at: survey.created_at,
+    updated_at: survey.updated_at,
+    published_at: survey.published_at,
+    generated_at: new Date().toISOString()
+  };
+}
+
+/**
+ * Exports survey data in the specified format
+ * @param surveyId The ID of the survey
+ * @param options Export options
+ * @returns The exported data and content type
+ */
+export async function exportSurveyData(
+  surveyId: string,
+  options: Partial<ExportOptions> = {}
+): Promise<{ data: string; contentType: string; filename: string }> {
+  // Merge with default options
+  const mergedOptions = { ...DEFAULT_EXPORT_OPTIONS, ...options };
+  
+  // Fetch and process data
+  const rawData = await fetchSurveyDataForExport(surveyId, mergedOptions);
+  const processedData = processSurveyData(rawData, mergedOptions);
+  
+  // Generate filename
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const surveySlug = rawData.survey.title
+    ? rawData.survey.title.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-')
+    : surveyId;
+  
+  let data: string;
+  let contentType: string;
+  let filename: string;
+  
+  // Export in the requested format
+  switch (mergedOptions.format) {
+    case 'json':
+      data = convertToJSON(processedData);
+      contentType = 'application/json';
+      filename = `survey-${surveySlug}-${timestamp}.json`;
+      break;
+      
+    case 'pdf':
+      // PDF generation would typically be handled by a library like pdfkit
+      // For now, we'll return JSON with a note
+      data = JSON.stringify({
+        note: 'PDF generation requires server-side libraries. This is a placeholder.',
+        summary: generateSurveySummary(rawData),
+        data: processedData
+      }, null, 2);
+      contentType = 'application/json';
+      filename = `survey-${surveySlug}-${timestamp}.json`;
+      break;
+      
+    case 'csv':
+    default:
+      data = convertToCSV(processedData, mergedOptions);
+      contentType = 'text/csv';
+      filename = `survey-${surveySlug}-${timestamp}.csv`;
+      break;
+  }
+  
+  return { data, contentType, filename };
 }

@@ -1,0 +1,34 @@
+---
+import Layout from '../../layouts/Layout.astro';
+---
+
+<Layout title="Thank You for Completing the Survey">
+    <div class="max-w-4xl mx-auto py-12 px-4 sm:px-6 lg:px-8 text-center">
+        <div class="bg-white shadow-xl rounded-lg p-8">
+            <div class="mb-8">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-24 w-24 text-green-500 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </div>
+            
+            <h1 class="text-3xl font-bold text-gray-900 mb-4">Thank You!</h1>
+            
+            <p class="text-xl text-gray-600 mb-8">
+                Your survey responses have been successfully submitted.
+            </p>
+            
+            <p class="text-gray-500 mb-8">
+                Your participation is greatly appreciated and will help us improve our sound profiles.
+            </p>
+            
+            <div class="mt-8">
+                <a 
+                    href="/surveys" 
+                    class="inline-block bg-blue-600 text-white font-medium px-6 py-3 rounded-md hover:bg-blue-700 transition-colors"
+                >
+                    Return to Survey Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
+</Layout>

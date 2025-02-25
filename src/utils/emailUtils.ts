@@ -1,15 +1,27 @@
 import nodemailer from 'nodemailer';
+import type { Survey } from '../types/database';
 
 interface EmailOptions {
   to: string;
   subject: string;
   html: string;
   from?: string;
+  replyTo?: string;
+  attachments?: Array<{
+    filename: string;
+    content: string | Buffer;
+    contentType?: string;
+  }>;
 }
 
 interface EmailError extends Error {
   code?: string;
   command?: string;
+}
+
+interface EmailTemplate {
+  subject: string;
+  html: string;
 }
 
 // Create reusable transporter object using environment variables
@@ -35,6 +47,8 @@ export async function sendEmail(options: EmailOptions): Promise<void> {
     subject,
     html,
     from = process.env.SMTP_FROM || 'noreply@example.com',
+    replyTo,
+    attachments = [],
   } = options;
 
   try {
@@ -47,12 +61,19 @@ export async function sendEmail(options: EmailOptions): Promise<void> {
     // Create transporter
     const transporter = createTransporter();
 
-    // Send mail
+    // Send mail with enhanced options
     await transporter.sendMail({
       from,
       to,
       subject,
       html,
+      replyTo,
+      attachments,
+      headers: {
+        'X-Priority': '1', // High priority
+        'X-MSMail-Priority': 'High',
+        'Importance': 'High'
+      }
     });
   } catch (error: unknown) {
     console.error('Error sending email:', error);
@@ -111,4 +132,146 @@ export async function sendEmailBatch(
   }
 
   return results;
+}
+
+/**
+ * Creates a survey invitation email template
+ * @param survey The survey object
+ * @param participantName The name of the participant
+ * @param surveyUrl The unique URL for the participant to access the survey
+ * @returns Email template with subject and HTML content
+ */
+export function createSurveyInvitationEmail(
+  survey: Survey,
+  participantName: string,
+  surveyUrl: string
+): EmailTemplate {
+  const subject = `Survey Invitation: ${survey.title}`;
+  
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
+      <div style="text-align: center; margin-bottom: 20px;">
+        <h2 style="color: #4a5568; margin-bottom: 10px;">You're invited to participate in a survey</h2>
+        <div style="height: 3px; background-color: #4299e1; width: 100px; margin: 0 auto;"></div>
+      </div>
+      
+      <p style="color: #4a5568; font-size: 16px;">Hello ${participantName || 'Participant'},</p>
+      
+      <p style="color: #4a5568; font-size: 16px;">You have been invited to participate in the survey: <strong>${survey.title}</strong></p>
+      
+      ${survey.description ? `<p style="color: #4a5568; font-size: 16px;">${survey.description}</p>` : ''}
+      
+      <p style="color: #4a5568; font-size: 16px;">This survey involves listening to various sounds and providing your feedback. Your participation is valuable and will help us gather important insights.</p>
+      
+      <p style="color: #4a5568; font-size: 16px;">Please click the button below to access your unique survey:</p>
+      
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${surveyUrl}" style="background-color: #4299e1; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-block;">
+          Start Survey
+        </a>
+      </div>
+      
+      <p style="color: #4a5568; font-size: 16px;">If the button above doesn't work, you can copy and paste the following link into your browser:</p>
+      <p style="text-align: center;">
+        <a href="${surveyUrl}" style="color: #4299e1; word-break: break-all;">${surveyUrl}</a>
+      </p>
+      
+      <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+        <p style="color: #718096; font-size: 14px;">This link is unique to you and should not be shared with others.</p>
+        <p style="color: #718096; font-size: 14px;">If you have any questions, please contact us by replying to this email.</p>
+      </div>
+    </div>
+  `;
+  
+  return { subject, html };
+}
+
+/**
+ * Creates a survey reminder email template
+ * @param survey The survey object
+ * @param participantName The name of the participant
+ * @param surveyUrl The unique URL for the participant to access the survey
+ * @returns Email template with subject and HTML content
+ */
+export function createSurveyReminderEmail(
+  survey: Survey,
+  participantName: string,
+  surveyUrl: string
+): EmailTemplate {
+  const subject = `Reminder: Your Survey "${survey.title}" is Waiting`;
+  
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
+      <div style="text-align: center; margin-bottom: 20px;">
+        <h2 style="color: #4a5568; margin-bottom: 10px;">Reminder: Your Survey is Waiting</h2>
+        <div style="height: 3px; background-color: #ed8936; width: 100px; margin: 0 auto;"></div>
+      </div>
+      
+      <p style="color: #4a5568; font-size: 16px;">Hello ${participantName || 'Participant'},</p>
+      
+      <p style="color: #4a5568; font-size: 16px;">This is a friendly reminder that you were invited to participate in the survey: <strong>${survey.title}</strong></p>
+      
+      <p style="color: #4a5568; font-size: 16px;">We noticed you haven't completed the survey yet. Your feedback is important to us, and we would greatly appreciate your participation.</p>
+      
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${surveyUrl}" style="background-color: #ed8936; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-block;">
+          Complete Survey Now
+        </a>
+      </div>
+      
+      <p style="color: #4a5568; font-size: 16px;">If the button above doesn't work, you can copy and paste the following link into your browser:</p>
+      <p style="text-align: center;">
+        <a href="${surveyUrl}" style="color: #ed8936; word-break: break-all;">${surveyUrl}</a>
+      </p>
+      
+      <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+        <p style="color: #718096; font-size: 14px;">This link is unique to you and should not be shared with others.</p>
+        <p style="color: #718096; font-size: 14px;">If you have any questions or if you believe you've received this email in error, please contact us by replying to this email.</p>
+      </div>
+    </div>
+  `;
+  
+  return { subject, html };
+}
+
+/**
+ * Creates a survey completion confirmation email template
+ * @param survey The survey object
+ * @param participantName The name of the participant
+ * @returns Email template with subject and HTML content
+ */
+export function createSurveyCompletionEmail(
+  survey: Survey,
+  participantName: string
+): EmailTemplate {
+  const subject = `Thank You for Completing the Survey: ${survey.title}`;
+  
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
+      <div style="text-align: center; margin-bottom: 20px;">
+        <h2 style="color: #4a5568; margin-bottom: 10px;">Thank You for Your Participation</h2>
+        <div style="height: 3px; background-color: #48bb78; width: 100px; margin: 0 auto;"></div>
+      </div>
+      
+      <p style="color: #4a5568; font-size: 16px;">Hello ${participantName || 'Participant'},</p>
+      
+      <p style="color: #4a5568; font-size: 16px;">Thank you for completing the survey: <strong>${survey.title}</strong></p>
+      
+      <p style="color: #4a5568; font-size: 16px;">Your feedback is extremely valuable and will help us in our research and development efforts.</p>
+      
+      <div style="text-align: center; margin: 30px 0;">
+        <div style="background-color: #f0fff4; border: 1px solid #c6f6d5; border-radius: 4px; padding: 15px; display: inline-block;">
+          <span style="color: #48bb78; font-size: 24px;">✓</span>
+          <span style="color: #4a5568; font-size: 16px; margin-left: 10px;">Survey Successfully Completed</span>
+        </div>
+      </div>
+      
+      <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+        <p style="color: #718096; font-size: 14px;">If you have any questions or additional feedback, please feel free to contact us by replying to this email.</p>
+        <p style="color: #718096; font-size: 14px;">Thank you again for your participation!</p>
+      </div>
+    </div>
+  `;
+  
+  return { subject, html };
 }

@@ -308,6 +308,9 @@ export interface SurveyResponse extends BaseSurveyResponse {
 export type Survey = Database['public']['Tables']['surveys']['Row'] & {
   sound_profiles?: Database['public']['Tables']['sound_profiles']['Row'] | null;
   survey_responses?: SurveyResponse[];
+  published_at?: string | null;
+  contact_email?: string | null;
+  status?: 'draft' | 'published' | 'completed';
 };
 
 export interface SurveySoundWithSound {

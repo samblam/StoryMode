@@ -5,6 +5,44 @@ import { customAlphabet } from 'nanoid';
 // Excluding similar-looking characters (0, O, 1, I, l) to avoid confusion
 const generateId = customAlphabet('23456789ABCDEFGHJKLMNPQRSTUVWXYZ', 12);
 
+// Token generator with a larger character set for access tokens
+const generateToken = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_', 32);
+
+/**
+ * Generates a secure token for participant access
+ * @returns A cryptographically secure random token
+ */
+export async function generateSecureToken(): Promise<string> {
+  try {
+    // Generate a random token
+    const token = generateToken();
+    
+    // Check if token already exists (unlikely, but good practice)
+    const supabase = getClient({ requiresAdmin: true });
+    const { data, error } = await supabase
+      .from('participants')
+      .select('id')
+      .eq('access_token', token)
+      .single();
+    
+    if (error && error.code !== 'PGRST116') {
+      console.error('Error checking token uniqueness:', error);
+      throw error;
+    }
+    
+    if (data) {
+      // On the extremely rare chance of a collision, generate a new token
+      return generateSecureToken();
+    }
+    
+    return token;
+  } catch (error) {
+    console.error('Error generating secure token:', error);
+    // Fallback to a simple token generation if there's an error
+    return generateToken();
+  }
+}
+
 /**
  * Generates a unique identifier for a participant's survey URL
  * Ensures the generated identifier doesn't already exist in the database
@@ -81,6 +119,41 @@ export function generateSurveyUrl(
   participantIdentifier: string
 ): string {
   return `${baseUrl}/surveys/${surveyId}?participant=${participantIdentifier}`;
+}
+
+/**
+ * Generates a participant URL using the participant ID
+ * This is a convenience function that gets the participant identifier and generates the URL
+ * @param surveyId - The ID of the survey
+ * @param participantId - The ID of the participant
+ * @returns The full URL for the participant to access the survey
+ */
+export async function generateParticipantUrl(
+  surveyId: string,
+  participantId: string
+): Promise<string> {
+  try {
+    // Get the participant to find their identifier
+    const supabase = getClient({ requiresAdmin: true });
+    const { data: participant, error } = await supabase
+      .from('participants')
+      .select('participant_identifier')
+      .eq('id', participantId)
+      .single();
+
+    if (error || !participant || !participant.participant_identifier) {
+      throw new Error(`Failed to get participant identifier: ${error?.message || 'Participant not found'}`);
+    }
+
+    // Get the base URL from environment or use a default
+    const baseUrl = process.env.PUBLIC_BASE_URL || 'http://localhost:3000';
+    
+    // Generate the URL
+    return generateSurveyUrl(baseUrl, surveyId, participant.participant_identifier);
+  } catch (error) {
+    console.error('Error generating participant URL:', error);
+    throw error;
+  }
 }
 
 /**

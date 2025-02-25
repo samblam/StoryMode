@@ -261,11 +261,17 @@ jane@example.com,Jane Doe</pre>
                         <label for="filter-status" class="block text-sm font-medium text-gray-700 sr-only">Filter by Status</label>
                         <select id="filter-status" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
                             <option value="">All Statuses</option>
-                            <option value="active">Active</option>
                             <option value="inactive">Inactive</option>
+                            <option value="active">Active</option>
                             <option value="completed">Completed</option>
+                            <option value="expired">Expired</option>
                         </select>
                     </div>
+                </div>
+                <div>
+                    <button id="batch-status-btn" class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                        Batch Actions
+                    </button>
                 </div>
             </div>
 
@@ -300,17 +306,54 @@ jane@example.com,Jane Doe</pre>
                                     </span>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-right font-medium">
-                                    <button 
-                                        class="text-red-600 hover:text-red-900 delete-participant-btn"
-                                        data-participant-id={participant.id}
-                                    >
-                                        Delete
-                                    </button>
+                                    <div class="flex items-center justify-end space-x-2">
+                                        <select class="status-update text-sm rounded-md border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500" data-id={participant.id}>
+                                            <option value="">Change Status</option>
+                                            <option value="inactive">Set Inactive</option>
+                                            <option value="active">Set Active</option>
+                                            <option value="completed">Set Completed</option>
+                                            <option value="expired">Set Expired</option>
+                                        </select>
+                                        <button
+                                            class="text-red-600 hover:text-red-900 delete-participant-btn"
+                                            data-participant-id={participant.id}
+                                        >
+                                            Delete
+                                        </button>
+                                    </div>
                                 </td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
+            </div>
+
+            {/* Batch Actions */}
+            <div id="batch-actions-panel" class="hidden p-4 bg-gray-50 rounded-md mt-4 mb-4 border border-gray-200">
+                <h3 class="text-lg font-medium text-gray-900 mb-3">Batch Status Update</h3>
+                <div class="flex flex-wrap items-end gap-4">
+                    <div>
+                        <label for="batch-status-select" class="block text-sm font-medium text-gray-700 mb-1">New Status</label>
+                        <select id="batch-status-select" class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                            <option value="">Select New Status</option>
+                            <option value="inactive">Set Inactive</option>
+                            <option value="active">Set Active</option>
+                            <option value="completed">Set Completed</option>
+                            <option value="expired">Set Expired</option>
+                        </select>
+                    </div>
+                    <div class="flex space-x-2">
+                        <button id="apply-batch-status" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                            Apply to Selected
+                        </button>
+                        <button id="apply-all-status" class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                            Apply to All
+                        </button>
+                        <button id="close-batch-panel" class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
             </div>
 
             {/* Pagination Controls */}
@@ -523,12 +566,21 @@ async function refreshParticipantList() {
                         </span>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-right font-medium">
-                        <button
-                            class="text-red-600 hover:text-red-900 delete-participant-btn"
-                            data-participant-id="${participant.id}"
-                        >
-                            Delete
-                        </button>
+                        <div class="flex items-center justify-end space-x-2">
+                            <select class="status-update text-sm rounded-md border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500" data-id="${participant.id}">
+                                <option value="">Change Status</option>
+                                <option value="inactive">Set Inactive</option>
+                                <option value="active">Set Active</option>
+                                <option value="completed">Set Completed</option>
+                                <option value="expired">Set Expired</option>
+                            </select>
+                            <button
+                                class="text-red-600 hover:text-red-900 delete-participant-btn"
+                                data-participant-id="${participant.id}"
+                            >
+                                Delete
+                            </button>
+                        </div>
                     </td>
                 </tr>
             `;
@@ -588,6 +640,39 @@ function attachDeleteListeners() {
     console.log(`Attached delete listeners to ${deleteButtons.length} buttons`);
 }
 
+// Attach event listeners for status update dropdowns
+function setupStatusUpdateListeners() {
+    const statusDropdowns = document.querySelectorAll('.status-update');
+    statusDropdowns.forEach(dropdown => {
+        // Remove existing listeners to prevent duplicates
+        dropdown.removeEventListener('change', handleStatusChange);
+        // Add new listener
+        dropdown.addEventListener('change', handleStatusChange);
+    });
+    console.log(`Attached status update listeners to ${statusDropdowns.length} dropdowns`);
+}
+
+// Handler for status dropdown changes
+async function handleStatusChange(event) {
+    const dropdown = event.currentTarget;
+    const participantId = dropdown.getAttribute('data-id');
+    const newStatus = dropdown.value;
+    
+    if (!participantId || !newStatus) return;
+    
+    try {
+        await updateParticipantStatus(participantId, newStatus);
+        // Reset dropdown
+        dropdown.value = '';
+        // Refresh the list to show updated statuses
+        await refreshParticipantList();
+    } catch (error) {
+        console.error('Error updating status:', error);
+        // Reset dropdown
+        dropdown.value = '';
+    }
+}
+
 // Handler for delete button clicks
 function handleDeleteClick(event) {
     const button = event.currentTarget;
@@ -638,6 +723,312 @@ async function handleDeleteAllClick(event) {
 // Make handleDeleteAllClick available globally
 window.handleDeleteAllClick = handleDeleteAllClick;
 
+// Handle status updates
+async function updateParticipantStatus(participantId, newStatus) {
+    try {
+        console.log(`Updating participant ${participantId} to status: ${newStatus}`);
+        const response = await fetch(`/api/participants/${participantId}/status`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ newStatus }),
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to update status');
+        }
+        
+        const result = await response.json();
+        console.log('Status update result:', result);
+        
+        return result;
+    } catch (error) {
+        console.error('Error updating participant status:', error);
+        alert(`Error: ${error.message}`);
+        throw error;
+    }
+}
+
+// Handle batch status updates
+async function batchUpdateStatus(participantIds, newStatus) {
+    try {
+        console.log(`Batch updating ${participantIds.length} participants to status: ${newStatus}`);
+        const response = await fetch('/api/participants/batch-update', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                participantIds,
+                newStatus
+            }),
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to update statuses');
+        }
+        
+        const result = await response.json();
+        console.log('Batch update result:', result);
+        
+        return result;
+    } catch (error) {
+        console.error('Error batch updating participant statuses:', error);
+        alert(`Error: ${error.message}`);
+        throw error;
+    }
+}
+
+// Function to setup search, filter, and pagination
+function setupSearchFilterPagination() {
+    const searchInput = document.getElementById('search');
+    const emailFilter = document.getElementById('filter-email');
+    const statusFilter = document.getElementById('filter-status');
+    const prevPageBtn = document.getElementById('prev-page');
+    const nextPageBtn = document.getElementById('next-page');
+    
+    // Add event listeners for search and filters
+    searchInput?.addEventListener('input', debounce(() => refreshParticipantList(), 500));
+    emailFilter?.addEventListener('change', () => refreshParticipantList());
+    statusFilter?.addEventListener('change', () => refreshParticipantList());
+    
+    // Pagination controls
+    prevPageBtn?.addEventListener('click', () => {
+        const currentPage = parseInt(document.getElementById('current-page')?.innerText || '1');
+        if (currentPage > 1) {
+            document.getElementById('current-page').innerText = (currentPage - 1).toString();
+            refreshParticipantList();
+        }
+    });
+    
+    nextPageBtn?.addEventListener('click', () => {
+        const currentPage = parseInt(document.getElementById('current-page')?.innerText || '1');
+        const totalPages = parseInt(document.getElementById('total-pages')?.innerText || '1');
+        if (currentPage < totalPages) {
+            document.getElementById('current-page').innerText = (currentPage + 1).toString();
+            refreshParticipantList();
+        }
+    });
+}
+
+// Simple debounce function for search input
+function debounce(func, wait) {
+    let timeout;
+    return function() {
+        const context = this;
+        const args = arguments;
+        clearTimeout(timeout);
+        timeout = setTimeout(() => {
+            func.apply(context, args);
+        }, wait);
+    };
+}
+
+// Function to handle showing/hiding batch actions panel
+function setupBatchActions() {
+    const batchStatusBtn = document.getElementById('batch-status-btn');
+    const batchActionsPanel = document.getElementById('batch-actions-panel');
+    const closeBatchPanelBtn = document.getElementById('close-batch-panel');
+    const applyBatchStatusBtn = document.getElementById('apply-batch-status');
+    const applyAllStatusBtn = document.getElementById('apply-all-status');
+    const batchStatusSelect = document.getElementById('batch-status-select');
+    
+    // Toggle batch actions panel
+    batchStatusBtn?.addEventListener('click', () => {
+        batchActionsPanel?.classList.toggle('hidden');
+    });
+    
+    // Close batch actions panel
+    closeBatchPanelBtn?.addEventListener('click', () => {
+        batchActionsPanel?.classList.add('hidden');
+    });
+    
+    // Apply status to selected participants
+    applyBatchStatusBtn?.addEventListener('click', async () => {
+        const selectedStatus = batchStatusSelect?.value;
+        if (!selectedStatus) {
+            alert('Please select a status');
+            return;
+        }
+        
+        const selectedRows = document.querySelectorAll('tr.selected');
+        if (selectedRows.length === 0) {
+            alert('Please select at least one participant');
+            return;
+        }
+        
+        const participantIds = Array.from(selectedRows).map(row => row.getAttribute('data-id'));
+        
+        try {
+            await batchUpdateStatus(participantIds, selectedStatus);
+            await refreshParticipantList();
+            batchActionsPanel?.classList.add('hidden');
+            alert(`Successfully updated ${participantIds.length} participants to ${selectedStatus}`);
+        } catch (error) {
+            console.error('Failed to update statuses:', error);
+        }
+    });
+    
+    // Apply status to all participants
+    applyAllStatusBtn?.addEventListener('click', async () => {
+        const selectedStatus = batchStatusSelect?.value;
+        if (!selectedStatus) {
+            alert('Please select a status');
+            return;
+        }
+        
+        if (!confirm(`Are you sure you want to set ALL participants to ${selectedStatus}?`)) {
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/participants/batch-update', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    surveyId,
+                    newStatus: selectedStatus
+                }),
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to update statuses');
+            }
+            
+            const result = await response.json();
+            await refreshParticipantList();
+            batchActionsPanel?.classList.add('hidden');
+            alert(`Successfully updated ${result.participants?.length || 0} participants to ${selectedStatus}`);
+        } catch (error) {
+            console.error('Failed to update all statuses:', error);
+            alert(`Error: ${error.message}`);
+        }
+    });
+}
+
+// Setup form submission handlers
+function setupFormHandlers() {
+    // Manual form submission
+    const manualForm = document.getElementById('manual-form');
+    manualForm?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        console.log('Manual form submission started');
+        
+        const emailInput = document.getElementById('email');
+        const nameInput = document.getElementById('name');
+        
+        if (!emailInput || !emailInput.value) {
+            alert('Email is required');
+            return;
+        }
+        
+        const formData = new FormData();
+        formData.append('email', emailInput.value);
+        if (nameInput && nameInput.value) {
+            formData.append('name', nameInput.value);
+        }
+        
+        try {
+            const response = await fetch(`/api/surveys/${surveyId}/participants/manual`, {
+                method: 'POST',
+                body: formData
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok) {
+                emailInput.value = '';
+                if (nameInput) nameInput.value = '';
+                alert('Participant added successfully');
+                refreshParticipantList();
+            } else {
+                alert(result.error || 'Failed to add participant');
+            }
+        } catch (error) {
+            console.error('Error adding participant:', error);
+            alert('Error adding participant');
+        }
+    });
+    
+    // CSV form submission
+    const csvForm = document.getElementById('csv-form');
+    csvForm?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        console.log('CSV form submission started');
+        
+        const csvFileInput = document.getElementById('csvFile');
+        if (!csvFileInput || !csvFileInput.files || csvFileInput.files.length === 0) {
+            alert('CSV file is required');
+            return;
+        }
+        
+        const formData = new FormData();
+        formData.append('csvFile', csvFileInput.files[0]);
+        
+        try {
+            const response = await fetch(`/api/surveys/${surveyId}/participants/csv`, {
+                method: 'POST',
+                body: formData
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok) {
+                csvFileInput.value = '';
+                alert('Participants added successfully');
+                refreshParticipantList();
+            } else {
+                alert(result.error || 'Failed to add participants');
+            }
+        } catch (error) {
+            console.error('Error adding participants from CSV:', error);
+            alert('Error adding participants from CSV');
+        }
+    });
+    
+    // JSON form submission
+    const jsonForm = document.getElementById('json-form');
+    jsonForm?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        console.log('JSON form submission started');
+        
+        const jsonFileInput = document.getElementById('jsonFile');
+        if (!jsonFileInput || !jsonFileInput.files || jsonFileInput.files.length === 0) {
+            alert('JSON file is required');
+            return;
+        }
+        
+        const formData = new FormData();
+        formData.append('jsonFile', jsonFileInput.files[0]);
+        
+        try {
+            const response = await fetch(`/api/surveys/${surveyId}/participants/json`, {
+                method: 'POST',
+                body: formData
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok) {
+                jsonFileInput.value = '';
+                alert('Participants added successfully');
+                refreshParticipantList();
+            } else {
+                alert(result.error || 'Failed to add participants');
+            }
+        } catch (error) {
+            console.error('Error adding participants from JSON:', error);
+            alert('Error adding participants from JSON');
+        }
+    });
+}
+
 // Initialize when DOM is ready
 function initializeComponent() {
     console.log('Initializing participant manager component');
@@ -645,6 +1036,9 @@ function initializeComponent() {
     attachDeleteListeners();
     initializeSortable();
     setupSearchFilterPagination();
+    setupBatchActions();
+    setupStatusUpdateListeners();
+    setupFormHandlers(); // Initialize form handlers
     refreshParticipantList(); // Apply pagination on initial load
     attachDeleteAllListener(); // Attach listener to Delete All button
     

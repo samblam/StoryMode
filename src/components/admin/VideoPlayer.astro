@@ -157,17 +157,14 @@ if (isAuthenticated && videoUrl) {
     }
 </style>
 
-<script>
-    class VideoPlayerManager {
-        private video: HTMLVideoElement | null;
-        private loadingEl: HTMLElement | null;
-        private errorEl: HTMLElement | null;
-        private refreshTimer: NodeJS.Timeout | null = null;
-
-        constructor(container: HTMLElement) {
+<script is:inline>
+    document.addEventListener('astro:page-load', function() {
+        // VideoPlayerManager class
+        function VideoPlayerManager(container) {
             this.video = container.querySelector('.video-player');
             this.loadingEl = container.querySelector('.video-loading');
             this.errorEl = container.querySelector('.video-error');
+            this.refreshTimer = null;
             
             if (this.video) {
                 this.initializePlayer();
@@ -175,111 +172,185 @@ if (isAuthenticated && videoUrl) {
             }
         }
 
-        private initializePlayer() {
+        VideoPlayerManager.prototype.initializePlayer = function() {
             try {
                 if (!this.video) return;
                 
                 this.showLoading();
                 
-                const source = this.video.querySelector('source');
+                var source = this.video.querySelector('source');
                 if (!source || !source.src) {
                     this.showError();
                     return;
                 }
 
                 // Setup refresh timer only when video starts playing
-                const setupRefreshTimer = () => {
-                    if (this.refreshTimer) {
-                        clearInterval(this.refreshTimer);
+                var self = this;
+                var setupRefreshTimer = function() {
+                    if (self.refreshTimer) {
+                        clearInterval(self.refreshTimer);
                     }
-                    this.refreshTimer = setInterval(() => {
-                        if (!this.video) return;
-                        const currentTime = this.video.currentTime;
-                        const isPaused = this.video.paused;
-                        this.video.load();
-                        this.video.currentTime = currentTime;
-                        if (!isPaused) {
-                            this.video.play();
+                    self.refreshTimer = setInterval(function() {
+                        try {
+                            if (!self.video) return;
+                            var currentTime = self.video.currentTime;
+                            var isPaused = self.video.paused;
+                            self.video.load();
+                            self.video.currentTime = currentTime;
+                            if (!isPaused) {
+                                var playPromise = self.video.play();
+                                if (playPromise !== undefined) {
+                                    playPromise.catch(function(error) {
+                                        console.warn('Could not auto-play video after refresh:', error);
+                                    });
+                                }
+                            }
+                        } catch (error) {
+                            console.error('Error in refresh timer:', error);
                         }
                     }, 50 * 60 * 1000); // 50 minutes
                 };
 
                 // Set up the timer only on first play
-                const onFirstPlay = () => {
-                    setupRefreshTimer();
-                    this.video?.removeEventListener('play', onFirstPlay);
+                var onFirstPlay = function() {
+                    try {
+                        setupRefreshTimer();
+                        if (self.video) {
+                            self.video.removeEventListener('play', onFirstPlay);
+                        }
+                    } catch (error) {
+                        console.error('Error in onFirstPlay callback:', error);
+                    }
                 };
+                
                 this.video.addEventListener('play', onFirstPlay, { once: true });
 
             } catch (error) {
                 console.error('Error initializing player:', error);
                 this.showError();
             }
-        }
+        };
 
-        private setupEventListeners() {
+        VideoPlayerManager.prototype.setupEventListeners = function() {
             if (!this.video || !this.errorEl) return;
 
-            this.video.addEventListener('loadstart', () => this.showLoading());
-            this.video.addEventListener('canplay', () => this.hideLoading());
-            this.video.addEventListener('error', () => this.showError());
+            var self = this;
+            var safeCallback = function(fn) {
+                return function() {
+                    try {
+                        fn();
+                    } catch (error) {
+                        console.error('Error in video event callback:', error);
+                    }
+                };
+            };
 
-            const retryButton = this.errorEl.querySelector('.retry-button');
+            this.video.addEventListener('loadstart', safeCallback(function() { self.showLoading(); }));
+            this.video.addEventListener('canplay', safeCallback(function() { self.hideLoading(); }));
+            this.video.addEventListener('error', safeCallback(function() { self.showError(); }));
+
+            var retryButton = this.errorEl.querySelector('.retry-button');
             if (retryButton) {
-                retryButton.addEventListener('click', () => this.retryLoading());
+                retryButton.addEventListener('click', safeCallback(function() { self.retryLoading(); }));
             }
 
             // Clean up on page unload
-            window.addEventListener('unload', () => {
-                if (this.refreshTimer) {
-                    clearInterval(this.refreshTimer);
+            window.addEventListener('unload', safeCallback(function() {
+                if (self.refreshTimer) {
+                    clearInterval(self.refreshTimer);
                 }
-            });
-        }
+            }));
+        };
 
-        private showLoading() {
+        VideoPlayerManager.prototype.showLoading = function() {
             if (!this.loadingEl || !this.errorEl) return;
             this.loadingEl.classList.remove('hidden');
             this.errorEl.classList.add('hidden');
-        }
+        };
 
-        private hideLoading() {
+        VideoPlayerManager.prototype.hideLoading = function() {
             if (!this.loadingEl) return;
             this.loadingEl.classList.add('hidden');
-        }
+        };
 
-        private showError() {
+        VideoPlayerManager.prototype.showError = function() {
             if (!this.loadingEl || !this.errorEl) return;
             this.loadingEl.classList.add('hidden');
             this.errorEl.classList.remove('hidden');
-        }
+        };
 
-        private async retryLoading() {
+        VideoPlayerManager.prototype.retryLoading = function() {
             if (!this.video) return;
-            this.video.load();
-            await this.initializePlayer();
-        }
-    }
+            try {
+                this.video.load();
+                this.initializePlayer();
+            } catch (error) {
+                console.error('Error retrying video load:', error);
+                this.showError();
+            }
+        };
 
-    // Initialize video players when they become visible
-    const initializeVisiblePlayers = () => {
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    new VideoPlayerManager(entry.target as HTMLElement);
-                    observer.unobserve(entry.target); // Stop observing once initialized
+        // Initialize video players when they become visible
+        function initializeVisiblePlayers() {
+            try {
+                if (typeof IntersectionObserver === 'undefined') {
+                    // Fallback for browsers without IntersectionObserver
+                    document.querySelectorAll('.video-player-container').forEach(function(container) {
+                        new VideoPlayerManager(container);
+                    });
+                    return;
+                }
+                
+                var observer = new IntersectionObserver(function(entries) {
+                    entries.forEach(function(entry) {
+                        if (entry.isIntersecting) {
+                            new VideoPlayerManager(entry.target);
+                            observer.unobserve(entry.target); // Stop observing once initialized
+                        }
+                    });
+                }, {
+                    rootMargin: '50px' // Start loading slightly before they come into view
+                });
+
+                // Start observing all video containers
+                document.querySelectorAll('.video-player-container').forEach(function(container) {
+                    observer.observe(container);
+                });
+            } catch (error) {
+                console.error('Error initializing video players:', error);
+                // Fallback to direct initialization
+                document.querySelectorAll('.video-player-container').forEach(function(container) {
+                    new VideoPlayerManager(container);
+                });
+            }
+        }
+
+        // Initialize observer when script loads
+        initializeVisiblePlayers();
+    });
+
+    // Also initialize on initial page load
+    document.addEventListener('DOMContentLoaded', function() {
+        if (document.readyState === 'complete' || document.readyState === 'interactive') {
+            document.querySelectorAll('.video-player-container').forEach(function(container) {
+                try {
+                    var video = container.querySelector('.video-player');
+                    var loadingEl = container.querySelector('.video-loading');
+                    var errorEl = container.querySelector('.video-error');
+                    
+                    if (video && loadingEl) {
+                        // Simple initialization for initial page load
+                        video.addEventListener('loadstart', function() { loadingEl.classList.remove('hidden'); });
+                        video.addEventListener('canplay', function() { loadingEl.classList.add('hidden'); });
+                        video.addEventListener('error', function() {
+                            loadingEl.classList.add('hidden');
+                            if (errorEl) errorEl.classList.remove('hidden');
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error in initial video setup:', error);
                 }
             });
-        }, {
-            rootMargin: '50px' // Start loading slightly before they come into view
-        });
-
-        // Start observing all video containers
-        document.querySelectorAll('.video-player-container').forEach(container => {
-            observer.observe(container);
-        });
-    };
-
-    // Initialize observer when script loads
-    initializeVisiblePlayers();
+        }
+    });
 </script>
