@@ -254,11 +254,21 @@ class AudioManager {
   }
 
   private updatePlayButton(soundId: string, isPlaying: boolean) {
-    const button = document.querySelector(`[data-sound-id="${soundId}"]`) as HTMLButtonElement;
+    // Find the container with data-sound-id
+    const container = document.querySelector(`[data-sound-id="${soundId}"]`);
+    if (!container) return;
+    
+    // Find the play button within the container
+    const button = container.querySelector('.play-button') as HTMLButtonElement;
     if (button) {
-      button.textContent = isPlaying ? 'Pause' : 'Play';
-      button.classList.remove(isPlaying ? 'bg-green-400' : 'bg-yellow-400');
-      button.classList.add(isPlaying ? 'bg-yellow-400' : 'bg-green-400');
+      button.textContent = isPlaying ? 'Pause' : 'Play Sound';
+      
+      // Remove both possible classes first
+      button.classList.remove('bg-blue-600', 'bg-yellow-400');
+      
+      // Add the appropriate class based on state
+      button.classList.add(isPlaying ? 'bg-yellow-400' : 'bg-blue-600');
+      
       this.soundButtonStates.set(soundId, isPlaying);
     }
   }

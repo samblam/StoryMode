@@ -66,7 +66,26 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
     // Remove direct reference to 'sounds' as there's no direct relationship with 'surveys'
     const { data: survey, error: surveyError } = await adminClient
       .from('surveys')
-      .select('*, survey_sounds(id,sound_id,intended_function,order_index,sounds(id,name,storage_path))')
+      .select(`
+        *,
+        client:clients (
+          id,
+          name,
+          email
+        ),
+        sound_profile:sound_profiles (
+          id,
+          title,
+          description,
+          sounds (
+            id,
+            name,
+            storage_path,
+            file_path
+          )
+        ),
+        survey_sounds(id,sound_id,intended_function,order_index,sounds(id,name,storage_path))
+      `)
       .eq('id', surveyId)
       .single();
 
@@ -168,8 +187,17 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
         id: 'placeholder-profile',
         title: 'Placeholder Profile',
         description: 'This is a placeholder profile for preview',
-        sounds: [] // Empty array for now, but could include placeholder sounds if needed
+        sounds: [
+          {
+            id: 'placeholder-sound-id',
+            name: 'Placeholder Sound',
+            storage_path: 'placeholder.mp3',
+            file_path: 'placeholder.mp3',
+            url: 'https://example.com/placeholder.mp3' // Add URL directly for placeholder
+          }
+        ]
       };
+      console.log('Preview API - Created placeholder sound profile with sample sound');
     } else {
       console.log('Preview API - Sound profile found:', survey.sound_profile.title);
       
@@ -182,6 +210,20 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
             sound.file_path = 'placeholder.mp3';
           }
         });
+        console.log('Preview API - Sound profile has', survey.sound_profile.sounds.length, 'sounds');
+      } else {
+        console.warn('Preview API - Sound profile has no sounds array or it is not an array');
+        // Initialize sounds array if it doesn't exist or is not an array
+        survey.sound_profile.sounds = [
+          {
+            id: 'placeholder-sound-id',
+            name: 'Placeholder Sound',
+            storage_path: 'placeholder.mp3',
+            file_path: 'placeholder.mp3',
+            url: 'https://example.com/placeholder.mp3' // Add URL directly for placeholder
+          }
+        ];
+        console.log('Preview API - Added placeholder sound to sound profile');
       }
     }
 
@@ -209,6 +251,25 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
       }];
     } else {
       console.log('Preview API - Survey sounds found:', survey.survey_sounds.length);
+      
+      // Ensure all survey sounds have the required fields
+      survey.survey_sounds.forEach((surveySound: any) => {
+        if (!surveySound.sounds) {
+          console.warn(`Preview API - Survey sound ${surveySound.id} has no sounds object, creating placeholder`);
+          surveySound.sounds = {
+            id: `placeholder-sound-for-${surveySound.id}`,
+            name: 'Placeholder Sound',
+            storage_path: 'placeholder.mp3',
+            file_path: 'placeholder.mp3',
+            url: 'https://example.com/placeholder.mp3' // Add URL directly for placeholder
+          };
+        } else if (!surveySound.sounds.storage_path) {
+          console.warn(`Preview API - Survey sound ${surveySound.id} has no storage_path, adding placeholder`);
+          surveySound.sounds.storage_path = 'placeholder.mp3';
+          surveySound.sounds.file_path = surveySound.sounds.file_path || 'placeholder.mp3';
+          surveySound.sounds.url = surveySound.sounds.url || 'https://example.com/placeholder.mp3';
+        }
+      });
     }
 
     // Create a preview context that mimics participant view
@@ -217,7 +278,9 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
         ...survey,
         // Functions are already an array of strings, no need to sort
         // Sort survey sounds by order_index
-        survey_sounds: (survey.survey_sounds as SurveySound[]).sort((a: SurveySound, b: SurveySound) => a.order_index - b.order_index)
+        survey_sounds: (survey.survey_sounds as SurveySound[]).sort((a: SurveySound, b: SurveySound) => a.order_index - b.order_index),
+        // Ensure client data is included
+        client: survey.client
       },
       isPreview: true, // Flag to indicate preview mode
       participant: {
@@ -235,6 +298,9 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
         saveResponses: false // Don't save responses in preview mode
       }
     };
+
+    // Log the preview context for debugging
+    console.log('Preview API - Preview context created with client data:', survey.client ? 'Yes' : 'No');
 
     const responseBody = JSON.stringify(previewContext);
     console.log('Preview API - Response body size:', responseBody.length, 'bytes');

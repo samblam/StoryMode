@@ -191,41 +191,26 @@ const sortedSounds = survey.survey_sounds.sort((a: any, b: any) => a.order_index
     }
 </style>
 
-<script define:vars={{ isPreview, survey, id }}>
-    let currentAudio = null;
-    const supabaseClient = getClient(); // Initialize Supabase client
+<script type="module" define:vars={{ isPreview, survey, id }}>
+    // Import the AudioManager
+    import { audioManager } from '/src/utils/audioManager.js';
 
     // Initialize audio player
-    document.querySelectorAll('.play-button').forEach(button => {
+    document.querySelectorAll('.play-button').forEach((button) => {
         button.addEventListener('click', async () => {
+            const soundId = button.closest('[data-sound-id]')?.getAttribute('data-sound-id');
             const storagePath = button.dataset.storagePath;
-            if (!storagePath) {
-                console.warn('No storagePath found on play button');
+            
+            if (!soundId || !storagePath) {
+                console.warn('Missing soundId or storagePath on play button');
                 return;
             }
 
-            // Generate signed URL using getSignedUrl utility
             try {
-                const signedUrl = await getSignedUrl(storagePath, 'sounds');
-                const url = signedUrl;
-
-                if (!url) {
-                    console.error('Failed to generate signed URL');
-                    return;
-                }
-
-                if (currentAudio) {
-                    currentAudio.pause();
-                    if (currentAudio.src === url) {
-                        currentAudio = null;
-                        return;
-                    }
-                }
-
-                currentAudio = new Audio(url);
-                currentAudio.play();
+                // Use AudioManager to play the sound
+                await audioManager.play(storagePath, soundId);
             } catch (error) {
-                console.error('Error generating signed URL:', error);
+                console.error('Error playing sound:', error instanceof Error ? error.message : String(error));
             }
         });
     });
@@ -254,7 +239,7 @@ const sortedSounds = survey.survey_sounds.sort((a: any, b: any) => a.order_index
                 
                 if (soundId) {
                     // Get selected function (radio button value)
-                    const selectedRadio = document.querySelector(`input[name="sound-${element.getAttribute('data-sound-id')}"]:checked`);
+                    const selectedRadio = document.querySelector(`input[name="sound-${soundId}"]:checked`);
                     const selectedFunction = selectedRadio ? selectedRadio.value : null;
                     
                     // Record response
@@ -302,7 +287,7 @@ const sortedSounds = survey.survey_sounds.sort((a: any, b: any) => a.order_index
             
         } catch (error) {
             console.error('Error submitting survey:', error);
-            alert(`Failed to submit survey: ${error.message}`);
+            alert(`Failed to submit survey: ${error instanceof Error ? error.message : String(error)}`);
         }
     });
     
