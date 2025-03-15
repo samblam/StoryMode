@@ -26,15 +26,47 @@ interface EmailTemplate {
 
 // Create reusable transporter object using environment variables
 const createTransporter = () => {
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: parseInt(process.env.SMTP_PORT || '587'),
-    secure: process.env.SMTP_SECURE === 'true',
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
+  // Get environment variables using Astro's approach
+  const host = import.meta.env.SMTP_HOST;
+  const port = parseInt(import.meta.env.SMTP_PORT || '587');
+  const secure = import.meta.env.SMTP_SECURE === 'true';
+  const user = import.meta.env.SMTP_USER;
+  const pass = import.meta.env.SMTP_PASS;
+  
+  // Log SMTP configuration (without sensitive information)
+  console.log('Creating email transporter with:', {
+    host,
+    port,
+    secure,
+    // Do not log credentials
+    auth: user ? 'configured' : 'missing',
   });
+  
+  return nodemailer.createTransport({
+    host,
+    port,
+    secure,
+    auth: {
+      user,
+      pass,
+    },
+    // Add connection timeout options
+    connectionTimeout: 5000, // 5 seconds
+    greetingTimeout: 5000,   // 5 seconds
+    socketTimeout: 10000,    // 10 seconds
+  });
+};
+
+// Verify SMTP connection
+const verifyTransporter = async (transporter: any): Promise<boolean> => {
+  try {
+    await transporter.verify();
+    console.log('SMTP connection verified successfully');
+    return true;
+  } catch (error) {
+    console.error('SMTP connection verification failed:', error);
+    return false;
+  }
 };
 
 /**
@@ -46,7 +78,7 @@ export async function sendEmail(options: EmailOptions): Promise<void> {
     to,
     subject,
     html,
-    from = process.env.SMTP_FROM || 'noreply@example.com',
+    from = `"Story Mode" <${import.meta.env.SMTP_USER}>`,
     replyTo,
     attachments = [],
   } = options;
@@ -58,10 +90,33 @@ export async function sendEmail(options: EmailOptions): Promise<void> {
       throw new Error(`Invalid recipient email address: ${to}`);
     }
 
+    // Log special handling for test email
+    const isTestEmail = to === 'samuel.ellis.barefoot@gmail.com';
+    if (isTestEmail) {
+      console.log(`Preparing to send email to test address: ${to}`);
+    }
+
     // Create transporter
     const transporter = createTransporter();
+    
+    // Verify SMTP connection for test emails or when SMTP host is not localhost
+    const smtpHost = import.meta.env.SMTP_HOST;
+    const smtpPort = import.meta.env.SMTP_PORT;
+    
+    if (isTestEmail || smtpHost !== '127.0.0.1') {
+      const isVerified = await verifyTransporter(transporter);
+      if (!isVerified) {
+        // For test emails, log the error but continue attempting to send
+        if (isTestEmail) {
+          console.warn(`Failed to verify SMTP connection, but attempting to send to test email ${to} anyway`);
+        } else {
+          throw new Error(`Failed to verify SMTP connection to ${smtpHost}:${smtpPort}`);
+        }
+      }
+    }
 
     // Send mail with enhanced options
+    console.log(`Sending email to ${to} with subject: ${subject}`);
     await transporter.sendMail({
       from,
       to,
@@ -75,17 +130,28 @@ export async function sendEmail(options: EmailOptions): Promise<void> {
         'Importance': 'High'
       }
     });
+    
+    console.log(`Successfully sent email to ${to}`);
   } catch (error: unknown) {
     console.error('Error sending email:', error);
     
-    // Handle different types of errors
+    // Enhanced error details
+    let errorDetails = '';
     if (error instanceof Error) {
       const emailError = error as EmailError;
-      throw new Error(
-        `Failed to send email to ${to}: ${emailError.message}${
-          emailError.code ? ` (${emailError.code})` : ''
-        }`
-      );
+      
+      // Add specific diagnostics based on error code
+      if (emailError.code === 'ECONNREFUSED') {
+        errorDetails = `Connection refused to SMTP server ${import.meta.env.SMTP_HOST}:${import.meta.env.SMTP_PORT}. Check if the server is running and accessible.`;
+      } else if (emailError.code === 'ETIMEDOUT') {
+        errorDetails = `Connection to SMTP server timed out. Check network connectivity and server status.`;
+      } else if (emailError.code === 'EAUTH') {
+        errorDetails = `Authentication failed. Check SMTP_USER and SMTP_PASS credentials.`;
+      } else {
+        errorDetails = `${emailError.message}${emailError.code ? ` (${emailError.code})` : ''}`;
+      }
+      
+      throw new Error(`Failed to send email to ${to}: ${errorDetails}`);
     } else {
       throw new Error(`Failed to send email to ${to}: Unknown error occurred`);
     }

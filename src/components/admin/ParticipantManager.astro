@@ -273,6 +273,14 @@ jane@example.com,Jane Doe</pre>
                         Batch Actions
                     </button>
                 </div>
+                <div class="flex space-x-2">
+                    <button id="batch-status-btn" class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                        Batch Actions
+                    </button>
+                    <button id="save-button" class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                        Save
+                    </button>
+                </div>
             </div>
 
             <div class="overflow-x-auto">
@@ -652,24 +660,55 @@ function setupStatusUpdateListeners() {
     console.log(`Attached status update listeners to ${statusDropdowns.length} dropdowns`);
 }
 
+// Function to attach event listener to the save button
+function setupSaveButtonListener() {
+   const saveButton = document.getElementById('save-button');
+   saveButton?.addEventListener('click', saveParticipantStatuses);
+   console.log('Attached save button listener');
+}
+
 // Handler for status dropdown changes
 async function handleStatusChange(event) {
     const dropdown = event.currentTarget;
     const participantId = dropdown.getAttribute('data-id');
     const newStatus = dropdown.value;
-    
+
     if (!participantId || !newStatus) return;
-    
+
+    dropdown.value = ''; // Reset dropdown
+}
+
+// Function to handle saving participant statuses
+async function saveParticipantStatuses() {
+    const statusDropdowns = document.querySelectorAll('.status-update');
+    const updates = [];
+
+    for (const dropdown of statusDropdowns) {
+        const participantId = dropdown.getAttribute('data-id');
+        const newStatus = dropdown.value; // Get the current value of the dropdown
+
+        console.log(`Participant ID: ${participantId}, New Status: ${newStatus}`); // Add logging
+
+        if (participantId && newStatus) {
+            updates.push({ participantId, newStatus });
+        }
+    }
+
+    if (updates.length === 0) {
+        alert('No changes to save.');
+        return;
+    }
+
     try {
-        await updateParticipantStatus(participantId, newStatus);
-        // Reset dropdown
-        dropdown.value = '';
-        // Refresh the list to show updated statuses
+        for (const update of updates) {
+            console.log(`Updating participant ${update.participantId} to status ${update.newStatus}`);
+            await updateParticipantStatus(update.participantId, update.newStatus);
+        }
+        alert('Participant statuses updated successfully.');
         await refreshParticipantList();
     } catch (error) {
-        console.error('Error updating status:', error);
-        // Reset dropdown
-        dropdown.value = '';
+        console.error('Error updating participant statuses:', error);
+        alert('Error updating participant statuses.');
     }
 }
 
@@ -1038,6 +1077,7 @@ function initializeComponent() {
     setupSearchFilterPagination();
     setupBatchActions();
     setupStatusUpdateListeners();
+    setupSaveButtonListener();
     setupFormHandlers(); // Initialize form handlers
     refreshParticipantList(); // Apply pagination on initial load
     attachDeleteAllListener(); // Attach listener to Delete All button

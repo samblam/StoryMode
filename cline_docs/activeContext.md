@@ -18,7 +18,9 @@ Fixing critical bugs in the survey system while continuing participant and surve
 
 3. Survey Preview Bug
     - ✅ Fixed: 500 error on survey preview API endpoint
-    - ✅ Fixed: All UI issues in survey preview have been resolved:
+    - ✅ Fixed: 500 error on survey preview API endpoint
+    - ❌ Broken: "Play Sound" button in survey preview does not work
+    - ✅ Fixed: All other UI issues in survey preview have been resolved:
       - ✅ Fixed: Video now loads correctly using signed URLs
       - ✅ Fixed: Questions display as multiple choice options based on survey functions
       - ✅ Fixed: Replaced navigation buttons with a single submit button
@@ -32,8 +34,8 @@ Fixing critical bugs in the survey system while continuing participant and surve
 ### Ongoing Feature Work
 1. ✅ Implemented: Participant status management
 2. ✅ Implemented: Survey preview functionality
-3. Implemented: Survey publishing with unique URLs
-4. Enhanced response saving with sound mapping data
+3. ✅ Implemented: Survey publishing with unique URLs (REQUIRES TESTING)
+4. ✅ Implemented: Enhanced response saving with sound mapping data (REQUIRES TESTING)
 
 ## Recent Changes
 
@@ -121,19 +123,43 @@ Fixing critical bugs in the survey system while continuing participant and surve
    - ✅ Created UI for managing participant statuses
    - ✅ Integrated status updates with survey workflow
    - ✅ Fixed form submission issues in ParticipantManager.astro
+   - ✅ Added "Save" button to participant management module
+   - ✅ Implemented logic to save participant statuses
 
-5. Survey Publishing:
-   - Create publish endpoint
-   - Implement URL generation
-   - Set up email sending
-   - Handle participant status updates
+5. ✅ Survey Publishing (IMPLEMENTED, NEEDS TESTING):
+   - ✅ Create publish endpoint
+   - ✅ Implement URL generation
+   - ✅ Set up email sending with background job processing
+   - ✅ Handle participant status updates
 
-6. Response Saving:
-   - Update response saving logic
-   - Add sound mapping data handling
-   - Implement participant status updates
+6. ✅ Response Saving (IMPLEMENTED, NEEDS TESTING):
+   - ✅ Update response saving logic with sound mapping data
+   - ✅ Add sound mapping data handling
+   - ✅ Implement participant status updates
+   - ✅ Add completion email sending
 
-7. Testing and Documentation:
-   - Write tests for new functionality
-   - Update documentation
-   - Create user guides
+7. Testing Survey Publishing and Response Saving (NEXT PRIORITY):
+   - Test publishing survey:
+     - Create a test survey with test participants
+     - Use the admin interface to publish the survey
+     - Verify background job creation and completion
+     - Check participant status updates (inactive → active)
+     - Verify email sending (check email logs or test email account)
+   - Test survey response collection:
+     - Use generated participant URLs to access the survey
+     - Complete and submit the survey form
+     - Verify responses are saved in the database
+     - Check participant status updates (active → completed)
+     - Verify completion email is sent
+   - Edge case testing:
+     - Test with large participant lists (100+ participants)
+     - Test error handling with invalid inputs
+     - Test access control (only active participants can submit)
+   - Performance testing:
+     - Monitor background job execution time
+     - Check for any performance bottlenecks
+
+8. Documentation:
+   - Update technical documentation
+   - Create user guides for survey publishing workflow
+   - Document API endpoints and response formats

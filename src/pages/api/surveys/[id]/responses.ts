@@ -1,5 +1,6 @@
-import { getClient } from '~/lib/supabase';
+  import { getClient } from '~/lib/supabase';
 import { type APIRoute } from 'astro';
+import { sendEmail, createSurveyCompletionEmail } from '~/utils/emailUtils';
 
 export const POST: APIRoute = async ({ params, request }) => {
   try {
@@ -12,11 +13,11 @@ export const POST: APIRoute = async ({ params, request }) => {
     }
 
     const body = await request.json();
-    const { 
-      participantId, 
+    const {
+      participantId,
       participantToken,
-      responses, 
-      soundMappingResponses 
+      responses,
+      soundMappingResponses
     } = body;
 
     if (!participantId || !participantToken || !responses) {
@@ -45,8 +46,8 @@ export const POST: APIRoute = async ({ params, request }) => {
     // For preview mode, we skip actual verification and saving
     const isPreview = participantId === 'preview' || participant.id === 'preview';
     if (isPreview) {
-      return new Response(JSON.stringify({ 
-        success: true, 
+      return new Response(JSON.stringify({
+        success: true,
         message: 'Preview mode - responses not saved',
         previewData: { responses, soundMappingResponses }
       }), {
@@ -57,8 +58,8 @@ export const POST: APIRoute = async ({ params, request }) => {
 
     // Check if participant is in active status
     if (participant.status && participant.status !== 'active') {
-      return new Response(JSON.stringify({ 
-        error: 'This survey is no longer available or has already been completed' 
+      return new Response(JSON.stringify({
+        error: 'This survey is no longer available or has already been completed'
       }), {
         status: 403,
         headers: { 'Content-Type': 'application/json' },
@@ -91,7 +92,7 @@ export const POST: APIRoute = async ({ params, request }) => {
     // Update participant status to completed
     const { error: statusError } = await supabase
       .from('participants')
-      .update({ 
+      .update({
         status: 'completed',
         completed_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
@@ -103,11 +104,37 @@ export const POST: APIRoute = async ({ params, request }) => {
       // Don't fail the whole request, we've already saved the response
     }
 
-    // Send completion email if needed (would be implemented in a real system)
-    // This would call a function like sendSurveyCompletionEmail(surveyId, participant)
+    // Get survey details for the completion email
+    const { data: survey, error: surveyError } = await supabase
+      .from('surveys')
+      .select('*')
+      .eq('id', surveyId)
+      .single();
 
-    return new Response(JSON.stringify({ 
-      success: true, 
+    if (!surveyError && survey) {
+      try {
+        // Send completion email to participant if they have an email
+        if (participant.email) {
+          const { subject, html } = createSurveyCompletionEmail(
+            survey,
+            participant.name || ''
+          );
+          
+          await sendEmail({
+            to: participant.email,
+            subject,
+            html,
+            replyTo: survey.contact_email || undefined
+          });
+        }
+      } catch (emailError) {
+        console.error('Error sending completion email:', emailError);
+        // Don't fail the whole request if email sending fails
+      }
+    }
+
+    return new Response(JSON.stringify({
+      success: true,
       message: 'Survey responses saved successfully',
       responseId: savedResponse.id
     }), {
@@ -116,7 +143,7 @@ export const POST: APIRoute = async ({ params, request }) => {
     });
   } catch (error) {
     console.error('Error saving survey responses:', error);
-    return new Response(JSON.stringify({ 
+    return new Response(JSON.stringify({
       error: 'Internal server error',
       details: error instanceof Error ? error.message : 'Unknown error'
     }), {

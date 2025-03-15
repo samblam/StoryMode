@@ -21,6 +21,11 @@ export default defineConfig({
     logLevel: 'info',
     build: {
       sourcemap: true
+    },
+    server: {
+      headers: {
+        maxHeaderSize: 8192
+      }
     }
   }
 });

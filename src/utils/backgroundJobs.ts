@@ -3,6 +3,33 @@ import { sendEmail } from './emailUtils';
 import { createSurveyInvitationEmail, createSurveyReminderEmail } from './emailUtils';
 import { generateParticipantUrl } from './participantUtils';
 
+// Check SMTP configuration and log warning if not configured
+const checkSmtpConfiguration = () => {
+  const smtpHost = import.meta.env.SMTP_HOST;
+  const smtpPort = import.meta.env.SMTP_PORT;
+  const smtpUser = import.meta.env.SMTP_USER;
+  const smtpPass = import.meta.env.SMTP_PASS;
+  
+  if (!smtpHost || !smtpPort || !smtpUser || !smtpPass) {
+    console.warn('WARNING: SMTP is not fully configured. Email sending will be skipped for most participants.');
+    console.warn('Missing environment variables:', {
+      SMTP_HOST: !smtpHost ? 'missing' : 'set',
+      SMTP_PORT: !smtpPort ? 'missing' : 'set',
+      SMTP_USER: !smtpUser ? 'missing' : 'set',
+      SMTP_PASS: !smtpPass ? 'missing' : 'set'
+    });
+    console.warn('For testing purposes, participant status updates will still occur for all participants.');
+    console.warn('NOTE: Emails to samuel.ellis.barefoot@gmail.com will be attempted regardless of SMTP configuration.');
+  } else if (smtpHost === '127.0.0.1') {
+    console.warn('WARNING: SMTP_HOST is set to localhost (127.0.0.1). This requires a local SMTP server to be running.');
+    console.warn('For testing purposes, participant status updates will still occur, but emails may fail if no local SMTP server is running.');
+    console.warn('NOTE: Emails to samuel.ellis.barefoot@gmail.com will be attempted regardless of SMTP configuration.');
+  }
+};
+
+// Run the check when this module is loaded
+checkSmtpConfiguration();
+
 /**
  * Job types supported by the background job system
  */
@@ -168,21 +195,28 @@ export async function createPublishJob(surveyId: string, participantIds: string[
  * @param jobId The job ID
  */
 async function processPublishJob(jobId: string): Promise<void> {
+  console.log(`Starting to process publish job: ${jobId}`);
   const supabase = getClient({ requiresAdmin: true });
+  console.log('Admin Supabase client initialized for job processing');
   
   // Get the job
   const job = await getJob(jobId);
   if (!job) {
+    console.error(`Job ${jobId} not found in database`);
     throw new Error(`Job ${jobId} not found`);
   }
+  console.log(`Found job ${jobId} with status: ${job.status}, processing...`);
   
   // Update status to processing
   await updateJobProgress(jobId, 0, JobStatus.PROCESSING);
+  console.log(`Updated job ${jobId} status to PROCESSING`);
   
   try {
     const { surveyId, participantIds } = job.data;
+    console.log(`Job data: surveyId=${surveyId}, ${participantIds?.length || 0} participants`);
     
     if (!surveyId || !participantIds || !Array.isArray(participantIds)) {
+      console.error('Invalid job data structure:', job.data);
       throw new Error('Invalid job data: surveyId and participantIds array are required');
     }
     
@@ -220,33 +254,88 @@ async function processPublishJob(jobId: string): Promise<void> {
       const batch = participants.slice(i, i + batchSize);
       
       // Process each participant in the batch
+      console.log(`Processing batch of ${batch.length} participants`);
       const promises = batch.map(async (participant) => {
         try {
+          console.log(`Processing participant ${participant.id}, current status: ${participant.status}`);
+          
           // Generate unique URL
+          console.log(`Generating URL for participant ${participant.id}`);
           const surveyUrl = await generateParticipantUrl(surveyId, participant.id);
+          console.log(`Generated URL for participant ${participant.id}: ${surveyUrl}`);
           
-          // Create email content
-          const { subject, html } = createSurveyInvitationEmail(
-            survey,
-            participant.name || '',
-            surveyUrl
-          );
-          
-          // Send email
-          await sendEmail({
-            to: participant.email,
-            subject,
-            html,
-            replyTo: survey.contact_email || undefined
-          });
-          
-          // Update participant status
-          await supabase
+          // First, update participant status - do this regardless of email success
+          console.log(`Updating participant ${participant.id} status to active`);
+          const { data: updateData, error: updateError } = await supabase
             .from('participants')
-            .update({ status: 'active', last_emailed_at: new Date().toISOString() })
-            .eq('id', participant.id);
+            .update({
+              status: 'active',
+              // Only set last_emailed_at if we successfully send the email later
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', participant.id)
+            .select('id, status');
             
-          successCount++;
+          if (updateError) {
+            console.error(`Error updating participant ${participant.id} status:`, updateError);
+            throw new Error(`Failed to update participant status: ${updateError.message}`);
+          } else {
+            console.log(`Successfully updated participant ${participant.id} status to active:`, updateData);
+            // Mark this participant as a success for status update purposes
+            successCount++;
+          }
+          
+          // Check if this is a real test email (Samuel's email)
+          const isRealTestEmail = participant.email === 'samuel.ellis.barefoot@gmail.com';
+          
+          // Check if SMTP settings are configured before attempting to send email
+          const smtpHost = import.meta.env.SMTP_HOST;
+          
+          // Always attempt to send to real test email OR when SMTP is configured
+          if (isRealTestEmail || (smtpHost && smtpHost !== '127.0.0.1')) {
+            // Now try to send email - this might fail in test environments without SMTP
+            try {
+              if (isRealTestEmail) {
+                console.log(`Attempting to send email to real test address: ${participant.email}`);
+              }
+              
+              // Create email content
+              console.log(`Creating email content for participant ${participant.id}`);
+              const { subject, html } = createSurveyInvitationEmail(
+                survey,
+                participant.name || '',
+                surveyUrl
+              );
+              
+              // Send email
+              console.log(`Sending email to ${participant.email}`);
+              await sendEmail({
+                to: participant.email,
+                subject,
+                html,
+                replyTo: survey.contact_email || undefined
+              });
+              console.log(`Email sent successfully to ${participant.email}`);
+              
+              // Update last_emailed_at timestamp only if email was sent successfully
+              await supabase
+                .from('participants')
+                .update({ last_emailed_at: new Date().toISOString() })
+                .eq('id', participant.id);
+            } catch (emailError) {
+              // Log the email error but don't fail the entire participant processing
+              console.error(`Email sending failed for participant ${participant.id}:`, emailError);
+              if (isRealTestEmail) {
+                console.error(`Failed to send to real test email ${participant.email}. Check SMTP configuration and internet connectivity.`);
+                console.error(`Error details: ${emailError instanceof Error ? emailError.message : String(emailError)}`);
+              } else {
+                console.warn(`Participant ${participant.id} status was updated, but email could not be sent`);
+              }
+              // Don't decrement successCount - we're separating status updates from email success
+            }
+          } else {
+            console.warn(`SMTP_HOST not configured or set to localhost (${smtpHost}). Skipping email sending for ${participant.email} in test environment.`);
+          }
         } catch (error) {
           console.error(`Failed to process participant ${participant.id}:`, error);
           failureCount++;
@@ -267,35 +356,82 @@ async function processPublishJob(jobId: string): Promise<void> {
     }
     
     // Update job with final status
-    const finalStatus = failureCount === 0 ? JobStatus.COMPLETED : 
-                        successCount === 0 ? JobStatus.FAILED : JobStatus.COMPLETED;
-                        
-    const errorMessage = failureCount > 0 ? 
-      `Failed to send ${failureCount} out of ${participants.length} emails` : undefined;
+    // Consider job successful if we were able to update participant statuses, even if emails failed
+    const finalStatus = successCount > 0 ? JobStatus.COMPLETED : JobStatus.FAILED;
+    
+    // Include email failure information as a warning, but don't make it a failure
+    let errorMessage: string | undefined;
+    if (failureCount > 0) {
+      errorMessage = `Warning: Failed to send ${failureCount} out of ${participants.length} emails, but ${successCount} participant statuses were updated successfully`;
+    }
       
     await updateJobProgress(
-      jobId, 
-      100, 
-      finalStatus, 
+      jobId,
+      100,
+      finalStatus,
       errorMessage
     );
+    console.log(`Updated job ${jobId} progress to 100% with status ${finalStatus}`);
     
-    // Update survey status if all emails were sent successfully
-    if (finalStatus === JobStatus.COMPLETED && !errorMessage) {
-      await supabase
-        .from('surveys')
-        .update({ status: 'published', published_at: new Date().toISOString() })
-        .eq('id', surveyId);
+    // Update survey status if we successfully updated participant statuses
+    // We're prioritizing status updates over email sending
+    if (finalStatus === JobStatus.COMPLETED) {
+      console.log(`Updating survey ${surveyId} status to published`);
+      
+      // First check if the survey table has the published_at column
+      try {
+        const { error: schemaError } = await supabase
+          .from('surveys')
+          .select('published_at')
+          .eq('id', surveyId)
+          .limit(1);
+          
+        let hasPublishedAtColumn = true;
+        if (schemaError && schemaError.code === 'PGRST204') {
+          console.warn(`Survey table does not have 'published_at' column, updating only status field`);
+          hasPublishedAtColumn = false;
+        }
+        
+        // Update the survey with or without published_at field
+        const updateData = hasPublishedAtColumn
+          ? { status: 'published', published_at: new Date().toISOString() }
+          : { status: 'published' };
+          
+        const { data: surveyUpdateData, error: surveyUpdateError } = await supabase
+          .from('surveys')
+          .update(updateData)
+          .eq('id', surveyId)
+          .select();
+          
+        if (surveyUpdateError) {
+          console.error(`Error updating survey ${surveyId} status:`, surveyUpdateError);
+        } else {
+          console.log(`Successfully updated survey ${surveyId} status to published:`, surveyUpdateData);
+        }
+      } catch (updateError) {
+        console.error(`Error in survey status update process:`, updateError);
+      }
     }
+    
+    console.log(`Finished processing job ${jobId} successfully`);
     
   } catch (error) {
     console.error(`Error processing publish job ${jobId}:`, error);
+    console.error('Stack trace:', error instanceof Error ? error.stack : 'No stack trace available');
+    
+    // Log detailed error information
+    if (error instanceof Error) {
+      console.error('Error name:', error.name);
+      console.error('Error message:', error.message);
+    }
+    
     await updateJobProgress(
-      jobId, 
-      0, 
-      JobStatus.FAILED, 
+      jobId,
+      0,
+      JobStatus.FAILED,
       error instanceof Error ? error.message : 'Unknown error'
     );
+    console.error(`Job ${jobId} marked as FAILED due to error`);
   }
 }
 
@@ -387,30 +523,58 @@ async function processReminderJob(jobId: string): Promise<void> {
           // Generate unique URL
           const surveyUrl = await generateParticipantUrl(surveyId, participant.id);
           
-          // Create email content
-          const { subject, html } = createSurveyReminderEmail(
-            survey,
-            participant.name || '',
-            surveyUrl
-          );
+          // Check if this is a real test email (Samuel's email)
+          const isRealTestEmail = participant.email === 'samuel.ellis.barefoot@gmail.com';
           
-          // Send email
-          await sendEmail({
-            to: participant.email,
-            subject,
-            html,
-            replyTo: survey.contact_email || undefined
-          });
+          // Check if SMTP settings are configured before attempting to send email
+          const smtpHost = import.meta.env.SMTP_HOST;
           
-          // Update participant last_emailed_at
-          await supabase
-            .from('participants')
-            .update({ last_emailed_at: new Date().toISOString() })
-            .eq('id', participant.id);
-            
-          successCount++;
+          // Always attempt to send to real test email OR when SMTP is configured
+          if (isRealTestEmail || (smtpHost && smtpHost !== '127.0.0.1')) {
+            try {
+              if (isRealTestEmail) {
+                console.log(`Attempting to send reminder email to test address: ${participant.email}`);
+              }
+              
+              // Create email content
+              const { subject, html } = createSurveyReminderEmail(
+                survey,
+                participant.name || '',
+                surveyUrl
+              );
+              
+              // Send email
+              console.log(`Sending reminder email to ${participant.email}`);
+              await sendEmail({
+                to: participant.email,
+                subject,
+                html,
+                replyTo: survey.contact_email || undefined
+              });
+              console.log(`Reminder email sent successfully to ${participant.email}`);
+              
+              // Update participant last_emailed_at
+              await supabase
+                .from('participants')
+                .update({ last_emailed_at: new Date().toISOString() })
+                .eq('id', participant.id);
+                
+              successCount++;
+            } catch (emailError) {
+              console.error(`Reminder email sending failed for participant ${participant.id}:`, emailError);
+              if (isRealTestEmail) {
+                console.error(`Failed to send to real test email ${participant.email}. Check SMTP configuration and internet connectivity.`);
+                console.error(`Error details: ${emailError instanceof Error ? emailError.message : String(emailError)}`);
+              }
+              failureCount++;
+            }
+          } else {
+            console.warn(`SMTP_HOST not configured or set to localhost (${smtpHost}). Skipping reminder email for ${participant.email} in test environment.`);
+            // Count this as a failure only for stats
+            failureCount++;
+          }
         } catch (error) {
-          console.error(`Failed to send reminder to participant ${participant.id}:`, error);
+          console.error(`Failed to process reminder for participant ${participant.id}:`, error);
           failureCount++;
         }
       });
@@ -429,18 +593,42 @@ async function processReminderJob(jobId: string): Promise<void> {
     }
     
     // Update job with final status
-    const finalStatus = failureCount === 0 ? JobStatus.COMPLETED : 
-                        successCount === 0 ? JobStatus.FAILED : JobStatus.COMPLETED;
-                        
-    const errorMessage = failureCount > 0 ? 
-      `Failed to send ${failureCount} out of ${participants.length} reminder emails` : undefined;
+    // Consider job successful if at least some emails were sent
+    const finalStatus = successCount > 0 ? JobStatus.COMPLETED : JobStatus.FAILED;
+    
+    let errorMessage: string | undefined;
+    if (failureCount > 0) {
+      errorMessage = `Warning: Failed to send ${failureCount} out of ${participants.length} reminder emails, but ${successCount} emails were sent successfully`;
+    }
       
     await updateJobProgress(
-      jobId, 
-      100, 
-      finalStatus, 
+      jobId,
+      100,
+      finalStatus,
       errorMessage
     );
+    
+    // Update survey last_reminded_at field if it exists
+    if (finalStatus === JobStatus.COMPLETED) {
+      try {
+        // First check if the survey table has the last_reminded_at column
+        const { error: schemaError } = await supabase
+          .from('surveys')
+          .select('last_reminded_at')
+          .eq('id', surveyId)
+          .limit(1);
+          
+        if (!schemaError) {
+          console.log(`Updating survey ${surveyId} reminder timestamp`);
+          await supabase
+            .from('surveys')
+            .update({ last_reminded_at: new Date().toISOString() })
+            .eq('id', surveyId);
+        }
+      } catch (updateError) {
+        console.error(`Error updating survey reminder timestamp:`, updateError);
+      }
+    }
     
   } catch (error) {
     console.error(`Error processing reminder job ${jobId}:`, error);

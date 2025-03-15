@@ -1,9 +1,7 @@
 import { getClient } from '../../../../lib/supabase';
 import { type APIRoute } from 'astro';
 import { verifyAuthorization } from '../../../../utils/accessControl';
-import { generateSecureToken } from '../../../../utils/participantUtils';
-
-const DIRECT_PROCESSING_LIMIT = 20; // Process directly if fewer than this many participants
+import { createPublishJob } from '../../../../utils/backgroundJobs';
 
 export const POST: APIRoute = async ({ params, request, locals }) => {
   try {
@@ -67,104 +65,24 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
       });
     }
 
-    // Determine if we should process directly or use background job
-    if (participants.length <= DIRECT_PROCESSING_LIMIT) {
-      // Process directly for small batches
-      const results = {
-        totalParticipants: participants.length,
-        emailsSent: 0,
-        errors: []
-      };
+    // Create a background job to handle the email sending and participant activation
+    const participantIds = participants.map(p => p.id);
+    const jobId = await createPublishJob(surveyId, participantIds);
 
-      // Generate access tokens and update status
-      const participantUpdates = await Promise.all(participants.map(async (participant) => {
-        const accessToken = await generateSecureToken();
-        const accessUrl = `${new URL(request.url).origin}/surveys/${surveyId}?token=${accessToken}`;
-        
-        return {
-          id: participant.id,
-          access_token: accessToken,
-          access_url: accessUrl,
-          status: 'active', // Change status to active
-          updated_at: new Date().toISOString()
-        };
-      }));
-
-      // Update participants
-      const { error: updateError } = await supabase
-        .from('participants')
-        .upsert(participantUpdates, { onConflict: 'id' });
-
-      if (updateError) {
-        console.error('Error updating participants:', updateError);
-        return new Response(JSON.stringify({ 
-          error: 'Failed to update participants', 
-          details: updateError.message 
-        }), {
-          status: 500,
-          headers: { 'Content-Type': 'application/json' },
-        });
+    return new Response(JSON.stringify({
+      success: true,
+      message: `Survey published successfully. ${participants.length} participants will be activated in the background.`,
+      jobId,
+      participants: {
+        totalCount: participants.length
       }
-
-      // Send emails to participants (would be implemented in a real system)
-      // This would call a function like sendSurveyInvitationEmails(participantUpdates)
-
-      return new Response(JSON.stringify({ 
-        success: true, 
-        message: `Survey published successfully. ${participants.length} participants activated.`,
-        results
-      }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    } else {
-      // Create background job for large batches
-      // This would call createPublishJob(surveyId, participants.map(p => p.id))
-      // For now, we'll just update directly
-      
-      // Generate access tokens and update status in chunks
-      const CHUNK_SIZE = 100;
-      for (let i = 0; i < participants.length; i += CHUNK_SIZE) {
-        const chunk = participants.slice(i, i + CHUNK_SIZE);
-        
-        const participantUpdates = await Promise.all(chunk.map(async (participant) => {
-          const accessToken = await generateSecureToken();
-          const accessUrl = `${new URL(request.url).origin}/surveys/${surveyId}?token=${accessToken}`;
-          
-          return {
-            id: participant.id,
-            access_token: accessToken,
-            access_url: accessUrl,
-            status: 'active', // Change status to active
-            updated_at: new Date().toISOString()
-          };
-        }));
-
-        // Update participants in this chunk
-        const { error: updateError } = await supabase
-          .from('participants')
-          .upsert(participantUpdates, { onConflict: 'id' });
-
-        if (updateError) {
-          console.error('Error updating participants chunk:', updateError);
-          // Continue with other chunks even if this one fails
-        }
-      }
-
-      return new Response(JSON.stringify({ 
-        success: true, 
-        message: `Survey published successfully. ${participants.length} participants will be activated in the background.`,
-        participants: {
-          totalCount: participants.length
-        }
-      }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
   } catch (error) {
     console.error('Error publishing survey:', error);
-    return new Response(JSON.stringify({ 
+    return new Response(JSON.stringify({
       error: 'Internal server error',
       details: error instanceof Error ? error.message : 'Unknown error'
     }), {

@@ -1,0 +1,210 @@
+---
+import Layout from '../layouts/Layout.astro';
+
+// No authentication required for this test page
+let testResult = null;
+let error = null;
+let isLoading = false;
+
+// If there's a test action, run the test
+if (Astro.request.method === 'POST') {
+    try {
+        isLoading = true;
+        
+        // Call our test endpoint with credentials to include cookies
+        const response = await fetch(`${Astro.url.origin}/api/test-survey-publish`, {
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include' // This ensures cookies are sent with the request
+        });
+        
+        const result = await response.json();
+        
+        if (!response.ok) {
+            error = result.error || 'Failed to test survey publishing';
+        } else {
+            testResult = result;
+        }
+    } catch (e) {
+        error = e instanceof Error ? e.message : 'Unknown error';
+    } finally {
+        isLoading = false;
+    }
+}
+---
+
+<Layout title="Test Survey Publish Workflow">
+    <main class="container mx-auto px-4 py-8">
+        <h1 class="text-3xl font-bold mb-6">Test Survey Publishing Workflow</h1>
+        
+        <div class="mb-8 p-4 bg-yellow-100 border border-yellow-400 rounded">
+            <p class="text-yellow-800">
+                <strong>Note:</strong> This page tests the URL parameter fix in the actual survey publishing workflow.
+                It creates a test survey with participants, publishes it, and sends emails with the correctly formatted survey URLs.
+            </p>
+            <p class="text-yellow-800 mt-2">
+                <strong>Email Testing:</strong> An email will be sent to samuel.ellis.barefoot@gmail.com with the survey URL.
+                Check your inbox after running the test to access the survey as a participant.
+            </p>
+            <p class="mt-2">
+                <a href="/test-survey-url" class="text-blue-600 hover:underline font-medium">
+                    ← Back to Individual URL Test
+                </a>
+            </p>
+        </div>
+        
+        {error && (
+            <div class="mb-6 p-4 bg-red-100 border border-red-400 rounded">
+                <p class="text-red-800"><strong>Error:</strong> {error}</p>
+            </div>
+        )}
+        
+        <div class="mb-8">
+            <h2 class="text-xl font-bold mb-4">Run Survey Publishing Test</h2>
+            <p class="mb-4">Click the button below to test the full survey publishing workflow. This will:</p>
+            <ol class="list-decimal list-inside mb-4 space-y-1">
+                <li>Create a test survey (or use an existing one)</li>
+                <li>Create test participants (or use existing ones)</li>
+                <li>Publish the survey, which generates unique URLs for participants</li>
+                <li>Verify that the URLs are correctly formatted with the right parameters</li>
+            </ol>
+            <form method="POST" class="space-y-4">
+                <button 
+                    type="submit"
+                    class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                    disabled={isLoading}
+                >
+                    {isLoading ? 'Running Test...' : 'Run Test'}
+                </button>
+            </form>
+        </div>
+        
+        {testResult && (
+            <div class="space-y-6">
+                <h2 class="text-xl font-bold">Test Results</h2>
+                
+                <div class="p-4 bg-green-100 border border-green-400 rounded">
+                    <p class="text-green-800">
+                        <strong>Success!</strong> The survey publishing test has completed.
+                    </p>
+                    <p class="text-green-800 mt-2">
+                        Survey ID: {testResult.surveyId}<br />
+                        Job ID: {testResult.jobId}<br />
+                        Total Participants: {testResult.participantsCount}<br />
+                        Active Participants: {testResult.activeParticipantsCount}
+                    </p>
+                </div>
+                
+                {testResult.testEmail && (
+                    <div class="p-4 my-4 bg-blue-100 border border-blue-400 rounded">
+                        <h3 class="font-bold text-blue-800 mb-2">Email Status:</h3>
+                        {testResult.testEmail.emailSent ? (
+                            <div>
+                                <p class="text-blue-800">
+                                    <strong>✓ Email sent successfully!</strong>
+                                </p>
+                                <p class="text-blue-800 mt-2">
+                                    Recipient: {testResult.testEmail.recipientName} ({testResult.testEmail.recipientEmail})<br />
+                                    Message: {testResult.testEmail.message}
+                                </p>
+                                <p class="text-blue-800 mt-2 font-bold">
+                                    Please check your inbox for the survey invitation email.
+                                </p>
+                            </div>
+                        ) : (
+                            <p class="text-red-800">
+                                {testResult.testEmail.message}
+                            </p>
+                        )}
+                    </div>
+                )}
+                
+                <div>
+                    <h3 class="font-bold mb-2">URL Verification Results:</h3>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full bg-white border border-gray-200">
+                            <thead>
+                                <tr>
+                                    <th class="py-2 px-4 border-b">Participant ID</th>
+                                    <th class="py-2 px-4 border-b">Identifier</th>
+                                    <th class="py-2 px-4 border-b">Status Updated</th>
+                                    <th class="py-2 px-4 border-b">URL (with fix)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {testResult.verificationResults.map((result: {
+                                    participantId: string;
+                                    identifier: string;
+                                    statusUpdated: boolean;
+                                    correctUrl: string;
+                                    oldUrl: string;
+                                }) => (
+                                    <tr>
+                                        <td class="py-2 px-4 border-b">{result.participantId}</td>
+                                        <td class="py-2 px-4 border-b">{result.identifier}</td>
+                                        <td class="py-2 px-4 border-b">
+                                            <span class={result.statusUpdated ? "text-green-600" : "text-red-600"}>
+                                                {result.statusUpdated ? "✓ Yes" : "✗ No"}
+                                            </span>
+                                        </td>
+                                        <td class="py-2 px-4 border-b break-all">
+                                            <a href={result.correctUrl} target="_blank" class="text-blue-600 hover:underline">
+                                                {result.correctUrl}
+                                            </a>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="p-4 bg-gray-100 border border-gray-300 rounded">
+                        <h3 class="font-bold mb-2">Before Fix (Old URLs):</h3>
+                        <div class="space-y-2">
+                            {testResult.verificationResults.map((result: {
+                                oldUrl: string;
+                                correctUrl: string;
+                            }) => (
+                                <div class="break-all">
+                                    <span class="text-red-600">✗</span> {result.oldUrl}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    
+                    <div class="p-4 bg-gray-100 border border-gray-300 rounded">
+                        <h3 class="font-bold mb-2">After Fix (New URLs):</h3>
+                        <div class="space-y-2">
+                            {testResult.verificationResults.map((result: {
+                                oldUrl: string;
+                                correctUrl: string;
+                            }) => (
+                                <div class="break-all">
+                                    <span class="text-green-600">✓</span> {result.correctUrl}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-6 p-4 bg-blue-100 border border-blue-400 rounded">
+                    <h3 class="font-bold mb-2">Verification:</h3>
+                    <p>The URLs now correctly include both <code>participant_id</code> and <code>token</code> parameters, which ensures that:</p>
+                    <ol class="list-decimal list-inside space-y-1 mt-2">
+                        <li>The survey page can correctly identify the participant</li>
+                        <li>The participant can be properly authenticated</li>
+                        <li>Survey responses can be saved to the database</li>
+                        <li>Participant status can be updated correctly</li>
+                    </ol>
+                </div>
+                
+                <div class="mt-4">
+                    <p>To test a complete survey response flow, click on one of the URLs above to open it in a new tab.</p>
+                </div>
+            </div>
+        )}
+    </main>
+</Layout>

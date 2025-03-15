@@ -112,13 +112,15 @@ export async function generateUniqueIdentifier(): Promise<string> {
  * @param baseUrl - The base URL of the application
  * @param surveyId - The ID of the survey
  * @param participantIdentifier - The unique identifier for the participant
+ * @param accessToken - The access token for authentication
  */
 export function generateSurveyUrl(
   baseUrl: string,
   surveyId: string,
-  participantIdentifier: string
+  participantIdentifier: string,
+  accessToken: string
 ): string {
-  return `${baseUrl}/surveys/${surveyId}?participant=${participantIdentifier}`;
+  return `${baseUrl}/surveys/${surveyId}?participant_id=${participantIdentifier}&token=${accessToken}`;
 }
 
 /**
@@ -133,11 +135,11 @@ export async function generateParticipantUrl(
   participantId: string
 ): Promise<string> {
   try {
-    // Get the participant to find their identifier
+    // Get the participant to find their identifier and access token
     const supabase = getClient({ requiresAdmin: true });
     const { data: participant, error } = await supabase
       .from('participants')
-      .select('participant_identifier')
+      .select('participant_identifier, access_token')
       .eq('id', participantId)
       .single();
 
@@ -145,11 +147,31 @@ export async function generateParticipantUrl(
       throw new Error(`Failed to get participant identifier: ${error?.message || 'Participant not found'}`);
     }
 
-    // Get the base URL from environment or use a default
-    const baseUrl = process.env.PUBLIC_BASE_URL || 'http://localhost:3000';
+    if (!participant.access_token) {
+      throw new Error('Participant does not have a valid access token');
+    }
+
+    // Get the base URL from environment variables
+    let baseUrl = process.env.PUBLIC_BASE_URL;
     
-    // Generate the URL
-    return generateSurveyUrl(baseUrl, surveyId, participant.participant_identifier);
+    // If not set in environment, try to detect from request or use a safer default
+    if (!baseUrl) {
+      // Logging this as a warning so it's clear in server logs when the fallback is being used
+      console.warn('PUBLIC_BASE_URL environment variable not set. Using dynamic detection or fallback.');
+      
+      // In Astro, properly configured PUBLIC_* environment variables should be available
+      // If not set, we use a fallback but log a warning to make it obvious
+      baseUrl = process.env.PUBLIC_SITE_URL || process.env.SITE_URL;
+      
+      // If still no URL found, use a safer default relative URL instead of hardcoded localhost
+      if (!baseUrl) {
+        console.warn('No base URL environment variables found. Using relative URL, which may cause issues with email links.');
+        baseUrl = ''; // Empty string will create a relative URL (works on same domain)
+      }
+    }
+    
+    // Generate the URL with both identifier and token
+    return generateSurveyUrl(baseUrl, surveyId, participant.participant_identifier, participant.access_token);
   } catch (error) {
     console.error('Error generating participant URL:', error);
     throw error;
