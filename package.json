@@ -3,8 +3,8 @@
     "type": "module",
     "version": "0.0.1",
     "scripts": {
-        "dev": "astro dev --host",
-        "start": "astro dev --host",
+        "dev": "astro dev --host --max-http-header-size=8192",
+        "start": "astro dev --host --max-http-header-size=8192",
         "build": "astro build",
         "preview": "astro preview",
         "astro": "astro"

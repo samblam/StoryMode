@@ -20,6 +20,12 @@ Fixing critical bugs in the survey system while continuing participant and surve
     - ✅ Fixed: 500 error on survey preview API endpoint
     - ✅ Fixed: 500 error on survey preview API endpoint
     - ❌ Broken: "Play Sound" button in survey preview does not work
+    - ✅ Fixed: 431 error "Request Header Fields Too Large" when generating preview.
+      - Solution: Implemented lazy loading of sound URLs in survey preview.
+        - Modified preview API to initially exclude sound details.
+        - Adjusted frontend to handle delayed loading of sound URLs.
+    - ✅ Fixed: 500 error on "edit survey" page after preview API changes.
+      - Solution: Added conditional rendering in `src/pages/surveys/[id].astro` to handle potentially missing sound URLs.
     - ✅ Fixed: All other UI issues in survey preview have been resolved:
       - ✅ Fixed: Video now loads correctly using signed URLs
       - ✅ Fixed: Questions display as multiple choice options based on survey functions

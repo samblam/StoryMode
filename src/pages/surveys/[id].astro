@@ -126,7 +126,7 @@ const sortedSounds = survey.survey_sounds.sort((a: any, b: any) => a.order_index
                             <button
                                 type="button"
                                 class="play-button px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-                                data-url={surveySound.sounds.url}
+                                data-storage-path={surveySound.sounds?.storage_path}
                             >
                                 Play Sound
                             </button>
@@ -193,23 +193,40 @@ const sortedSounds = survey.survey_sounds.sort((a: any, b: any) => a.order_index
 
 <script define:vars={{ isPreview, survey, id }}>
     let currentAudio = null;
+    const supabaseClient = getClient(); // Initialize Supabase client
 
     // Initialize audio player
     document.querySelectorAll('.play-button').forEach(button => {
-        button.addEventListener('click', () => {
-            const url = button.dataset.url;
-            if (!url) return;
-
-            if (currentAudio) {
-                currentAudio.pause();
-                if (currentAudio.src === url) {
-                    currentAudio = null;
-                    return;
-                }
+        button.addEventListener('click', async () => {
+            const storagePath = button.dataset.storagePath;
+            if (!storagePath) {
+                console.warn('No storagePath found on play button');
+                return;
             }
 
-            currentAudio = new Audio(url);
-            currentAudio.play();
+            // Generate signed URL using getSignedUrl utility
+            try {
+                const signedUrl = await getSignedUrl(storagePath, 'sounds');
+                const url = signedUrl;
+
+                if (!url) {
+                    console.error('Failed to generate signed URL');
+                    return;
+                }
+
+                if (currentAudio) {
+                    currentAudio.pause();
+                    if (currentAudio.src === url) {
+                        currentAudio = null;
+                        return;
+                    }
+                }
+
+                currentAudio = new Audio(url);
+                currentAudio.play();
+            } catch (error) {
+                console.error('Error generating signed URL:', error);
+            }
         });
     });
 

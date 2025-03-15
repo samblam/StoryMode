@@ -45,12 +45,12 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
       console.log('Preview API - Bypassing authorization for testing');
       
       // Uncomment the following to enforce authorization in production
-      /*
+      
       return new Response(JSON.stringify({ error: authError }), {
         status: 403,
         headers: { 'Content-Type': 'application/json' },
       });
-      */
+      
     } else {
       console.log('Preview API - User authorized successfully');
     }
@@ -62,35 +62,11 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
     // Get survey details with all related data needed for preview
     // Use admin client to bypass RLS
     const adminClient = getClient({ requiresAdmin: true });
+    // Use a simpler query format to avoid parsing issues
+    // Remove direct reference to 'sounds' as there's no direct relationship with 'surveys'
     const { data: survey, error: surveyError } = await adminClient
       .from('surveys')
-      .select(`
-        *,
-        sound_profile:sound_profile_id (
-          id,
-          title,
-          description,
-          sounds (
-            id,
-            name,
-            storage_path,
-            file_path,
-            description
-          )
-        ),
-        survey_sounds (
-          id,
-          sound_id,
-          intended_function,
-          order_index,
-          sounds (
-            id,
-            name,
-            storage_path,
-            file_path
-          )
-        )
-      `)
+      .select('*, survey_sounds(id,sound_id,intended_function,order_index,sounds(id,name,storage_path))')
       .eq('id', surveyId)
       .single();
 
@@ -127,6 +103,17 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
         console.error('Error generating signed URL for video:', error);
         // Don't throw, we can still continue with the preview
       }
+    } else if (survey.video_path) {
+      // Try with video_path if video_url is not available
+      try {
+        console.log('Preview API - Generating signed URL for video using video_path:', survey.video_path);
+        survey.video = {
+          url: await getSignedUrl(survey.video_path, 'videos')
+        };
+        console.log('Preview API - Generated video URL successfully using video_path');
+      } catch (error) {
+        console.error('Error generating signed URL for video using video_path:', error);
+      }
     }
 
     // Generate signed URLs for all sounds in survey_sounds
@@ -136,12 +123,14 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
         survey.survey_sounds.map(async (surveySound: SurveySound) => {
           try {
             if (surveySound.sounds?.storage_path) {
-              // Generate signed URL for the sound
-              surveySound.sounds.url = await getSignedUrl(surveySound.sounds.storage_path, 'sounds');
-              console.log(`Preview API - Generated URL for survey sound ${surveySound.sound_id}`);
+              // Add url property since we no longer have it from the query
+              if (!surveySound.sounds.url) {
+                surveySound.sounds.url = await getSignedUrl(surveySound.sounds.storage_path, 'sounds');
+                console.log(`Preview API - Generated URL for survey sound ${surveySound.sound_id}: ${surveySound.sounds.url}`);
+              }
             }
-          } catch (error) {
-            console.error(`Error generating signed URL for survey sound ${surveySound.sound_id}:`, error);
+          } catch (error: any) { // Explicitly type error as any
+            console.error(`Error generating signed URL for survey sound ${surveySound.sound_id}: ${error.message}`);
             // Don't throw, just continue with other sounds
           }
         })
@@ -155,12 +144,14 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
         survey.sound_profile.sounds.map(async (sound: any) => {
           try {
             if (sound?.storage_path) {
-              // Generate signed URL for the sound
-              sound.url = await getSignedUrl(sound.storage_path, 'sounds');
-              console.log(`Preview API - Generated URL for profile sound ${sound.id}`);
+              // Add url property if it doesn't exist
+              if (!sound.url) {
+                sound.url = await getSignedUrl(sound.storage_path, 'sounds');
+                console.log(`Preview API - Generated URL for profile sound ${sound.id}: ${sound.url}`);
+              }
             }
-          } catch (error) {
-            console.error(`Error generating signed URL for profile sound ${sound.id}:`, error);
+          } catch (error: any) { // Explicitly type error as any
+            console.error(`Error generating signed URL for profile sound ${sound.id}: ${error.message}`);
             // Don't throw, just continue with other sounds
           }
         })
@@ -245,9 +236,15 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
       }
     };
 
-    return new Response(JSON.stringify(previewContext), {
+    const responseBody = JSON.stringify(previewContext);
+    console.log('Preview API - Response body size:', responseBody.length, 'bytes');
+    // Log headers just before sending the response
+    const headers = { 'Content-Type': 'application/json' };
+    console.log('Preview API - Response headers:', headers);
+
+    return new Response(responseBody, {
       status: 200,
-      headers: { 'Content-Type': 'application/json' },
+      headers: headers,
     });
 
   } catch (error) {
