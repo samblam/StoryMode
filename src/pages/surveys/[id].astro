@@ -13,8 +13,22 @@ const isPreview = url.searchParams.get('preview') === 'true';
 const previewContextParam = url.searchParams.get('context');
 const previewContext = isPreview && previewContextParam ? JSON.parse(decodeURIComponent(previewContextParam)) : null;
 
-// Only redirect if not logged in and not in preview mode
-if (!user && !isPreview) {
+// Check if this is a participant accessing via token
+const participantId = url.searchParams.get('participant_id');
+const participantToken = url.searchParams.get('token');
+
+// Also check for access_id as fallback
+const accessId = url.searchParams.get('access_id');
+const accessToken = url.searchParams.get('access_token');
+
+// Log all URL parameters for debugging
+console.log('URL Parameters:', Object.fromEntries(url.searchParams.entries()));
+
+// Consider either participant_id+token or access_id+access_token as valid participant access
+const isParticipantAccess = (participantId && participantToken) || (accessId && accessToken);
+
+// Only redirect if not logged in, not in preview mode, and not a participant with token
+if (!user && !isPreview && !isParticipantAccess) {
     return Astro.redirect('/login');
 }
 
@@ -24,8 +38,175 @@ let error;
 // Use preview context if available, otherwise fetch from database
 if (isPreview && previewContext) {
     survey = previewContext.survey;
+} else if (isParticipantAccess) {
+    // Participant access with token - verify token first
+    console.log(`Participant access attempt - ID: ${participantId || accessId}, Token: ${(participantToken || accessToken)?.substring(0, 8)}...`);
+    
+    // Get participant data to verify token
+    const supabaseAdmin = getClient({ requiresAdmin: true });
+    
+    // First, try to find the participant by identifier for debugging
+    const participantIdentifier = participantId || accessId;
+    // Combine tokens for query
+    
+    // Check by participant_identifier first
+    const { data: debugParticipant } = await supabaseAdmin
+        .from('participants')
+        .select('id, participant_identifier, access_token, status, survey_id');
+        // No filter here to get all participants for debugging
+        
+    console.log(`Debug - Found ${debugParticipant?.length || 0} total participants in database`);
+    
+    // Filter locally to find potential matches for debugging
+    const possibleMatches = debugParticipant?.filter(p =>
+        p.participant_identifier === participantIdentifier ||
+        p.id === participantIdentifier
+    );
+    
+    console.log(`Debug - Found ${possibleMatches?.length || 0} possible matches for identifier ${participantIdentifier}`);
+    
+    if (possibleMatches?.length) {
+        possibleMatches.forEach((p, i) => {
+            console.log(`Debug - Possible match #${i+1}:`, {
+                id: p.id,
+                participant_identifier: p.participant_identifier,
+                has_token: !!p.access_token,
+                token_matches: p.access_token === participantToken || p.access_token === accessToken,
+                token_prefix: p.access_token ? p.access_token.substring(0, 8) + '...' : 'NONE',
+                status: p.status,
+                survey_id: p.survey_id
+            });
+        });
+    }
+    
+    // Now try to verify based on the debug data
+    let participant = null;
+    let participantError = null;
+    
+    // Based on the debug info, try to find participant with exact matching
+    const exactMatch = possibleMatches?.find(p =>
+        p.participant_identifier === participantIdentifier &&
+        (p.access_token === participantToken || p.access_token === accessToken)
+    );
+    
+    if (exactMatch) {
+        console.log('Found exact match using local filtering');
+        participant = exactMatch;
+    } else {
+        // Fallback to database query, but without the problematic .or() filters
+        console.log('No exact match found, trying separate queries');
+        
+        // Try by participant_identifier
+        if (participantIdentifier) {
+            const { data, error } = await supabaseAdmin
+                .from('participants')
+                .select('id, status, survey_id')
+                .eq('participant_identifier', participantIdentifier)
+                .single();
+                
+            if (data && !error) {
+                participant = data;
+                console.log('Found by participant_identifier');
+            } else {
+                participantError = error;
+            }
+        }
+        
+        // If that failed, try by id
+        if (!participant && participantIdentifier &&
+            participantIdentifier.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+            const { data, error } = await supabaseAdmin
+                .from('participants')
+                .select('id, status, survey_id')
+                .eq('id', participantIdentifier)
+                .single();
+                
+            if (data && !error) {
+                participant = data;
+                console.log('Found by UUID id');
+            } else if (!participantError) {
+                participantError = error;
+            }
+        }
+    }
+    
+    if (participantError || !participant) {
+        console.error('Invalid participant access:', participantError);
+        // Provide more specific error messages for debugging
+        if (participantError?.code === 'PGRST116') {
+            console.log(`Trying alternative lookup method for participant`);
+            
+            // Try just by ID as a fallback
+            const { data: idParticipant } = await supabaseAdmin
+                .from('participants')
+                .select('id, participant_identifier, access_token, status, survey_id')
+                .eq('id', participantId)
+                .single();
+                
+            if (idParticipant) {
+                console.log(`Found participant by ID instead of identifier:`, {
+                    id: idParticipant.id,
+                    participant_identifier: idParticipant.participant_identifier,
+                    has_token: !!idParticipant.access_token,
+                    token_match: idParticipant.access_token === participantToken,
+                    status: idParticipant.status,
+                    survey_id: idParticipant.survey_id
+                });
+                
+                // Check if the token matches
+                if (idParticipant.access_token === participantToken && idParticipant.survey_id === id) {
+                    console.log(`Token matches for participant by ID, allowing access`);
+                    // Continue as if participant was found normally
+                    participant = idParticipant;
+                } else {
+                    error = { message: 'Invalid participant access token' };
+                }
+            } else {
+                error = { message: 'Invalid participant access token' };
+            }
+        } else {
+            error = { message: 'Invalid participant access token' };
+        }
+    } else if (participant.survey_id !== id) {
+        console.error('Participant trying to access wrong survey');
+        error = { message: 'This participant is not authorized for this survey' };
+    } else if (participant.status !== 'active') {
+        console.error('Participant status is not active:', participant.status);
+        error = { message: 'This survey is no longer available or has already been completed' };
+    } else {
+        console.log('Participant access verified successfully');
+        
+        // Get survey data from database with admin access
+        const result = await supabaseAdmin
+            .from('surveys')
+            .select(`
+                *,
+                client:clients (
+                    id,
+                    name,
+                    email
+                ),
+                survey_sounds (
+                    id,
+                    sound_id,
+                    intended_function,
+                    order_index,
+                    sounds (
+                        id,
+                        name,
+                        url,
+                        storage_path
+                    )
+                )
+            `)
+            .eq('id', id)
+            .single();
+        
+        survey = result.data;
+        error = result.error;
+    }
 } else {
-    // Get survey data from database
+    // Regular access (logged in user)
     const supabase = getClient();
     const result = await supabase
         .from('surveys')
@@ -44,7 +225,8 @@ if (isPreview && previewContext) {
                 sounds (
                     id,
                     name,
-                    url
+                    url,
+                    storage_path
                 )
             )
         `)
@@ -54,13 +236,16 @@ if (isPreview && previewContext) {
     survey = result.data;
     error = result.error;
 
-    // Only redirect for non-preview mode
-    if (!isPreview && survey && survey.status !== 'completed') {
+    // Only redirect for admin/client users (logged in), not participants
+    if (!isPreview && !isParticipantAccess && survey && survey.status !== 'completed') {
         return Astro.redirect(`/surveys/client-results`);
     }
-    
-    // Generate signed URL for video in non-preview mode
-    if (survey && survey.video_url) {
+}
+
+// For both participant and regular access modes, generate URLs
+if (!isPreview && survey) {
+    // Generate signed URL for video
+    if (survey.video_url) {
         try {
             // Add a video object with URL property similar to preview mode
             survey.video = {
@@ -70,6 +255,72 @@ if (isPreview && previewContext) {
             console.error('Error generating video URL:', error);
             // Continue without video if there's an error
         }
+    }
+
+    // Generate signed URLs for all sounds in survey_sounds
+    if (survey.survey_sounds && survey.survey_sounds.length > 0) {
+        console.log(`${isParticipantAccess ? 'Participant' : 'Regular'} Mode - Generating signed URLs for survey sounds`);
+        await Promise.all(
+            survey.survey_sounds.map(async (surveySound: any) => {
+                try {
+                    if (surveySound.sounds?.storage_path) {
+                        // Add url property if it doesn't exist
+                        if (!surveySound.sounds.url) {
+                            surveySound.sounds.url = await getSignedUrl(surveySound.sounds.storage_path, 'sounds');
+                            console.log(`Generated URL for survey sound ${surveySound.sound_id}`);
+                        }
+                    } else {
+                        console.warn(`Survey sound ${surveySound.id} has no storage_path`);
+                    }
+                } catch (error: any) {
+                    console.error(`Error generating signed URL for survey sound ${surveySound.sound_id}: ${error.message}`);
+                    // Don't throw, just continue with other sounds
+                }
+            })
+        );
+    }
+    
+    // Validate and prepare survey data
+    console.log(`${isParticipantAccess ? 'Participant' : 'Regular'} Mode - Validating survey data`);
+    
+    // Validate functions
+    if (!survey.functions?.length) {
+        console.warn('Survey functions not configured, creating placeholders');
+        survey.functions = ['Placeholder Function'];
+    }
+    
+    // Validate survey sounds
+    if (!survey.survey_sounds?.length) {
+        console.warn('Survey sounds not configured, creating placeholders');
+        survey.survey_sounds = [{
+            id: 'placeholder-sound',
+            sound_id: 'placeholder-sound-id',
+            intended_function: 'Placeholder',
+            order_index: 0,
+            sounds: {
+                id: 'placeholder-sound-id',
+                name: 'Placeholder Sound',
+                storage_path: 'placeholder.mp3',
+                url: 'https://example.com/placeholder.mp3'
+            }
+        }];
+    } else {
+        // Ensure all survey sounds have the required fields
+        survey.survey_sounds.forEach((surveySound: any) => {
+            if (!surveySound.sounds) {
+                console.warn(`Survey sound ${surveySound.id} has no sounds object, creating placeholder`);
+                surveySound.sounds = {
+                    id: `placeholder-sound-for-${surveySound.id}`,
+                    name: 'Placeholder Sound',
+                    storage_path: 'placeholder.mp3',
+                    url: 'https://example.com/placeholder.mp3'
+                };
+            } else if (!surveySound.sounds.storage_path) {
+                console.warn(`Survey sound ${surveySound.id} has no storage_path, adding placeholder`);
+                surveySound.sounds.storage_path = 'placeholder.mp3';
+                surveySound.sounds.url = surveySound.sounds.url || 'https://example.com/placeholder.mp3';
+            }
+        });
     }
 }
 

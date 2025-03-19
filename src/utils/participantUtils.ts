@@ -216,36 +216,21 @@ export async function generateParticipantUrl(
     console.log(`Generated URL:`, finalUrl);
     console.log(`---------- URL GENERATION DEBUG END ----------`);
     
-    // Save the generated URL in the database for later reference
+    // Save the generated URL in the database in the access_url column
     try {
-      // First check if survey_url column exists
-      console.log(`Checking if survey_url column exists in participants table`);
-      const { error: schemaCheckError } = await supabase
+      console.log(`Saving URL to access_url in participants table`);
+      const { error: updateError } = await supabase
         .from('participants')
-        .select('survey_url')
-        .limit(1);
+        .update({ access_url: finalUrl })
+        .eq('id', participantId);
         
-      if (schemaCheckError &&
-          schemaCheckError.message &&
-          schemaCheckError.message.includes('column "survey_url" does not exist')) {
-        // Column doesn't exist
-        console.warn(`The survey_url column does not exist in the participants table. Skipping URL storage.`);
-        console.warn(`Consider adding this column to help with debugging: ALTER TABLE participants ADD COLUMN survey_url TEXT;`);
+      if (updateError) {
+        console.warn(`Could not save the URL to access_url:`, updateError);
       } else {
-        // Try to save the URL
-        const { error: updateError } = await supabase
-          .from('participants')
-          .update({ survey_url: finalUrl })
-          .eq('id', participantId);
-          
-        if (updateError) {
-          console.warn(`Could not save the URL to the database:`, updateError);
-        } else {
-          console.log(`Successfully saved URL to database for participant ${participantId}`);
-        }
+        console.log(`Successfully saved URL to access_url for participant ${participantId}`);
       }
     } catch (saveError) {
-      console.warn(`Error saving URL to database:`, saveError);
+      console.warn(`Error saving URL to access_url:`, saveError);
       // Continue anyway since this is just for debugging
     }
     
