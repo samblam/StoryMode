@@ -2,7 +2,7 @@ import { getClient } from '../../../../../lib/supabase';
 import { type Database } from '../../../../../types/database';
 import { type APIRoute } from 'astro';
 import { parse } from 'csv-parse/sync';
-import { generateUniqueIdentifier } from '../../../../../utils/participantUtils';
+import { generateUniqueIdentifier, generateSecureToken } from '../../../../../utils/participantUtils';
 
 type Participant = Database['public']['Tables']['participants']['Row'];
 
@@ -80,14 +80,15 @@ export const POST: APIRoute = async ({ params, request }) => {
     for (let i = 0; i < records.length; i += CHUNK_SIZE) {
       const chunk = records.slice(i, i + CHUNK_SIZE);
       
-      // Generate unique identifiers for each participant in the chunk
+      // Generate unique identifiers and access tokens for each participant in the chunk
       const participantsToInsert = await Promise.all(
         chunk.map(async (record: any) => ({
           survey_id: surveyId,
           email: record.email,
           name: record.name || null, // Include name field if present
           status: 'inactive' as const,
-          participant_identifier: await generateUniqueIdentifier()
+          participant_identifier: await generateUniqueIdentifier(),
+          access_token: await generateSecureToken()
         }))
       );
 

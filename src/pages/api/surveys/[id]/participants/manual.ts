@@ -1,6 +1,6 @@
 import { getClient } from '../../../../../lib/supabase';
 import { type Database } from '../../../../../types/database';
-import { generateUniqueIdentifier } from '../../../../../utils/participantUtils';
+import { generateUniqueIdentifier, generateSecureToken } from '../../../../../utils/participantUtils';
 
 type Participant = Database['public']['Tables']['participants']['Row'];
 import { type APIRoute } from 'astro';
@@ -81,17 +81,20 @@ export const POST: APIRoute = async ({ params, request }) => {
       });
     }
 
-    // Generate unique identifier for survey URL
-    console.log('Generating unique identifier');
+    // Generate unique identifier and access token for survey URL
+    console.log('Generating unique identifier and access token');
     const participantIdentifier = await generateUniqueIdentifier();
+    const accessToken = await generateSecureToken();
     console.log('Generated identifier:', participantIdentifier);
+    console.log('Generated access token:', accessToken);
 
     console.log('Creating participant with data:', {
       survey_id: surveyId,
       email,
       name,
       status: 'inactive',
-      participant_identifier: participantIdentifier
+      participant_identifier: participantIdentifier,
+      access_token: accessToken
     });
 
     const { data: participant, error } = await supabase
@@ -101,7 +104,8 @@ export const POST: APIRoute = async ({ params, request }) => {
         email,
         name,
         status: 'inactive', // Set initial status
-        participant_identifier: participantIdentifier
+        participant_identifier: participantIdentifier,
+        access_token: accessToken
       })
       .select()
       .single();

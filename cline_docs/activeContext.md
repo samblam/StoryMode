@@ -189,7 +189,11 @@ Fixing critical bugs in the survey system while continuing participant and surve
    - Document API endpoints and response formats
 
 9. Debugging:
-   - Debug why publishing survey didn't send email to participant.     - Verify completion email is sent
+   - Access token generated for `samaelbarefoot@gmail.com` but not `samuel.ellis.barefoot@gmail.com` (probably some hardcoded crap conflicting)
+   - No access URL at all.
+   - Looks like the survey preview logic is different from the logic behind surveys sent to participants
+   - Survey URL sent to participant isn't valid (even on localhost, should say localhost)
+   - Verify completion email is sent
    - Edge case testing:
      - Test with large participant lists (100+ participants)
      - Test error handling with invalid inputs

@@ -201,10 +201,48 @@ export async function updateSurveyActive(surveyId: string, active: boolean, base
 }
 
 /**
- * Publishes a survey by setting active to true
+ * Publishes a survey by calling the publish API endpoint
+ * This triggers the background job for generating URLs, sending emails, and updating participant statuses
  */
 export async function publishSurvey(surveyId: string, baseUrl?: string, token?: string): Promise<boolean> {
-    return updateSurveyActive(surveyId, true, baseUrl, token);
+    try {
+        // Log the publish attempt
+        console.log('publishSurvey: Starting publish process for survey:', surveyId);
+
+        // Call the publish API endpoint instead of just updating active state
+        const url = baseUrl ? `${baseUrl}/api/surveys/${surveyId}/publish` : `/api/surveys/${surveyId}/publish`;
+        console.log('publishSurvey: Request URL:', url);
+        
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            },
+            credentials: 'include'
+        });
+
+        // Log the response status
+        console.log('publishSurvey: Response status:', response.status);
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            console.error('publishSurvey: Error response:', errorData);
+            throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+        }
+
+        const responseData = await response.json();
+        console.log('publishSurvey: Success response:', responseData);
+        
+        // Also update the active state in the database for consistency
+        console.log('publishSurvey: Updating active state to true for consistency');
+        await updateSurveyActive(surveyId, true, baseUrl, token);
+
+        return true;
+    } catch (error) {
+        console.error('Error publishing survey:', error);
+        throw error;
+    }
 }
 
 /**
