@@ -119,6 +119,8 @@ Fixing critical bugs in the survey system while continuing participant and surve
    - ✅ Implement proper response submission and survey completion
 
 2. Fix other Critical Bugs (NEXT PRIORITY):
+   - ✅ Fixed: Unpublishing the survey in the edit survey menu deletes all sound mappings.
+     - The `updateSurveyActive` function was modified to use the `PATCH` method instead of `PUT` to prevent the deletion of sound mappings during unpublish operations.
    - Implement proper validation in CreateSurveyForm.astro
    - Fix Sortable.js integration in ParticipantManager
    - Add comprehensive error handling
@@ -145,6 +147,22 @@ Fixing critical bugs in the survey system while continuing participant and surve
    - ✅ Add completion email sending
 
 7. Testing Survey Publishing and Response Saving (NEXT PRIORITY):
+    - Dry Run Testing Plan:
+        - We are currently conducting a dry run test of the survey publishing, participant fill-out, and response saving workflow.
+        - You (the user) will manually publish the survey.
+        - The system is expected to:
+            - Trigger a background job.
+            - Generate a unique survey URL for you.
+            - Update your participant status to "active".
+            - Send you a survey invitation email.
+        - You will then:
+            - Access the survey via the URL in the email.
+            - Fill out and submit the survey.
+        - The system is expected to:
+            - Save your responses in the database.
+            - Update your participant status to "completed".
+            - Send you a survey completion email.
+        - You will then verify the results and report any issues for debugging.
    - Test publishing survey:
      - Create a test survey with test participants
      - Use the admin interface to publish the survey
@@ -169,3 +187,21 @@ Fixing critical bugs in the survey system while continuing participant and surve
    - Update technical documentation
    - Create user guides for survey publishing workflow
    - Document API endpoints and response formats
+
+9. Debugging:
+   - Debug why publishing survey didn't send email to participant.     - Verify completion email is sent
+   - Edge case testing:
+     - Test with large participant lists (100+ participants)
+     - Test error handling with invalid inputs
+     - Test access control (only active participants can submit)
+   - Performance testing:
+     - Monitor background job execution time
+     - Check for any performance bottlenecks
+
+8. Documentation:
+   - Update technical documentation
+   - Create user guides for survey publishing workflow
+   - Document API endpoints and response formats
+
+9. Debugging:
+   - Debug why publishing survey didn't send email to participant.

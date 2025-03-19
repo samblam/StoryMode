@@ -172,7 +172,7 @@ export async function updateSurveyActive(surveyId: string, active: boolean, base
         };
 
         const response = await fetch(url, {
-            method: 'PUT',
+            method: 'PATCH',
             headers: {
                 'Content-Type': 'application/json',
                 ...(token ? { 'Authorization': `Bearer ${token}` } : {})
