@@ -86,7 +86,7 @@ export const POST: APIRoute = async ({ params, request }) => {
     const participantIdentifier = await generateUniqueIdentifier();
     const accessToken = await generateSecureToken();
     console.log('Generated identifier:', participantIdentifier);
-    console.log('Generated access token:', accessToken);
+    console.log('Generated access token for email ' + email + ':', accessToken);
 
     console.log('Creating participant with data:', {
       survey_id: surveyId,

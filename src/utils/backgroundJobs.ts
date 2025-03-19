@@ -264,23 +264,40 @@ async function processPublishJob(jobId: string): Promise<void> {
           const surveyUrl = await generateParticipantUrl(surveyId, participant.id);
           console.log(`Generated URL for participant ${participant.id}: ${surveyUrl}`);
           
+          // First check if participant has a valid access token
+          if (!participant.access_token) {
+            console.error(`Participant ${participant.id} (${participant.email}) has no access token. Skipping.`);
+            throw new Error(`Participant ${participant.id} has no access token`);
+          }
+          
           // First, update participant status - do this regardless of email success
-          console.log(`Updating participant ${participant.id} status to active`);
-          const { data: updateData, error: updateError } = await supabase
+          console.log(`Updating participant ${participant.id} (${participant.email}) status to active`);
+          const now = new Date().toISOString();
+          const { data: updateDataArray, error: updateError } = await supabase
             .from('participants')
             .update({
               status: 'active',
+              published_at: now, // Add published_at timestamp if it wasn't set before
               // Only set last_emailed_at if we successfully send the email later
-              updated_at: new Date().toISOString()
+              updated_at: now
             })
             .eq('id', participant.id)
-            .select('id, status');
+            .select('id, status, email, access_token, published_at');
             
           if (updateError) {
             console.error(`Error updating participant ${participant.id} status:`, updateError);
             throw new Error(`Failed to update participant status: ${updateError.message}`);
           } else {
-            console.log(`Successfully updated participant ${participant.id} status to active:`, updateData);
+            // Handle data as single object for type safety
+            const updateData = Array.isArray(updateDataArray) ? updateDataArray[0] : updateDataArray;
+            
+            console.log(`Successfully updated participant ${participant.id} (${participant.email}) status to active:`, updateData);
+            if (updateData) {
+              console.log(`Participant token status: ${updateData.access_token ? 'has token' : 'NO TOKEN'}`);
+              console.log(`Participant published_at: ${updateData.published_at || 'not set'}`);
+            } else {
+              console.log(`Warning: No data returned from participant update`);
+            }
             // Mark this participant as a success for status update purposes
             successCount++;
           }

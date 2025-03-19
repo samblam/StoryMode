@@ -102,6 +102,7 @@ export const POST: APIRoute = async ({ params, request }) => {
           access_token: await generateSecureToken()
         }))
       );
+      console.log('Generated access tokens for chunk: ' + chunk.map((record: any) => record.email).join(', '));
 
       const { error } = await supabase
         .from('participants')

@@ -189,10 +189,11 @@ Fixing critical bugs in the survey system while continuing participant and surve
    - Document API endpoints and response formats
 
 9. Debugging:
-   - Access token generated for `samaelbarefoot@gmail.com` but not `samuel.ellis.barefoot@gmail.com` (probably some hardcoded crap conflicting)
-   - No access URL at all.
-   - Looks like the survey preview logic is different from the logic behind surveys sent to participants
-   - Survey URL sent to participant isn't valid (even on localhost, should say localhost)
+   - Access token generated for `samaelbarefoot@gmail.com` but not `samuel.ellis.barefoot@gmail.com` (probably some hardcoded crap conflicting) - FIXED: Access tokens are now generated for all participants.
+   - No access URL at all. - FIXED: The PUBLIC_BASE_URL environment variable was not set, causing the survey URL to be invalid.
+   - Looks like the survey preview logic is different from the logic behind surveys sent to participants - PENDING
+   - Survey URL sent to participant isn't valid (even on localhost, should say localhost) - FIXED: The PUBLIC_BASE_URL environment variable was not set, causing the survey URL to be invalid.
+   - The access token is now generated for samuel.ellis.barefoot@gmail.com, but the URL is broken and not saved in the database. samaelbarefoot@gmail.com has no access token.
    - Verify completion email is sent
    - Edge case testing:
      - Test with large participant lists (100+ participants)

@@ -2,6 +2,7 @@ import { getClient } from '../../../../lib/supabase';
 import { type APIRoute } from 'astro';
 import { verifyAuthorization } from '../../../../utils/accessControl';
 import { createPublishJob } from '../../../../utils/backgroundJobs';
+import { generateSecureToken, generateParticipantUrl } from '../../../../utils/participantUtils';
 
 export const POST: APIRoute = async ({ params, request, locals }) => {
   try {
@@ -65,9 +66,68 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
       });
     }
 
+    console.log('PUBLIC_BASE_URL environment variable:', process.env.PUBLIC_BASE_URL);
+    console.log('Total participants to process:', participants.length);
+    
+    // Log participants for debugging
+    console.log('Participants to be processed:', participants.map(p => ({
+      id: p.id,
+      email: p.email,
+      identifier: p.participant_identifier,
+      token: p.access_token ? 'exists' : 'missing'
+    })));
+    
+    // Generate access tokens for inactive participants
+    const participantsWithTokens = await Promise.all(
+      participants.map(async (participant) => {
+        console.log(`Generating token for participant ${participant.id} (${participant.email})`);
+        const accessToken = await generateSecureToken();
+        console.log(`Generated token for participant ${participant.id}: ${accessToken.substring(0, 8)}...`);
+        
+        try {
+          // Test URL generation directly to check for issues
+          const testUrl = await generateParticipantUrl(surveyId, participant.id);
+          console.log(`Test URL generation for ${participant.email}: ${testUrl}`);
+        } catch (urlError) {
+          console.error(`ERROR testing URL generation for ${participant.id}:`, urlError);
+        }
+        
+        // Update participant with access token and published_at
+        const now = new Date().toISOString();
+        const { data: updatedParticipant, error: updateError } = await supabase
+          .from('participants')
+          .update({
+            access_token: accessToken,
+            published_at: now, // Add published_at timestamp
+            updated_at: now
+          })
+          .eq('id', participant.id)
+          .select('*')
+          .single();
+          
+        if (updateError) {
+          console.error(`Error updating participant ${participant.id} with access token:`, updateError);
+          throw new Error(`Failed to update participant ${participant.id} with access token: ${updateError.message}`);
+        }
+        
+        console.log(`Successfully updated participant ${participant.id} (${participant.email}) with token`);
+        return updatedParticipant;
+      })
+    );
+
+    // Verify participants have tokens before creating job
+    console.log('Participants after token generation:', participantsWithTokens.map(p => ({
+      id: p.id,
+      email: p.email,
+      hasToken: !!p.access_token,
+      tokenPrefix: p.access_token ? p.access_token.substring(0, 8) : 'none'
+    })));
+
     // Create a background job to handle the email sending and participant activation
-    const participantIds = participants.map(p => p.id);
+    const participantIds = participantsWithTokens.map(p => p.id);
+    console.log(`Creating background job for ${participantIds.length} participants`);
     const jobId = await createPublishJob(surveyId, participantIds);
+    console.log(`Created background job with ID: ${jobId}`);
 
     return new Response(JSON.stringify({
       success: true,
