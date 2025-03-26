@@ -27,16 +27,23 @@ export const POST: APIRoute = async ({ params, request }) => {
       });
     }
 
+    console.log(`[Survey Response] Received submission for survey ${surveyId}`);
+    console.log(`[Survey Response] Attempting auth with participantId: ${participantId}, participantToken: ${participantToken}`);
+
     // Verify participant access
     const supabase = getClient({ requiresAdmin: true });
     const { data: participant, error: participantError } = await supabase
       .from('participants')
       .select('*')
-      .eq('id', participantId)
+      // Use the custom identifier for lookup, not the UUID 'id'
+      .eq('participant_identifier', participantId)
       .eq('access_token', participantToken)
       .single();
 
+    console.log(`[Survey Response] Supabase auth query result (using identifier): participant=${JSON.stringify(participant)}, error=${JSON.stringify(participantError)}`);
+
     if (participantError || !participant) {
+      console.error(`[Survey Response] Auth failed for participantIdentifier: ${participantId}. Error: ${participantError ? JSON.stringify(participantError) : 'Participant not found or token mismatch'}`);
       return new Response(JSON.stringify({ error: 'Invalid participant access' }), {
         status: 401,
         headers: { 'Content-Type': 'application/json' },
@@ -66,14 +73,23 @@ export const POST: APIRoute = async ({ params, request }) => {
       });
     }
 
-    // Save response data
+    // Prepare merged data for the single JSONB column
+    const mergedData = {
+      general: responses || {}, // Store general answers under 'general' key
+      sound_mapping: soundMappingResponses || {} // Store sound mapping under 'sound_mapping' key
+    };
+
+    // Save response data using the existing sound_mapping_responses column
     const responseData = {
       survey_id: surveyId,
-      participant_id: participantId,
-      responses,
-      sound_mapping_responses: soundMappingResponses || null,
+      // Correct: Use the actual participant UUID from the fetched object
+      participant_id: participant.id,
+      // Store the merged object in the existing JSONB column
+      sound_mapping_responses: mergedData,
       created_at: new Date().toISOString()
     };
+
+    console.log('[Survey Response] Saving merged data to sound_mapping_responses:', JSON.stringify(responseData));
 
     const { data: savedResponse, error: responseError } = await supabase
       .from('survey_responses')

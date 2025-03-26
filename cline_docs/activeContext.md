@@ -210,3 +210,15 @@ Fixing critical bugs in the survey system while continuing participant and surve
 
 9. Debugging:
    - Debug why publishing survey didn't send email to participant.
+
+### Fixed Bugs
+
+1.  **Survey Submission 401 Error ("Invalid participant access"):**
+    -   **Root Cause:** The API endpoint (`src/pages/api/surveys/[id]/responses.ts`) was failing to authenticate participants because it was using the `id` column (UUID) to look up participants based on the `participantId` (which was actually the `participant_identifier`).
+    -   **Solution:** Modified the API endpoint to use the `participant_identifier` column for participant lookup.
+2.  **Survey Submission 500 Error ("Could not find the 'responses' column..."):**
+    -   **Root Cause:** The database schema was missing the `responses` column, which was intended to store the main survey answers.
+    -   **Solution:** Modified the API to merge the general `responses` data and the `soundMappingResponses` data into a single JSON object, which is then saved into the existing `sound_mapping_responses` column.
+3.  **Incorrect Participant ID:**
+    -   **Root Cause:** The API was incorrectly using the `participantId` (the identifier string) instead of the `participant.id` (the actual UUID) when creating the database record.
+    -   **Solution:** Corrected the API to use the `participant.id` (UUID) for the `participant_id` field.
