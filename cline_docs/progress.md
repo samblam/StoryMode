@@ -37,42 +37,44 @@
   - Implemented proper response submission with form handling and API endpoint
   - Added thank-you page for post-submission confirmation
 - Implemented survey publishing system with participant status management
+- Implemented participant status updates and access token invalidation upon survey submission
+- Implemented survey response completed field update upon survey submission
 
 ## What's Left to Build
 
-1. ✅ Complete Survey Preview UI Improvements: (COMPLETED)
-   - ✅ Fixed video display in survey preview
-   - ✅ Changed input fields to multiple choice selections using survey functions
-   - ✅ Replaced next/previous navigation with a single submit button
-   - ✅ Implemented proper response submission and survey completion
+1.  ✅ Complete Survey Preview UI Improvements: (COMPLETED)
+    - ✅ Fixed video display in survey preview
+    - ✅ Changed input fields to multiple choice selections using survey functions
+    - ✅ Replaced next/previous navigation with a single submit button
+    - ✅ Implemented proper response submission and survey completion
 
-2. ✅ Participant Status Management: (COMPLETED)
-   - ✅ Added status column to participants table
-   - ✅ Updated participant creation to set initial "inactive" status
-   - ✅ Implemented status transitions (inactive -> active -> completed -> expired)
-   - ✅ Added validation and error handling
-   - ✅ Created UI for individual and batch status updates
-   - ✅ Added "Save" button to participant management module
-   - ✅ Implemented logic to save participant statuses
+2.  ✅ Participant Status Management: (COMPLETED)
+    - ✅ Added status column to participants table
+    - ✅ Updated participant creation to set initial "inactive" status
+    - ✅ Implemented status transitions (inactive -> active -> completed -> expired)
+    - ✅ Added validation and error handling
+    - ✅ Created UI for individual and batch status updates
+    - ✅ Added "Save" button to participant management module
+    - ✅ Implemented logic to save participant statuses
 
-3. ✅ Survey Publishing: (IMPLEMENTED, NEEDS TESTING)
-   - ✅ Created publish endpoint with background job integration
-   - ✅ Implemented URL generation for participants
-   - ✅ Set up email sending with invitation templates
-   - ✅ Handle participant status updates (inactive → active)
+3.  ✅ Survey Publishing: (IMPLEMENTED, NEEDS TESTING)
+    - ✅ Created publish endpoint with background job integration
+    - ✅ Implemented URL generation for participants
+    - ✅ Set up email sending with invitation templates
+    - ✅ Handle participant status updates (inactive → active)
 
-4. ✅ Enhanced Response Saving: (IMPLEMENTED, NEEDS TESTING)
-   - ✅ Added sound_mapping_responses to survey_responses table
-   - ✅ Updated response saving logic
-   - ✅ Implemented participant status updates on completion (active → completed)
-   - ✅ Added validation and error handling
-   - ✅ Implemented completion email notifications
+4.  ✅ Enhanced Response Saving: (IMPLEMENTED, NEEDS TESTING)
+    - ✅ Added sound_mapping_responses to survey_responses table
+    - ✅ Updated response saving logic
+    - ✅ Implemented participant status updates on completion (active → completed)
+    - ✅ Added validation and error handling
+    - ✅ Implemented completion email notifications
 
-5. Existing Tasks:
-   - Advanced analytics and reporting features
-   - Integration of sound profiles with surveys during response collection
-   - Enhanced user interface for survey creation and management
-   - Improved error handling and logging
+5.  Existing Tasks:
+    - Advanced analytics and reporting features
+    - Integration of sound profiles with surveys during response collection
+    - Enhanced user interface for survey creation and management
+    - Improved error handling and logging
 
 ## Progress Status
 
@@ -87,12 +89,15 @@ Key achievements:
 - Fixed participant upload forms (manual, CSV, JSON)
 - Created survey publishing endpoint with participant status updates
 - Added support for batch status operations
+- Implemented participant status updates and access token invalidation upon survey submission
+- Implemented survey response completed field update upon survey submission
 
 Current focus:
 1. Testing the newly implemented survey publishing and response saving features
 2. Fixing remaining critical bugs (survey creation bug and sortable.js integration)
 3. Adding comprehensive user feedback and validation
 4. Documenting the survey publishing workflow for administrators
+5. Implementing a new approach to answer saving in `survey_matches`. The current approach results in null values. The proposed solution is to assign question IDs in the `surveys` table and send them with the responses.
 
 Recent implementations:
 1. Integrated survey publishing with background job system for email sending

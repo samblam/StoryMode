@@ -1,4 +1,4 @@
-  import { getClient } from '~/lib/supabase';
+import { getClient } from '~/lib/supabase';
 import { type APIRoute } from 'astro';
 import { sendEmail, createSurveyCompletionEmail } from '~/utils/emailUtils';
 
@@ -105,19 +105,62 @@ export const POST: APIRoute = async ({ params, request }) => {
       });
     }
 
-    // Update participant status to completed
+    // Update survey_responses table to set completed to true
+    const { error: surveyResponseUpdateError } = await supabase
+      .from('survey_responses')
+      .update({ completed: true })
+      .eq('id', savedResponse.id);
+
+    if (surveyResponseUpdateError) {
+      console.error('Error updating survey_responses completed field:', surveyResponseUpdateError);
+    }
+
+    // ** NEW: Save individual answers to survey_matches **
+    if (savedResponse?.id && responses) {
+      console.log('[Survey Response] Responses object:', JSON.stringify(responses)); // Keep logging
+      try {
+        for (const [questionKey, answerValue] of Object.entries(responses)) {
+          // Extract sound_id from questionKey (assuming format is "question_{sound_id}")
+          const soundId = questionKey.replace('question_', '');
+
+          const matchData = {
+            response_id: savedResponse.id,
+            sound_id: soundId,
+            matched_function: answerValue, // Will still be null until frontend is fixed
+            correct_match: false, // Default value
+          };
+
+          const { error: matchError } = await supabase
+            .from('survey_matches')
+            .insert([matchData]);
+
+          if (matchError) {
+            console.error(`Error saving to survey_matches for response ${savedResponse.id}, sound ${soundId}:`, matchError);
+          }
+        }
+        console.log(`Successfully saved individual answers to survey_matches for response ${savedResponse.id}`);
+      } catch (matchesError) {
+        console.error('Error saving individual answers to survey_matches:', matchesError);
+      }
+    }
+    // ** END NEW **
+
+    // Update participant status to completed and invalidate token
+    console.log(`[Survey Response] Attempting to update participant ${participant.id} status to completed and invalidate token...`);
     const { error: statusError } = await supabase
       .from('participants')
       .update({
         status: 'completed',
-        completed_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
+        access_token: null // Invalidate the token
       })
-      .eq('id', participantId);
+      .eq('id', participant.id); // Correct: Use the actual participant UUID
 
     if (statusError) {
       console.error('Error updating participant status:', statusError);
       // Don't fail the whole request, we've already saved the response
+    } else {
+      console.log(`[Survey Response] Successfully updated participant ${participant.id} status to completed and invalidated token.`);
     }
 
     // Get survey details for the completion email
