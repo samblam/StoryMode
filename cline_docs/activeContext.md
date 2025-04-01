@@ -7,7 +7,7 @@ Fixing critical bugs in the survey system, focusing on the participant submissio
 ### Bug Fixes (High Priority)
 
 1.  **Survey Participant Submission Workflow:**
-    *   **Answer Saving:** Survey answers are saved in `survey_responses`, but each answer should also be saved as an individual record in the `survey_matches` table. The `matched_function` field in `survey_matches` is currently null, indicating a frontend data issue. The proposed solution is to assign question IDs in the `surveys` table and send them with the responses.
+    *   **Answer Saving:** Survey answers are saved in `survey_responses`, but each answer should also be saved as an individual record in the `survey_matches` table. The `matched_function` field in `survey_matches` is still null, indicating a frontend data issue. The proposed solution is to assign question IDs in the `surveys` table and send them with the responses.
     *   **Link/Token Invalidation:** After submission, the participant's unique link and access token should be invalidated to prevent re-submission or further access. This is now working correctly.
     *   **Status Update:** Participant status is now consistently updated to "completed" after successful submission.
     *   **Survey Response Completed Field:** The `completed` field in the `survey_responses` table is now being set to `true` after submission.
@@ -120,111 +120,36 @@ Fixing critical bugs in the survey system, focusing on the participant submissio
 
 ## Next Steps
 
-1.  **Debug Survey Participant Submission Workflow (CURRENT PRIORITY):**
-    *   Investigate and fix answer saving to `survey_matches`. The `matched_function` field is still null, indicating a frontend data issue. The proposed solution is to assign question IDs in the `surveys` table and send them with the responses.
-    *   Implement link/token invalidation post-submission. This is now working correctly.
-    *   Ensure participant status updates to "completed". This is now working correctly.
-    *   Ensure survey response completed field is set to true. This is now working correctly.
-    *   Remove admin link from the thank-you page.
+1.  **Implement Enhanced Answer Saving (CURRENT PRIORITY):**
+    *   The current approach to saving answers in `survey_matches` results in null values for `matched_function`.
+    *   **Plan:** Assign unique IDs to each question within the `functions` JSONB column in the `surveys` table. Update the frontend and backend to use these IDs for saving answers in the `survey_matches` table. (See `cline_docs/ai_engineer_development_plan.md` for details).
+    *   This involves:
+        *   Database changes (modify `surveys` table, potentially `survey_matches`).
+        *   Frontend changes (`src/pages/surveys/[id].astro`).
+        *   Backend changes (`src/pages/api/surveys/[id]/responses.ts`).
 
-2.  ✅ Fix Survey Preview UI issues (COMPLETED):
-    *   ✅ Update the survey page to display videos correctly
-    *   ✅ Change the input fields to multiple choice selections using survey functions
-    *   ✅ Replace next/previous navigation with a single submit button
-    *   ✅ Implement proper response submission and survey completion
+2.  **Fix Remaining Submission Workflow Bugs:**
+    *   Remove admin link from the thank-you page (`src/pages/surveys/thank-you.astro`).
 
-3.  Fix other Critical Bugs (NEXT PRIORITY):
-    *   ✅ Fixed: Unpublishing the survey in the edit survey menu deletes all sound mappings.
-        *   The `updateSurveyActive` function was modified to use the `PATCH` method instead of `PUT` to prevent the deletion of sound mappings during unpublish operations.
-    *   Implement proper validation in CreateSurveyForm.astro
-    *   Fix Sortable.js integration in ParticipantManager
-    *   Add comprehensive error handling
+3.  **Fix other Critical Bugs (NEXT PRIORITY):**
+    *   Survey Creation Bug (400 error).
+    *   Participant Management Bug (Sortable.js).
+    *   Survey Preview Bug ("Play Sound" button).
 
-4.  ✅ Participant Status Management (COMPLETED):
-    *   ✅ Updated participant creation endpoints to set initial status
-    *   ✅ Implemented individual and batch status update APIs
-    *   ✅ Created UI for managing participant statuses
-    *   ✅ Integrated status updates with survey workflow
-    *   ✅ Fixed form submission issues in ParticipantManager.astro
-    *   ✅ Added "Save" button to participant management module
-    *   ✅ Implemented logic to save participant statuses
+4.  **Testing:**
+    *   Test the enhanced answer saving implementation.
+    *   Test survey publishing and response saving workflow.
 
-5.  ✅ Survey Publishing (IMPLEMENTED, NEEDS TESTING):
-    *   ✅ Create publish endpoint
-    *   ✅ Implement URL generation
-    *   ✅ Set up email sending with background job processing
-    *   ✅ Handle participant status updates
+5.  **Documentation:**
+    *   Update technical documentation based on the implemented changes.
+    *   Create user guides for survey publishing workflow.
+    *   Document API endpoints and response formats.
 
-6.  ✅ Response Saving (IMPLEMENTED, NEEDS TESTING):
-    *   ✅ Update response saving logic with sound mapping data
-    *   ✅ Add sound mapping data handling
-    *   ✅ Implement participant status updates
-    *   ✅ Add completion email sending
+### Completed/Verified Items in Submission Workflow:
 
-7.  Testing Survey Publishing and Response Saving (NEXT PRIORITY):
-    *   Dry Run Testing Plan:
-        *   We are currently conducting a dry run test of the survey publishing, participant fill-out, and response saving workflow.
-        *   You (the user) will manually publish the survey.
-        *   The system is expected to:
-            *   Trigger a background job.
-            *   Generate a unique survey URL for you.
-            *   Update your participant status to "active".
-            *   Send you a survey invitation email.
-        *   You will then:
-            *   Access the survey via the URL in the email.
-            *   Fill out and submit the survey.
-        *   The system is expected to:
-            *   Save your responses in the database.
-            *   Update your participant status to "completed".
-            *   Send you a survey completion email.
-        *   You will then verify the results and report any issues for debugging.
-    *   Test publishing survey:
-        *   Create a test survey with test participants
-        *   Use the admin interface to publish the survey
-        *   Verify background job creation and completion
-        *   Check participant status updates (inactive → active)
-        *   Verify email sending (check email logs or test email account)
-    *   Test survey response collection:
-        *   Use generated participant URLs to access the survey
-        *   Complete and submit the survey form
-        *   Verify responses are saved in the database
-        *   Check participant status updates (active → completed)
-        *   Verify completion email is sent
-    *   Edge case testing:
-        *   Test with large participant lists (100+ participants)
-        *   Test error handling with invalid inputs
-        *   Test access control (only active participants can submit)
-    *   Performance testing:
-        *   Monitor background job execution time
-        *   Check for any performance bottlenecks
-
-8.  Documentation:
-    *   Update technical documentation
-    *   Create user guides for survey publishing workflow
-    *   Document API endpoints and response formats
-
-9.  Debugging:
-    *   Access token generated for `samaelbarefoot@gmail.com` but not `samuel.ellis.barefoot@gmail.com` (probably some hardcoded crap conflicting) - FIXED: Access tokens are now generated for all participants.
-    *   No access URL at all. - FIXED: The PUBLIC_BASE_URL environment variable was not set, causing the survey URL to be invalid.
-    *   Looks like the survey preview logic is different from the logic behind surveys sent to participants - PENDING
-    *   Survey URL sent to participant isn't valid (even on localhost, should say localhost) - FIXED: The PUBLIC_BASE_URL environment variable was not set, causing the survey URL to be invalid.
-    *   The access token is now generated for samuel.ellis.barefoot@gmail.com, but the URL is broken and not saved in the database. samaelbarefoot@gmail.com has no access token.
-    *   Verify completion email is sent
-    *   Edge case testing:
-        *   Test with large participant lists (100+ participants)
-        *   Test error handling with invalid inputs
-        *   Test access control (only active participants can submit)
-    *   Performance testing:
-        *   Monitor background job execution time
-        *   Check for any performance bottlenecks
-
-10. Documentation:
-    *   Update technical documentation
-    *   Create user guides for survey publishing workflow
-    *   Document API endpoints and response formats
-
-11. Debugging:
-    *   Debug why publishing survey didn't send email to participant.
+*   ✅ Participant status updates to "completed".
+*   ✅ Participant `access_token` is invalidated (set to null).
+*   ✅ `completed` field in `survey_responses` table is set to `true`.
 
 ### Fixed Bugs
 
@@ -233,3 +158,10 @@ Fixing critical bugs in the survey system, focusing on the participant submissio
     *   **Solution:** Modified the API endpoint to use the `participant_identifier` column for participant lookup.
 2.  **Survey Submission 500 Error ("Could not find the 'responses' column..."):**
     *   **Root Cause:** The database schema was missing the `responses` column, which was intended to store the main survey answers.
+    *   **Solution:** Modified the API to merge the general `responses` data and the `soundMappingResponses` data into a single JSON object, which is then saved into the existing `sound_mapping_responses` column.
+3.  **Incorrect Participant ID:**
+    *   **Root Cause:** The API was incorrectly using the `participantId` (the identifier string) instead of the `participant.id` (the actual UUID) when creating the database record.
+    *   **Solution:** Corrected the API to use the `participant.id` (UUID) for the `participant_id` field.
+4.  **Participant Status Update Failure:**
+    *   **Root Cause:** The API endpoint (`src/pages/api/surveys/[id]/responses.ts`) was trying to update a non-existent `completed_at` column in the `participants` table.
+    *   **Solution:** Removed the `completed_at` field from the update statement.

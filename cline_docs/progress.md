@@ -42,43 +42,28 @@
 
 ## What's Left to Build
 
-1.  ✅ Complete Survey Preview UI Improvements: (COMPLETED)
-    - ✅ Fixed video display in survey preview
-    - ✅ Changed input fields to multiple choice selections using survey functions
-    - ✅ Replaced next/previous navigation with a single submit button
-    - ✅ Implemented proper response submission and survey completion
-
-2.  ✅ Participant Status Management: (COMPLETED)
-    - ✅ Added status column to participants table
-    - ✅ Updated participant creation to set initial "inactive" status
-    - ✅ Implemented status transitions (inactive -> active -> completed -> expired)
-    - ✅ Added validation and error handling
-    - ✅ Created UI for individual and batch status updates
-    - ✅ Added "Save" button to participant management module
-    - ✅ Implemented logic to save participant statuses
-
-3.  ✅ Survey Publishing: (IMPLEMENTED, NEEDS TESTING)
-    - ✅ Created publish endpoint with background job integration
-    - ✅ Implemented URL generation for participants
-    - ✅ Set up email sending with invitation templates
-    - ✅ Handle participant status updates (inactive → active)
-
-4.  ✅ Enhanced Response Saving: (IMPLEMENTED, NEEDS TESTING)
-    - ✅ Added sound_mapping_responses to survey_responses table
-    - ✅ Updated response saving logic
-    - ✅ Implemented participant status updates on completion (active → completed)
-    - ✅ Added validation and error handling
-    - ✅ Implemented completion email notifications
-
-5.  Existing Tasks:
-    - Advanced analytics and reporting features
-    - Integration of sound profiles with surveys during response collection
-    - Enhanced user interface for survey creation and management
-    - Improved error handling and logging
+1.  **Enhanced Answer Saving in `survey_matches`:**
+    *   Implement the plan to assign question IDs in the `surveys` table and update frontend/backend to use these IDs. (See `cline_docs/ai_engineer_development_plan.md`)
+2.  **Fix Thank You Page:**
+    *   Remove admin link from the thank-you page (`src/pages/surveys/thank-you.astro`).
+3.  **Fix Survey Creation Bug:**
+    *   Address the 400 error during form submission.
+4.  **Fix Participant Management Bug:**
+    *   Resolve Sortable.js integration issues.
+5.  **Fix Survey Preview Bug:**
+    *   Fix the "Play Sound" button functionality.
+6.  **Testing:**
+    *   Test the enhanced answer saving implementation.
+    *   Test survey publishing and response saving workflow.
+7.  **Existing Tasks:**
+    *   Advanced analytics and reporting features
+    *   Integration of sound profiles with surveys during response collection
+    *   Enhanced user interface for survey creation and management
+    *   Improved error handling and logging
 
 ## Progress Status
 
-The project is in active development with core functionality for user management, survey creation, sound management, participant management, and survey workflow implementation completed. Recent work has focused on fixing critical bugs and implementing a comprehensive participant status management system.
+The project is in active development with core functionality for user management, survey creation, sound management, participant management, and survey workflow implementation completed. Recent work has focused on fixing critical bugs in the participant submission workflow.
 
 Key achievements:
 - Fixed participant deletion functionality
@@ -93,17 +78,17 @@ Key achievements:
 - Implemented survey response completed field update upon survey submission
 
 Current focus:
-1. Testing the newly implemented survey publishing and response saving features
-2. Fixing remaining critical bugs (survey creation bug and sortable.js integration)
-3. Adding comprehensive user feedback and validation
-4. Documenting the survey publishing workflow for administrators
-5. Implementing a new approach to answer saving in `survey_matches`. The current approach results in null values. The proposed solution is to assign question IDs in the `surveys` table and send them with the responses.
+1.  **Implementing Enhanced Answer Saving:** The primary focus is implementing the new approach for saving answers to `survey_matches` by assigning and using question IDs. (See `cline_docs/ai_engineer_development_plan.md`).
+2.  Fixing remaining critical bugs (Thank You page link, survey creation, participant management, survey preview).
+3.  Testing the newly implemented features.
+4.  Adding comprehensive user feedback and validation.
+5.  Documenting the survey publishing workflow for administrators.
 
 Recent implementations:
 1. Integrated survey publishing with background job system for email sending
 2. Added secure URL generation for participant survey access
 3. Enhanced response saving with sound mapping data
 4. Implemented email notifications for both survey invitations and completions
-5. Added proper participant status transitions throughout the survey lifecycle
+5. Added proper participant status transitions throughout the survey lifecycle (including completion and token invalidation).
 
 These features have significantly improved the survey workflow, allowing for better participant management and more comprehensive data collection. The participant status management system now allows administrators to track the full lifecycle of participants from creation through activation to completion or expiration.
