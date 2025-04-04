@@ -35,7 +35,7 @@ export const POST: APIRoute = async ({ params, request }) => {
     const { data: participant, error: participantError } = await supabase
       .from('participants')
       .select('*') // Select necessary fields
-      .or(`participant_identifier.eq.${participantId},id.eq.${participantId}`) // Check both identifier and UUID
+      .eq('participant_identifier', participantId) // Use identifier from payload
       .eq('access_token', participantToken)
       .maybeSingle(); // Handle potential null result gracefully
 

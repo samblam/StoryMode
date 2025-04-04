@@ -78,7 +78,7 @@ export async function fetchSurveyDataForExport(
     
   // Apply filters if specified
   if (mergedOptions.filterByStatus && mergedOptions.filterByStatus.length > 0) {
-    responseQuery = responseQuery.in('status', mergedOptions.filterByStatus);
+    responseQuery = responseQuery.in('participant_id.status', mergedOptions.filterByStatus); // Filter on participant status
   }
   
   // Apply sorting

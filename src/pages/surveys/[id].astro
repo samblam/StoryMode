@@ -58,8 +58,8 @@ if (isPreview && previewContext) {
     const { data: foundParticipant, error: participantFetchError } = await supabaseAdmin
         .from('participants')
         .select('id, status, survey_id, access_token')
-        // Use .or() to check if identifier matches participant_identifier OR id column
-        .or(`participant_identifier.eq.${participantIdentifier},id.eq.${participantIdentifier}`) 
+        // Use participant_identifier for lookup from URL parameter
+        .eq('participant_identifier', participantIdentifier)
         .maybeSingle(); // Use maybeSingle to handle 0 or 1 result
 
     if (participantFetchError) {
@@ -338,25 +338,34 @@ const sortedSounds = survey?.survey_sounds?.sort((a: any, b: any) => a.order_ind
                 // Get data from form
                 soundElements.forEach(element => {
                     const soundId = element.getAttribute('data-sound-id');
-                    const intendedFunction = element.getAttribute('data-intended-function');
-                    
+                    const intendedFunctionId = element.getAttribute('data-intended-function'); // Assume this holds the ID
+
                     if (soundId) {
                         // Get selected radio button for this sound
                         const selectedRadio = document.querySelector(`input[name="sound-${soundId}"]:checked`);
-                        
-                        if (selectedRadio) {
-                            const questionId = selectedRadio.value; // This is now the function ID (UUID)
-                            const selectedFunctionText = selectedRadio.labels?.[0]?.textContent?.trim() || null; // Get text from label
 
-                            // Record response using questionId as key
-                            responses[questionId] = selectedFunctionText; 
-                            
-                            // Record sound mapping if we have both values
-                            if (selectedFunctionText && intendedFunction) {
-                                soundMappingResponses[soundId] = {
-                                    actual: selectedFunctionText,
-                                    intended: intendedFunction,
-                                    matched: selectedFunctionText === intendedFunction
+                        if (selectedRadio) {
+                            const actualFunctionId = selectedRadio.value; // This is the ID of the selected function
+                            const actualFunctionText = selectedRadio.labels?.[0]?.textContent?.trim() || null; // Get text from label
+
+                            // Find the sound object to get its name
+                            const surveySound = survey.survey_sounds?.find(ss => ss.sound_id === soundId);
+                            const soundName = surveySound?.sounds?.name || 'Unknown Sound'; // Fallback if name not found
+
+                            // Find the text for the intended function ID using the survey.functions array
+                            const intendedFunctionObject = survey.functions.find(f => f.id === intendedFunctionId);
+                            const intendedFunctionText = intendedFunctionObject ? intendedFunctionObject.text : intendedFunctionId; // Fallback to ID if not found
+
+                            // Record response using actualFunctionId as key
+                            responses[actualFunctionId] = actualFunctionText;
+
+                            // Record sound mapping using TEXT for both actual and intended, AND add sound_name
+                            if (actualFunctionText && intendedFunctionText) {
+                                soundMappingResponses[soundId] = { // Keep soundId as key
+                                    sound_name: soundName, // Add sound name field
+                                    actual: actualFunctionText, // Use TEXT
+                                    intended: intendedFunctionText, // Use TEXT
+                                    matched: actualFunctionText === intendedFunctionText // Compare TEXT
                                 };
                             }
                         } else {
