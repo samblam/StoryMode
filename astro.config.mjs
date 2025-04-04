@@ -27,5 +27,10 @@ export default defineConfig({
         maxHeaderSize: 8192
       }
     }
+  },
+  resolve: {
+    alias: {
+      'chart.js': 'node_modules/chart.js/dist/chart.js'
+    }
   }
 });

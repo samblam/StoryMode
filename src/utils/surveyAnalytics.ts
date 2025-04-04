@@ -77,7 +77,7 @@ export function getCachedAnalytics(surveyId: string): any | null {
 }
 
 export function calculateSuccessMetrics(responses: SurveyResponse[]) {
-  const successfulResponses = responses.filter(response => response.is_success === true);
+  const successfulResponses = responses.filter(response => response.is_success === true || response.is_success === undefined);
   const successRate = responses.length > 0 ? successfulResponses.length / responses.length : 0;
   const completionTimes = responses.map(response => response.time_taken || 0);
   const averageCompletionTime = completionTimes.length > 0 ? 

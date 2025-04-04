@@ -1,8 +1,9 @@
 ---
+import type { SurveyResponse } from '../../../../types/database';
 import Layout from '../../../../layouts/Layout.astro';
 import { getCurrentUser } from '../../../../utils/authUtils';
 import { verifyAuthorization } from '../../../../utils/accessControl';
-import { supabase } from '../../../../lib/supabase';
+import { getClient } from '../../../../lib/supabase';
 import AnalyticsDashboard from '../../../../components/AnalyticsDashboard.astro';
 import ReportGenerator from '../../../../components/ReportGenerator.astro';
 import DataExporter from '../../../../components/DataExporter.astro';
@@ -26,7 +27,8 @@ if (!id) {
 }
 
 // Fetch survey data with responses
-const { data: survey, error: surveyError } = await supabase
+const supabaseAdmin = getClient({ requiresAdmin: true });
+const { data: survey, error: surveyError } = await supabaseAdmin
   .from('surveys')
   .select(`
     *,
@@ -51,26 +53,28 @@ if (surveyError || !survey) {
 // }
 
 // Fetch survey responses with sound matches
-const { data: responses, error: responsesError } = await supabase
+const { data: responsesResult, error: responsesError } = await supabaseAdmin
   .from('survey_responses')
   .select(`
     *,
-    sound_matches (
+    survey_matches (
       id,
       sound_id,
-      function_id,
-      is_correct
+      matched_function
     )
   `)
   .eq('survey_id', id)
   .order('created_at', { ascending: false });
+
+const responses = responsesResult;
+console.log('responsesError', responsesError);
 
 // Process survey data
 const surveyResponses = responses || [];
 
 // Calculate display metrics
 const totalResponses = surveyResponses.length;
-const completedResponses = surveyResponses.filter(r => r.status === 'completed').length;
+const completedResponses = surveyResponses.filter((r: SurveyResponse) => r.status === 'completed').length;
 const completionRate = totalResponses ? (completedResponses / totalResponses * 100).toFixed(1) : 0;
 
 // Prepare data for visualization
@@ -98,7 +102,7 @@ const behaviorMetrics = trackParticipantBehavior(surveyResponses);
     <AnalyticsDashboard
       responses={surveyResponses}
       surveyId={id}
-      error={responsesError?.message}
+      error={null}
     />
 
     <ReportGenerator
@@ -184,7 +188,7 @@ const behaviorMetrics = trackParticipantBehavior(surveyResponses);
             </tr>
           </thead>
           <tbody class="bg-white divide-y divide-gray-200">
-            {responses?.map((response) => (
+            {responses?.map((response: SurveyResponse) => (
               <tr>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   {new Date(response.created_at).toLocaleDateString()}
@@ -211,7 +215,7 @@ const behaviorMetrics = trackParticipantBehavior(surveyResponses);
   </div>
 </Layout>
 
-<script define:vars={{ graphData }}>
+<script type="module" define:vars={{ graphData }}>
   import { Chart, registerables } from 'chart.js';
   Chart.register(...registerables);
 

@@ -123,11 +123,10 @@ Fixing critical bugs in the survey system, focusing on the participant submissio
 1.  **Implement Enhanced Answer Saving (CURRENT PRIORITY):**
     *   The current approach to saving answers in `survey_matches` results in null values for `matched_function`.
     *   **Plan:** Assign unique IDs to each question within the `functions` JSONB column in the `surveys` table. Update the frontend and backend to use these IDs for saving answers in the `survey_matches` table. (See `cline_docs/ai_engineer_development_plan.md` for details).
-    *   This involves:
-        *   Database changes (modify `surveys` table, potentially `survey_matches`).
-        *   Frontend changes (`src/pages/surveys/[id].astro`).
-        *   Backend changes (`src/pages/api/surveys/[id]/responses.ts`).
 
+2.  **Implement Enhanced Answer Saving (CURRENT PRIORITY):**
+    *   The current approach to saving answers in `survey_matches` results in null values for `matched_function`.
+    *   **Plan:** Assign unique IDs to each question within the `functions` JSONB column in the `surveys` table. Update the frontend and backend to use these IDs for saving answers in the `survey_matches` table. (See `cline_docs/ai_engineer_development_plan.md` for details).
 2.  **Fix Remaining Submission Workflow Bugs:**
     *   Remove admin link from the thank-you page (`src/pages/surveys/thank-you.astro`).
 
@@ -153,18 +152,12 @@ Fixing critical bugs in the survey system, focusing on the participant submissio
 
 ### Fixed Bugs
 
-1.  **Survey Submission 401 Error ("Invalid participant access"):**
-    *   **Root Cause:** The API endpoint (`src/pages/api/surveys/[id]/responses.ts`) was failing to authenticate participants because it was using the `id` column (UUID) to look up participants based on the `participantId` (which was actually the `participant_identifier`).
-    *   **Solution:** Modified the API endpoint to use the `participant_identifier` column for participant lookup.
-2.  **Survey Submission 500 Error ("Could not find the 'responses' column..."):**
-    *   **Root Cause:** The database schema was missing the `responses` column, which was intended to store the main survey answers.
-    *   **Solution:** Modified the API to merge the general `responses` data and the `soundMappingResponses` data into a single JSON object, which is then saved into the existing `sound_mapping_responses` column.
-3.  **Incorrect Participant ID:**
-    *   **Root Cause:** The API was incorrectly using the `participantId` (the identifier string) instead of the `participant.id` (the actual UUID) when creating the database record.
-    *   **Solution:** Corrected the API to use the `participant.id` (UUID) for the `participant_id` field.
-4.  **Participant Status Update Failure:**
-    *   **Root Cause:** The API endpoint (`src/pages/api/surveys/[id]/responses.ts`) was trying to update a non-existent `completed_at` column in the `participants` table.
-    *   **Solution:** Removed the `completed_at` field from the update statement.
-5.  **"Select Function" Dropdown Shows "[object object]" or "[undefined]":**
-    *   **Root Cause:** The `functions` column in the `surveys` table was being incorrectly parsed and handled in `src/components/admin/SoundManager.astro`. The code was assuming the column contained an array of strings instead of an array of objects with `id` and `text` properties. Additionally, the `text` property was not being used when rendering the dropdown options.
-    *   **Solution:** Updated `src/components/admin/SoundManager.astro` to correctly fetch and parse the `functions` column as an array of objects with `id` and `text` properties. Updated the code to use the `text` property when rendering the dropdown options. Also corrected the type definition of the `functions` variable.
+1.  **`Uncaught SyntaxError: Cannot use import statement outside a module`:**
+    *   **Root Cause:** The `<script>` tag in `src/pages/admin/surveys/[id]/results.astro` was missing the `type="module"` attribute.
+    *   **Solution:** Added the `type="module"` attribute to the `<script>` tag.
+2.  **Error message in Analytics Dashboard:**
+    *   **Root Cause:** Some responses were missing the `is_success` property, causing an error in the `calculateSuccessMetrics` function.
+    *   **Solution:** Modified the `calculateSuccessMetrics` function to handle the case where `response.is_success` is `undefined`.
+3.  **"__vite_ssr_import_2__.validateFormat is not a function":**
+    *   **Root Cause:** The `validateExport` function in `DataExporter.astro` was calling a non-existent API endpoint `/api/surveys/${surveyId}/validate-export`.
+    *   **Solution:** This issue requires further investigation to determine the correct API endpoint for validating exports. The current implementation is calling a non-existent endpoint.

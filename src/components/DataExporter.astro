@@ -149,9 +149,9 @@ document.addEventListener('DOMContentLoaded', () => {
       hideError();
       const settings = getExportSettings();
       
-      // Validate data before export
+      // Client-side validation before export
       updateProgress('Validating data...', 10);
-      const validation = await validateExport(rawData);
+      const validation = validateExport(rawData);
       if (!validation.isValid) {
         throw new Error(`Validation failed: ${validation.errors.join(', ')}`);
       }
@@ -162,54 +162,94 @@ document.addEventListener('DOMContentLoaded', () => {
       
       if (settings.anonymize) {
         updateProgress('Anonymizing data...', 50);
-        processedData = await anonymizeData(processedData);
+        processedData = anonymizeData(processedData);
       }
 
-      // Generate export
-      updateProgress('Generating export...', 70);
-      const exportData = await generateExport(processedData, currentExportType, settings);
+      try {
+        // Generate export using the API
+        updateProgress('Generating export...', 70);
+        const exportData = await generateExport(processedData, currentExportType, settings);
 
-      // Download file
-      updateProgress('Preparing download...', 90);
-      await downloadExport(exportData, currentExportType);
+        // Download file
+        updateProgress('Preparing download...', 90);
+        await downloadExport(exportData, currentExportType);
 
-      updateProgress('Export complete!', 100);
-      
-      // Close dialog after delay
-      setTimeout(() => {
-        dialog.classList.add('hidden');
-        progressContainer.classList.add('hidden');
-      }, 1000);
-
+        updateProgress('Export complete!', 100);
+        
+        // Close dialog after delay
+        setTimeout(() => {
+          dialog.classList.add('hidden');
+          progressContainer.classList.add('hidden');
+        }, 1000);
+      } catch (exportError) {
+        console.error('Export generation failed:', exportError);
+        showError(`Export generation failed: ${exportError.message || 'Unknown error'}`);
+        updateProgress('Export failed', 0);
+      }
     } catch (error) {
       console.error('Export failed:', error);
-      showError(error.message);
+      showError(error.message || 'Unknown error occurred');
       updateProgress('Export failed', 0);
     }
   }
 
-  async function validateExport(data) {
-    return await fetch(`/api/surveys/${surveyId}/validate-export`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ data, type: currentExportType })
-    }).then(res => res.json());
+  // Client-side validation function instead of calling a non-existent API endpoint
+  function validateExport(data) {
+    // Basic validation checks
+    if (!data || (Array.isArray(data) && data.length === 0)) {
+      return { isValid: false, errors: ['No data available for export'] };
+    }
+    
+    // Format-specific validation
+    if (currentExportType === 'csv') {
+      // For CSV, check if data has properties that can be exported
+      const hasExportableProperties = Array.isArray(data) && data.some(item => Object.keys(item).length > 0);
+      if (!hasExportableProperties) {
+        return { isValid: false, errors: ['Data contains no exportable properties'] };
+      }
+    }
+    
+    // All checks passed
+    return { isValid: true, errors: [] };
   }
 
-  async function anonymizeData(data) {
-    return await fetch(`/api/surveys/${surveyId}/anonymize`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    }).then(res => res.json());
+  // Client-side anonymization function instead of calling a potentially non-existent API endpoint
+  function anonymizeData(data) {
+    // Simple anonymization: remove identifiable fields
+    if (Array.isArray(data)) {
+      return data.map(item => {
+        const anonymized = { ...item };
+        // Remove or mask potentially identifiable fields
+        ['participant_email', 'participant_name', 'email', 'name', 'user_id'].forEach(field => {
+          if (anonymized[field]) {
+            anonymized[field] = 'ANONYMIZED';
+          }
+        });
+        return anonymized;
+      });
+    }
+    return data;
   }
 
   async function generateExport(data, type, settings) {
-    return await fetch(`/api/surveys/${surveyId}/export`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ data, type, settings })
-    }).then(res => res.blob());
+    // Use the existing export API endpoint
+    try {
+      const response = await fetch(`/api/surveys/${surveyId}/export`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data, type, settings })
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Export failed: ${errorText}`);
+      }
+      
+      return await response.blob();
+    } catch (error) {
+      console.error('Export generation error:', error);
+      throw error;
+    }
   }
 
   async function downloadExport(blob, type) {
