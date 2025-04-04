@@ -46,9 +46,9 @@ if (surveyError || !survey) {
   return Astro.redirect('/admin/surveys', 302);
 }
 
-if (survey.status !== 'completed') {
-  return Astro.redirect('/admin/surveys', 302);
-}
+// if (survey.status !== 'completed') {
+//   return Astro.redirect('/admin/surveys', 302);
+// }
 
 // Fetch survey responses with sound matches
 const { data: responses, error: responsesError } = await supabase

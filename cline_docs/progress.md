@@ -76,7 +76,7 @@ Key achievements:
 - Added support for batch status operations
 - Implemented participant status updates and access token invalidation upon survey submission
 - Implemented survey response completed field update upon survey submission
-
+- Fixed "Select Function" dropdown displaying "[object object]" or "[undefined]" by correctly parsing and handling the `functions` column in `src/components/admin/SoundManager.astro`.
 Current focus:
 1.  **Implementing Enhanced Answer Saving:** The primary focus is implementing the new approach for saving answers to `survey_matches` by assigning and using question IDs. (See `cline_docs/ai_engineer_development_plan.md`).
 2.  Fixing remaining critical bugs (Thank You page link, survey creation, participant management, survey preview).

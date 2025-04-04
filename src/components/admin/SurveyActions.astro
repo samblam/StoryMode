@@ -24,12 +24,13 @@ const { surveyId, active } = Astro.props;
 
     <!-- Action Buttons -->
     <div class="flex flex-col space-y-2">
-        <a
-            href={`/admin/surveys/${surveyId}/results`}
+        <button
+            data-survey-id={surveyId}
+            data-action="view-stats"
             class="inline-flex items-center justify-center px-4 py-2 bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100"
         >
             View Detailed Stats
-        </a>
+        </button>
 
         <button
             data-survey-id={surveyId}
@@ -138,10 +139,12 @@ async function handleVisibility(button: HTMLButtonElement) {
 }
 
 // Attach event listeners
-document.addEventListener('click', (e) => {
+document.addEventListener('click', (e: MouseEvent) => {
     const target = e.target as HTMLElement;
     const button = target.closest('button');
     if (!button) return;
+
+    e.preventDefault(); // Prevent default button behavior
 
     const action = button.dataset.action;
     if (!action) return;
@@ -155,6 +158,16 @@ document.addEventListener('click', (e) => {
             break;
         case 'manage-visibility':
             handleVisibility(button);
+            break;
+        case 'view-stats':
+            const surveyId = button.dataset.surveyId;
+            const targetUrl = `/admin/surveys/${surveyId}/results`;
+            console.log(`Action: view-stats, surveyId: ${surveyId}, Navigating to: ${targetUrl}`); // Log to browser console
+            if (surveyId) {
+                window.location.href = targetUrl;
+            } else {
+                console.error('Survey ID not found for view-stats action.');
+            }
             break;
     }
 });

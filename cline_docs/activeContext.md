@@ -165,3 +165,6 @@ Fixing critical bugs in the survey system, focusing on the participant submissio
 4.  **Participant Status Update Failure:**
     *   **Root Cause:** The API endpoint (`src/pages/api/surveys/[id]/responses.ts`) was trying to update a non-existent `completed_at` column in the `participants` table.
     *   **Solution:** Removed the `completed_at` field from the update statement.
+5.  **"Select Function" Dropdown Shows "[object object]" or "[undefined]":**
+    *   **Root Cause:** The `functions` column in the `surveys` table was being incorrectly parsed and handled in `src/components/admin/SoundManager.astro`. The code was assuming the column contained an array of strings instead of an array of objects with `id` and `text` properties. Additionally, the `text` property was not being used when rendering the dropdown options.
+    *   **Solution:** Updated `src/components/admin/SoundManager.astro` to correctly fetch and parse the `functions` column as an array of objects with `id` and `text` properties. Updated the code to use the `text` property when rendering the dropdown options. Also corrected the type definition of the `functions` variable.
