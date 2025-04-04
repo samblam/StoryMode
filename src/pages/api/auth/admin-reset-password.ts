@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { supabaseAdmin } from '../../../lib/supabase';
+import { getClient } from '../../../lib/supabase';
 import { RateLimiter, RATE_LIMITS } from '../../../utils/rateLimit';
 
 export const POST: APIRoute = async ({ request }) => {
@@ -44,7 +44,8 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     // First, verify the user exists using normalized email
-    const { data: userData, error: userError } = await supabaseAdmin
+    const supabase = getClient({ requiresAdmin: true });
+    const { data: userData, error: userError } = await supabase
       .from('users')
       .select('id')
       .eq('email', normalizedEmail)
@@ -61,7 +62,7 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     // Reset the password
-    const { error: resetError } = await supabaseAdmin.auth.admin.updateUserById(
+    const { error: resetError } = await supabase.auth.admin.updateUserById(
       userData.id,
       { password: password }
     );

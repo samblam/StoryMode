@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import { getClient } from '../../lib/supabase';
 import { generateUniqueIdentifier } from '../../utils/participantUtils';
 
-export const GET: APIRoute = async ({ request }) => {
+export const GET: APIRoute = async ({ }) => {
   const headers = {
     'Content-Type': 'application/json'
   };

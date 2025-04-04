@@ -1,11 +1,9 @@
 // src/pages/api/auth/login.ts
 import type { APIRoute } from 'astro';
 import { createClient } from '@supabase/supabase-js';
-import { supabase, supabaseAdmin } from '../../../lib/supabase';
+import { getClient } from '../../../lib/supabase';
 import type { Database } from '../../../types/database';
-import { RateLimiter, RATE_LIMITS, rateLimitMiddleware } from '../../../utils/rateLimit';
-import { isRLSError, handleRLSError, verifyAuthorization } from '../../../utils/accessControl';
-import type { AuthResponse, AuthError } from '../../../types/auth';
+import { rateLimitMiddleware } from '../../../utils/rateLimit';
 
 export const POST: APIRoute = async ({ request, cookies }) => {
   const headers = {
@@ -82,6 +80,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     });
 
     // Step 3: Get User Data
+    const supabase = getClient();
     const { data: userData, error: userError } = await supabase
       .from('users')
       .select(`

@@ -1,5 +1,4 @@
 import type { APIRoute } from 'astro';
-import { getClient } from '../../../../lib/supabase';
 import { exportSurveyData, type ExportOptions } from '../../../../utils/surveyExport';
 import { verifyAuthorization } from '../../../../utils/accessControl';
 
@@ -44,6 +43,7 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
         };
 
         // Export the data
+        console.log('surveyId:', surveyId);
         const { data, contentType, filename } = await exportSurveyData(surveyId, options);
 
         return new Response(data, {

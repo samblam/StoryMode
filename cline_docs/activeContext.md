@@ -2,36 +2,62 @@
 
 ## Current Task
 
-Fixing critical bugs in the survey system, focusing on the participant submission workflow, while continuing participant and survey management features:
+Fixing critical bugs in the survey system, focusing on the participant submission workflow, while continuing participant and survey management features.
 
 ### Bug Fixes (High Priority)
 
-1.  **Survey Participant Submission Workflow:**
+1.  **`supabaseAdmin` Import Errors:**
+    *   The `supabaseAdmin` import is causing build failures in multiple API endpoints.
+    *   The solution is to use `getClient({ requiresAdmin: true })` as per `systemPatterns.md`.
+    *   Identified affected files:
+        *   `src/pages/api/auth/admin-reset-password.ts`
+        *   `src/pages/api/auth/create-user.ts`
+        *   `src/pages/api/auth/logout.ts`
+        *   `src/pages/api/auth/reset-password.ts`
+        *   `src/pages/api/auth/send-reset-code.ts`
+        *   `src/pages/api/auth/test-token.ts`
+    *   ✅ Fixed: `src/pages/api/auth/admin-reset-password.ts`
+    *   ✅ Fixed: `src/pages/api/auth/create-user.ts`
+    *   ✅ Fixed: `src/pages/api/auth/logout.ts`
+    *   ✅ Fixed: `src/pages/api/auth/reset-password.ts`
+    *   ✅ Fixed: `src/pages/api/auth/send-reset-code.ts`
+    *   ✅ Fixed: `src/pages/api/auth/test-token.ts`
+
+2.  **Route Collisions:**
+    *   The routes "/reset-password" and "/sounds" are defined in two different files.
+    *   The solution is to remove the duplicate route definitions.
+    *   Identified affected files:
+        *   `src/pages/reset-password.astro` and `src/pages/reset-password/index.astro`
+        *   `src/pages/sounds.astro` and `src/pages/sounds/index.astro`
+    *   ✅ Fixed: Removed `src/pages/reset-password.astro`
+    *   ✅ Fixed: Removed `src/pages/sounds/index.astro`
+
+3.  **Survey Participant Submission Workflow:**
     *   **Answer Saving:** Survey answers are saved in `survey_responses`, but each answer should also be saved as an individual record in the `survey_matches` table. The `matched_function` field in `survey_matches` is still null, indicating a frontend data issue. The proposed solution is to assign question IDs in the `surveys` table and send them with the responses.
     *   **Link/Token Invalidation:** After submission, the participant's unique link and access token should be invalidated to prevent re-submission or further access. This is now working correctly.
     *   **Status Update:** Participant status is now consistently updated to "completed" after successful submission.
     *   **Survey Response Completed Field:** The `completed` field in the `survey_responses` table is now being set to `true` after submission.
     *   **Thank You Screen:** The post-submission "thank you" screen incorrectly contains a link to the admin-only survey control area.
 
-2.  **Survey Creation Bug:**
+4.  **Survey Creation Bug:**
     *   400 (Bad Request) error during form submission
     *   Need to implement proper validation and error handling
     *   Update API endpoint validation
 
-3.  **Participant Management Bug:**
+5.  **Participant Management Bug:**
     *   UI interaction issues (nothing selectable/viewable)
     *   Sortable.js integration problems
     *   Multiple Supabase client initialization warnings
     *   ✅ Fixed: Participant deletion functionality (both individual and bulk delete)
 
-4.  **Survey Preview Bug:**
+6.  **Survey Preview Bug:**
     *   ✅ Fixed: 500 error on survey preview API endpoint
     *   ✅ Fixed: 500 error on survey preview API endpoint
     *   ❌ Broken: "Play Sound" button in survey preview does not work
     *   ✅ Fixed: 431 error "Request Header Fields Too Large" when generating preview.
         *   Solution: Implemented lazy loading of sound URLs in survey preview.
             *   Modified preview API to initially exclude sound details.
-            *   Adjusted frontend to handle delayed loading of sound URLs.
+            *   Adjusted frontend loading of sound URLs.
     *   ✅ Fixed: 500 error on "edit survey" page after preview API changes.
         *   Solution: Added conditional rendering in `src/pages/surveys/[id].astro` to handle potentially missing sound URLs.
     *   ✅ Fixed: All other UI issues in survey preview have been resolved:
@@ -40,7 +66,7 @@ Fixing critical bugs in the survey system, focusing on the participant submissio
         *   ✅ Replaced navigation buttons with a single submit button
         *   ✅ Implemented proper response submission and survey completion
 
-5.  ✅ **Fixed: Participant Upload Bug:**
+7.  ✅ **Fixed: Participant Upload Bug:**
     *   Fixed manual, CSV, and JSON upload functionality in ParticipantManager.astro
     *   Added proper form submission handlers to prevent page refresh
     *   Implemented client-side validation and user feedback
@@ -54,7 +80,7 @@ Fixing critical bugs in the survey system, focusing on the participant submissio
 
 ## Recent Changes
 
--   Fixed survey preview UI issues completely:
+*   Fixed survey preview UI issues completely:
     *   Updated the preview API to generate signed URLs for videos
     *   Modified the survey page to display videos correctly
     *   Changed input fields to multiple choice selections using survey functions
@@ -63,13 +89,13 @@ Fixing critical bugs in the survey system, focusing on the participant submissio
     *   Created thank-you page for after submission
     *   Added proper error handling and feedback to the user
 
--   Fixed survey preview API endpoint:
+*   Fixed survey preview API endpoint:
     *   Fixed database query issues by removing references to non-existent columns (url, duration)
     *   Added code to generate signed URLs for sound files after fetching from database
     *   Properly handled the functions data structure
     *   Added comprehensive error handling and logging
 
--   Implemented survey module enhancements and bug fixes:
+*   Implemented survey module enhancements and bug fixes:
     *   Created database migration for survey module updates:
         *   Added sound_mapping_responses column to survey_responses table
         *   Created background_jobs table for handling long-running tasks
@@ -89,7 +115,7 @@ Fixing critical bugs in the survey system, focusing on the participant submissio
         *   Prepared for PDF export
         *   Added filtering and sorting options
 
--   Fixed participant deletion functionality:
+*   Fixed participant deletion functionality:
     *   Fixed individual delete functionality by updating the delete.ts endpoint to properly parse the participant ID from the request body instead of looking for it in the request headers
     *   Updated the API endpoint to use the newer Astro API style with proper error handling
     *   Fixed "Delete All" button functionality by:
@@ -124,9 +150,6 @@ Fixing critical bugs in the survey system, focusing on the participant submissio
     *   The current approach to saving answers in `survey_matches` results in null values for `matched_function`.
     *   **Plan:** Assign unique IDs to each question within the `functions` JSONB column in the `surveys` table. Update the frontend and backend to use these IDs for saving answers in the `survey_matches` table. (See `cline_docs/ai_engineer_development_plan.md` for details).
 
-2.  **Implement Enhanced Answer Saving (CURRENT PRIORITY):**
-    *   The current approach to saving answers in `survey_matches` results in null values for `matched_function`.
-    *   **Plan:** Assign unique IDs to each question within the `functions` JSONB column in the `surveys` table. Update the frontend and backend to use these IDs for saving answers in the `survey_matches` table. (See `cline_docs/ai_engineer_development_plan.md` for details).
 2.  **Fix Remaining Submission Workflow Bugs:**
     *   Remove admin link from the thank-you page (`src/pages/surveys/thank-you.astro`).
 

@@ -12,6 +12,7 @@ interface ProfileResponse {
  * Get all sound profiles, optionally filtered by client ID
  */
 export async function getSoundProfiles(token: string, clientId?: string): Promise<ProfileResponse> {
+    console.log('getSoundProfiles clientId:', clientId, 'token:', token);
     try {
         let query = supabase
             .from('sound_profiles')

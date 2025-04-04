@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import nodemailer from 'nodemailer';
-import { RateLimiter, RATE_LIMITS, rateLimitMiddleware } from '../../utils/rateLimit';
+import { rateLimitMiddleware } from '../../utils/rateLimit';
 
 interface EmailData {
   name: string;

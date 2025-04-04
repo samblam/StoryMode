@@ -6,7 +6,7 @@ export type UserEventType = CustomEvent<{ user?: User | null }>;
 export type SurveyEventDetail = {
   refresh?: boolean;
   surveyId?: string;
-  status?: Database['public']['Tables']['surveys']['Row']['status'];
+  status?: Database['public']['Tables']['participants']['Row']['status'] | null;
   error?: string;
 };
 

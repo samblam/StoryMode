@@ -37,7 +37,7 @@ function validateSurveyData(data: any) {
   };
 }
 
-export const GET: APIRoute = async ({ request, locals }) => {
+export const GET: APIRoute = async ({ locals }) => {
   try {
     const user = locals.user as User | undefined;
     const { authorized, error: authError } = await verifyAuthorization(user, 'admin', 'read');
@@ -49,6 +49,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
     }
 
     const supabase = getClient({ requiresAdmin: true });
+    console.log('Fetching surveys...');
     const { data, error } = await supabase
       .from('surveys')
       .select(`

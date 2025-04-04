@@ -58,7 +58,7 @@ export const POST: APIRoute = async ({ request }) => {
         const fileName = `video.${fileExt}`;
         const filePath = `${surveyId}/${fileName}`; // Store without 'videos/' prefix
 
-        const { error: uploadError, data } = await supabase
+        const { error: uploadError } = await supabase
             .storage
             .from('videos')
             .upload(filePath, videoFile, {

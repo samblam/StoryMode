@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { getClient } from '../../../lib/supabase';
-import { RateLimiter, RATE_LIMITS, rateLimitMiddleware } from '../../../utils/rateLimit';
+import { rateLimitMiddleware } from '../../../utils/rateLimit';
 
 export const GET: APIRoute = async ({ request, locals }) => {
   const headers = {
@@ -73,7 +73,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
   }
 };
 
-export const POST: APIRoute = async ({ request, locals, cookies }) => {
+export const POST: APIRoute = async ({ request, locals }) => {
   const headers = {
     'Content-Type': 'application/json'
   };
@@ -182,7 +182,7 @@ export const POST: APIRoute = async ({ request, locals, cookies }) => {
   }
 };
 
-export const PUT: APIRoute = async ({ request, locals, cookies }) => {
+export const PUT: APIRoute = async ({ request, locals }) => {
   const headers = {
     'Content-Type': 'application/json'
   };

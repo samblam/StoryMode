@@ -6,9 +6,9 @@ import { verifyAuthorization } from '../../../../utils/accessControl';
 import { getClient } from '../../../../lib/supabase';
 import AnalyticsDashboard from '../../../../components/AnalyticsDashboard.astro';
 import ReportGenerator from '../../../../components/ReportGenerator.astro';
-import DataExporter from '../../../../components/DataExporter.astro';
+import StaticExporter from '../../../../components/StaticExporter.astro';
 import { calculateSuccessMetrics, performSoundPerformanceAnalysis, trackParticipantBehavior } from '../../../../utils/surveyAnalytics';
-import { processRawData, prepareGraphData } from '../../../../utils/surveyResults';
+import { prepareGraphData } from '../../../../utils/surveyResults';
 
 // Ensure admin access
 const user = await getCurrentUser(Astro.cookies);
@@ -53,7 +53,7 @@ if (surveyError || !survey) {
 // }
 
 // Fetch survey responses with sound matches
-const { data: responsesResult, error: responsesError } = await supabaseAdmin
+const { data: responsesResult } = await supabaseAdmin
   .from('survey_responses')
   .select(`
     *,
@@ -67,7 +67,6 @@ const { data: responsesResult, error: responsesError } = await supabaseAdmin
   .order('created_at', { ascending: false });
 
 const responses = responsesResult;
-console.log('responsesError', responsesError);
 
 // Process survey data
 const surveyResponses = responses || [];
@@ -79,7 +78,6 @@ const completionRate = totalResponses ? (completedResponses / totalResponses * 1
 
 // Prepare data for visualization
 const graphData = prepareGraphData(surveyResponses);
-const rawData = processRawData(surveyResponses);
 
 // Calculate metrics for ReportGenerator
 const metrics = calculateSuccessMetrics(surveyResponses);
@@ -92,10 +90,8 @@ const behaviorMetrics = trackParticipantBehavior(surveyResponses);
   <div class="container mx-auto px-4 py-8">
     <div class="flex justify-between items-center mb-8">
       <h1 class="text-3xl font-bold">Survey Results: {survey.title}</h1>
-      <DataExporter
-        client:load
+      <StaticExporter
         surveyId={id}
-        rawData={rawData}
       />
     </div>
 

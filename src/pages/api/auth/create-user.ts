@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
-import { supabase, supabaseAdmin } from '../../../lib/supabase';
-import { RateLimiter, RATE_LIMITS, rateLimitMiddleware } from '../../../utils/rateLimit';
+import { getClient } from '../../../lib/supabase';
+import { rateLimitMiddleware } from '../../../utils/rateLimit';
 import { getCurrentUser } from '../../../utils/authUtils';
 
 export const POST: APIRoute = async ({ request, cookies }): Promise<Response> => {
@@ -72,6 +72,7 @@ export const POST: APIRoute = async ({ request, cookies }): Promise<Response> =>
     }
 
     // Check if email already exists
+    const supabaseAdmin = getClient({ requiresAdmin: true });
     const { data: existingUser } = await supabaseAdmin
       .from('users')
       .select('id')

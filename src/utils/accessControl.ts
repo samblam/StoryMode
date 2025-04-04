@@ -1,5 +1,5 @@
 import { getClient } from '../lib/supabase';
-import type { User, ClientInfo, AuthErrorCode, AuthError } from '../types/auth';
+import type { User } from '../types/auth';
 import type { Database } from '../types/database';
 import type { AstroGlobal } from 'astro';
 import { getCurrentUser } from './authUtils';
@@ -57,7 +57,7 @@ export async function verifyAuthorization(
 ): Promise<{
   authorized: boolean;
   error?: {
-    code: AuthErrorCode;
+    code: string;
     message: string;
   }
 }> {
@@ -98,7 +98,7 @@ export async function verifyAuthorization(
         return {
             authorized: false,
             error: {
-                code: 'PERMISSION_DENIED' as AuthErrorCode,
+                code: 'PERMISSION_DENIED',
                 message: 'Insufficient permissions'
             }
         };

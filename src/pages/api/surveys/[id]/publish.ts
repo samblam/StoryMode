@@ -4,7 +4,7 @@ import { verifyAuthorization } from '../../../../utils/accessControl';
 import { createPublishJob } from '../../../../utils/backgroundJobs';
 import { generateSecureToken, generateParticipantUrl } from '../../../../utils/participantUtils';
 
-export const POST: APIRoute = async ({ params, request, locals }) => {
+export const POST: APIRoute = async ({ params, locals }) => {
   try {
     const surveyId = params.id;
     if (!surveyId) {
@@ -26,7 +26,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
     const supabase = getClient({ requiresAdmin: true });
 
     // Mark survey as published
-    const { data: survey, error: surveyError } = await supabase
+    const { error: surveyError } = await supabase
       .from('surveys')
       .update({
         published_at: new Date().toISOString(),

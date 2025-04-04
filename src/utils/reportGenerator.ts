@@ -44,7 +44,7 @@ export const generateReport = async (survey: SurveyWithRelations): Promise<strin
       body: chart.data,
     });
 
-    yOffset = doc.lastAutoTable.finalY + 10;
+    yOffset = (doc as any).lastAutoTable.finalY + 10;
   });
 
   // Save the PDF and return as a data URL

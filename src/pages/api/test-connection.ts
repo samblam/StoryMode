@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { supabase } from '../../lib/supabase';
-import { RateLimiter, RATE_LIMITS, rateLimitMiddleware } from '../../utils/rateLimit';
+import { rateLimitMiddleware } from '../../utils/rateLimit';
 
 export const GET: APIRoute = async ({ request }) => {
   const headers = {
