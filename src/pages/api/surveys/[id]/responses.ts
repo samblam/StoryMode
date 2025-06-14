@@ -126,7 +126,7 @@ export const POST: APIRoute = async ({ params, request }) => {
           const matchData = {
             response_id: savedResponse.id,
             sound_id: soundId,
-            matched_function: answerValue, // Will still be null until frontend is fixed
+            matched_function: answerValue,
             correct_match: false, // Default value
           };
 

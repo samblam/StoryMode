@@ -1,4 +1,4 @@
-import type { APIRoute } from 'astro';
+ import type { APIRoute } from 'astro';
 import { supabase } from '../../../lib/supabase';
 import { verifyAuthorization } from '../../../utils/accessControl';
 
@@ -116,7 +116,10 @@ export const PUT: APIRoute = async ({ request, params, locals }) => {
             updateData.client_id = updateData.client_id || null;
             updateData.sound_profile_id = updateData.sound_profile_id || null;
             updateData.video_url = updateData.video_url || null;
-            updateData.functions = Array.isArray(updateData.functions) ? updateData.functions : null;
+            updateData.functions = Array.isArray(updateData.functions) ? updateData.functions.map(func => ({
+                id: crypto.randomUUID(),
+                text: func
+            })) : null;
         }
 
         // Ensure boolean fields are properly typed

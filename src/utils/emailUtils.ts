@@ -54,6 +54,9 @@ const createTransporter = () => {
     connectionTimeout: 5000, // 5 seconds
     greetingTimeout: 5000,   // 5 seconds
     socketTimeout: 10000,    // 10 seconds
+    tls: {
+      rejectUnauthorized: false
+    }
   });
 };
 

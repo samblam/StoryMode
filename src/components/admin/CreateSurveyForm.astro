@@ -257,26 +257,27 @@ form.addEventListener('submit', async (e) => {
     }
 
     // Fetch sound profile data
-    let profileSounds = [];
+    let functions = [];
     try {
       const response = await fetch(`/api/sound-profiles/${sound_profile_id}`);
       if (!response.ok) {
         throw new Error('Failed to fetch sound profile');
       }
       const profile = await response.json();
-      profileSounds = profile.sounds.map((sound: Sound, index: number) => ({
-        id: sound.id,
-        intended_function: sound.description || '',
-        order_index: index
+      console.log('profile.sounds:', profile.sounds);
+      functions = profile.sounds.map((sound: Sound) => ({
+        id: crypto.randomUUID(),
+        text: sound.description || '',
       }));
+      console.log('functions:', functions);
     } catch (error) {
       console.error('Error fetching sound profile sounds:', error);
       displayErrors({ sound_profile_id: 'Failed to load sound profile data' });
       throw new Error('Failed to load sound profile data');
     }
 
-    // Validate sounds
-    if (!profileSounds.length) {
+    // Validate functions
+    if (!functions.length) {
       validationErrors.sounds = 'At least one sound is required';
       displayErrors(validationErrors);
       throw new Error('Sound profile must contain at least one sound');
@@ -288,7 +289,7 @@ form.addEventListener('submit', async (e) => {
       description: description || '',
       client_id: client_id || '',
       sound_profile_id: sound_profile_id || '',
-      sounds: profileSounds,
+      functions: functions,
       status: 'draft' as const
     };
 
@@ -296,12 +297,12 @@ form.addEventListener('submit', async (e) => {
 
     console.log('Submitting survey data:', surveyData);
 
-    const response = await fetch('/api/surveys', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(surveyData),
-    });
-
+    
+        const response = await fetch('/api/surveys', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(surveyData),
+        });
     let result;
     try {
       result = await response.json();

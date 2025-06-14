@@ -1,4 +1,4 @@
-// src/pages/api/surveys/[id]/delete.ts
+ // src/pages/api/surveys/[id]/delete.ts
 import type { APIRoute } from 'astro';
 import { getClient } from '../../../../lib/supabase';
 import { rateLimitMiddleware } from '../../../../utils/rateLimit';
@@ -47,7 +47,7 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
       // Delete sound matches for each response
       for (const response of responses) {
         const { error: matchError } = await supabase
-          .from('sound_matches')
+          .from('survey_matches')
           .delete()
           .eq('response_id', response.id);
 

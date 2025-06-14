@@ -37,7 +37,7 @@ Fixing critical bugs in the survey system, focusing on the participant submissio
     *   ✅ Fixed: All other UI issues in survey preview have been resolved:
         *   ✅ Fixed: Video now loads correctly using signed URLs
         *   ✅ Changed input fields to multiple choice selections using survey functions
-        *   ✅ Replaced navigation buttons with a single submit button
+        *   ✅ Replaced next/previous navigation with a single submit button
         *   ✅ Implemented proper response submission and survey completion
 
 5.  ✅ **Fixed: Participant Upload Bug:**

@@ -1,0 +1,3 @@
+# .clinerules
+
+- Always use question IDs when saving survey responses to the `survey_matches` table.

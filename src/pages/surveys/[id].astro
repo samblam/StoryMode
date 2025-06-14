@@ -389,17 +389,17 @@ const sortedSounds = survey.survey_sounds.sort((a: any, b: any) => a.order_index
                                 </label>
                                 <div class="space-y-2">
                                     {survey.functions && Array.isArray(survey.functions) ? (
-                                        survey.functions.map((func: string) => (
+                                        survey.functions.map((func: any) => (
                                             <label class="flex items-center space-x-2 p-2 rounded hover:bg-gray-50 cursor-pointer">
                                                 <input
                                                     type="radio"
                                                     type="radio"
                                                     name={`sound-${surveySound.id}`}
-                                                    value={func}
+                                                    value={typeof func === 'object' ? func.id : func}
                                                     class="rounded-full text-blue-600 focus:ring-blue-500"
                                                     required
                                                 />
-                                                <span>{func}</span>
+                                                <span>{typeof func === 'object' ? func.text : func}</span>
                                             </label>
                                         ))
                                     ) : (
@@ -486,15 +486,17 @@ const sortedSounds = survey.survey_sounds.sort((a: any, b: any) => a.order_index
             soundElements.forEach(element => {
                 const soundId = element.getAttribute('data-sound-id');
                 const intendedFunction = element.getAttribute('data-intended-function');
-                
+
                 if (soundId) {
                     // Get selected function (radio button value)
-                    const selectedRadio = document.querySelector(`input[name="sound-${soundId}"]:checked`);
+                    const selectedRadio = element.querySelector(`input[name="sound-${soundId}"]:checked`);
                     const selectedFunction = selectedRadio ? selectedRadio.value : null;
-                    
+                    //const questionId = selectedRadio ? selectedRadio.id : null;
+
                     // Record response - CORRECTED KEY FORMAT
                     responses[`question_${soundId}`] = selectedFunction;
                     
+                    // Record sound mapping if we have both values
                     // Record sound mapping if we have both values
                     if (selectedFunction && intendedFunction) {
                         soundMappingResponses[soundId] = {
@@ -522,7 +524,8 @@ const sortedSounds = survey.survey_sounds.sort((a: any, b: any) => a.order_index
                 body: JSON.stringify({
                     ...participantData,
                     responses,
-                    soundMappingResponses
+                    soundMappingResponses,
+                    //questionId
                 })
             });
             
