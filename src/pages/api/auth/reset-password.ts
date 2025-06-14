@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { supabaseAdmin } from '../../../lib/supabase';
+import { getClient } from '../../../lib/supabase';
 import { rateLimitMiddleware } from '../../../utils/rateLimit';
 
 export const POST: APIRoute = async ({ request }) => {
@@ -26,6 +26,7 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     // Verify the user exists before sending reset email
+    const supabaseAdmin = getClient({ requiresAdmin: true });
     const { data: userData, error: userError } = await supabaseAdmin
       .from('users')
       .select('id')

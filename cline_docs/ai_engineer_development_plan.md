@@ -35,7 +35,6 @@ Assign unique IDs to each question within the `functions` JSONB column in the `s
     *   Extract the `question_id` and `answerValue` from the submitted data.
     *   Use the `question_id` to look up the corresponding question text in the `surveys` table (if needed).
     *   Save the `response_id`, `question_id`, and `answerValue` to the `survey_matches` table.
-
 ## Benefits
 
 *   Provides a more reliable way to link answers to specific questions.

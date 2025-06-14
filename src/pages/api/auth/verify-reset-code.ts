@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { supabaseAdmin } from '../../../lib/supabase';
+import { getClient } from '../../../lib/supabase';
 import { rateLimitMiddleware } from '../../../utils/rateLimit';
 
 function validateInput(email: string, code: string, password: string) {
@@ -37,6 +37,7 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     // --- Get user by email ---
+    const supabaseAdmin = getClient({ requiresAdmin: true });
     const { data: userData, error: userError } = await supabaseAdmin
       .from('users')
       .select('id')

@@ -1,8 +1,6 @@
 import { getClient } from '../../../../../lib/supabase';
-import { type Database } from '../../../../../types/database';
 import { generateUniqueIdentifier, generateSecureToken } from '../../../../../utils/participantUtils';
 
-type Participant = Database['public']['Tables']['participants']['Row'];
 import { type APIRoute } from 'astro';
 
 export const POST: APIRoute = async ({ params, request }) => {

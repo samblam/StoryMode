@@ -19,7 +19,7 @@ interface SurveySound {
   };
 }
 
-export const GET: APIRoute = async ({ params, request, locals }) => {
+export const GET: APIRoute = async ({ params, locals }) => {
   const surveyId = params.id;
   if (!surveyId) {
     return new Response(JSON.stringify({ error: 'Survey ID is required' }), {
@@ -55,7 +55,7 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
       console.log('Preview API - User authorized successfully');
     }
 
-    const supabase = getClient({ requiresAdmin: true });
+    getClient({ requiresAdmin: true });
 
     console.log('Preview API - Fetching survey data for ID:', surveyId);
     

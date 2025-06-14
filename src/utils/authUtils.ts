@@ -1,7 +1,7 @@
 import type { PostgrestError } from '@supabase/supabase-js';
 import { supabase, getClient } from '../lib/supabase';
 import type { User, AuthError } from '../types/auth';
-import { isRLSError, handleRLSError } from './accessControl';
+import { isRLSError } from './accessControl';
 import type { AstroCookies } from 'astro';
 
 /**
@@ -338,7 +338,7 @@ export async function getClientId(): Promise<string | null> {
  * Middleware function to require authentication
  */
 export function requireAuth() {
-  return async ({ request }: { request: Request }) => {
+  return async ({ }: { request: Request }) => {
     const user = await getCurrentUser();
     if (!user) {
       return new Response('Redirect', {
@@ -516,7 +516,7 @@ export async function validateParticipantAccess(
  * Middleware function to require admin access
  */
 export function requireAdmin() {
-  return async ({ request }: { request: Request }) => {
+  return async ({ }: { request: Request }) => {
     const user = await getCurrentUser();
     if (!user || user.role !== 'admin') {
       return new Response('Redirect', {

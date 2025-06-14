@@ -254,7 +254,7 @@ export async function unpublishSurvey(surveyId: string, baseUrl?: string, token?
 
 export async function submitSurveyResponses(surveyId: string, matches: Match[], baseUrl?: string): Promise<boolean> {
     setSubmitting(true);
-    const state = getSurveyState();
+    getSurveyState();
 
     try {
         // Validate matches

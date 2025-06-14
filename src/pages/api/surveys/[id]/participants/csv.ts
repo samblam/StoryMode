@@ -1,10 +1,8 @@
 import { getClient } from '../../../../../lib/supabase';
-import { type Database } from '../../../../../types/database';
 import { type APIRoute } from 'astro';
 import { parse } from 'csv-parse/sync';
 import { generateUniqueIdentifier, generateSecureToken } from '../../../../../utils/participantUtils';
 
-type Participant = Database['public']['Tables']['participants']['Row'];
 
 const CHUNK_SIZE = 100; // Process participants in chunks of 100
 

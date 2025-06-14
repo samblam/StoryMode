@@ -18,7 +18,7 @@ type SurveySound = Database['public']['Tables']['survey_sounds']['Row'];
 
 // Initialize empty arrays for sounds and functions
 let sounds: Sound[] = [];
-let functions: { id: string; description: string; }[] = [];
+let functions: { id: string; text: string; }[] = []; // Correct type definition
 let existingMappings: SurveySound[] = [];
 
 try {
@@ -58,34 +58,15 @@ try {
         .from('surveys')
         .select('functions')
         .eq('id', surveyId)
-        .single<{ functions: string[] }>();
+        .single<{ functions: { id: string; text: string; }[] }>();
 
     if (functionError) {
         console.error('Error fetching functions:', functionError);
         throw functionError;
     }
 
-    functions = (functionData?.functions || []).map((func: string) => ({
-        id: func,
-        description: func
-    }));
+    functions = functionData?.functions || [];
 
-    // Fetch survey functions from the survey record
-    const { data: surveyData, error: surveyError } = await supabase
-        .from('surveys')
-        .select('functions')
-        .eq('id', surveyId)
-        .single();
-
-    if (surveyError) {
-        console.error('Error fetching survey functions:', surveyError);
-    } else if (surveyData && Array.isArray(surveyData.functions)) {
-        // Transform the functions array into the expected format
-        functions = surveyData.functions.map(func => ({
-            id: func,
-            description: func
-        }));
-    }
 
     console.log('Fetched sounds:', sounds);
     console.log('Fetched functions:', functions);
@@ -171,7 +152,7 @@ try {
                                         value={func.id}
                                         selected={func.id === mapping.intended_function}
                                     >
-                                        {func.description}
+                                        {func.text}
                                     </option>
                                 ))}
                             </select>
@@ -318,18 +299,30 @@ try {
                 .from('surveys')
                 .select('functions')
                 .eq('id', mappingContainer.dataset.surveyId)
-                .single();
+                .single<{ functions: { id: string; text: string; }[] }>(); // Correct type
 
             if (functionsError) throw functionsError;
 
-            // Transform functions data
-            const functions = (data?.functions as string[] || []).map((func: string) => ({
-                id: func,
-                description: func
-            }));
+            // Use fetched functions directly (should be array of objects)
+            const functions = data?.functions || [];
 
             // Update container's dataset
             mappingContainer.dataset.functions = JSON.stringify(functions);
+
+            // Update function dropdowns in existing rows
+            const functionSelects = mappingContainer.querySelectorAll<HTMLSelectElement>('.function-select');
+            const functionOptionsHTML = functions.map(func => `<option value="${func.id}">${func.text}</option>`).join('');
+            functionSelects.forEach(select => {
+                const currentValue = select.value || select.dataset.currentFunction; // Preserve selection if possible
+                select.innerHTML = `<option value="">Select Function</option>${functionOptionsHTML}`;
+                if (currentValue && functions.some(f => f.id === currentValue)) {
+                    select.value = currentValue; // Restore selection if the function still exists
+                } else {
+                     select.value = ""; // Reset if previous selection is gone
+                }
+                select.dataset.currentFunction = select.value; // Update data attribute
+            });
+
 
             // Enable/disable add button based on functions availability
             const addButton = document.getElementById('add-mapping');
@@ -505,14 +498,14 @@ try {
 
         type Sound = Database['public']['Tables']['sounds']['Row'];
         const sounds = JSON.parse(container.dataset.sounds || '[]') as Sound[];
-        const functions = JSON.parse(container.dataset.functions || '[]') as { id: string; description: string; }[];
+        const functions = JSON.parse(container.dataset.functions || '[]') as { id: string; text: string; }[]; // Correct type
 
         const soundOptions = sounds
             .map(sound => `<option value="${sound.id}" data-sound-url="${sound.file_path || ''}" data-storage-path="${sound.storage_path || ''}">${sound.name}</option>`)
             .join('');
 
         const functionOptions = functions
-            .map(func => `<option value="${func.id}">${func.description}</option>`)
+            .map(func => `<option value="${func.id}">${func.text}</option>`) // Use text property
             .join('');
 
         template.innerHTML = `

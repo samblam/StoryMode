@@ -1,4 +1,3 @@
-import { getClient } from '../../lib/supabase';
 import { type APIRoute } from 'astro';
 import { generateSurveyUrl } from '../../utils/participantUtils';
 

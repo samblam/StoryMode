@@ -1,5 +1,6 @@
 import type { SurveyResponse, SurveyWithRelations } from '../types/database';
-import { Chart, ChartConfiguration } from 'chart.js/auto';
+import { Chart } from 'chart.js';
+import type { ChartConfiguration } from 'chart.js';
 
 export interface ChartData {
   title: string;
@@ -7,11 +8,6 @@ export interface ChartData {
   data: (string | number)[][];
 }
 
-interface VisualizationData {
-  labels: string[];
-  values: number[];
-  colors?: string[];
-}
 
 export class SurveyVisualization {
   private static instance: SurveyVisualization;
@@ -47,13 +43,13 @@ export class SurveyVisualization {
     const correlationData = this.processCorrelationData(data);
     
     const config: ChartConfiguration = {
-      type: 'matrix',
+      type: 'scatter',
       data: {
         datasets: [{
           label: 'Sound-Function Correlation',
-          data: correlationData.data,
-          backgroundColor: (context) => {
-            const value = context.dataset.data[context.dataIndex].v;
+          data: correlationData.data.map(item => ({ x: item.x, y: item.y, r: item.v * 10 })),
+          backgroundColor: (context: any) => {
+            const value = context.dataset.data[context.dataIndex].r / 10;
             return `rgba(66, 133, 244, ${value})`;
           },
         }],
@@ -68,9 +64,10 @@ export class SurveyVisualization {
           },
           tooltip: {
             callbacks: {
-              label: (context) => {
-                const value = context.dataset.data[context.dataIndex].v;
-                return `Correlation: ${(value * 100).toFixed(1)}%`;
+              label: (context: any) => {
+                const dataPoint = context.dataset.data[context.dataIndex];
+                const value = dataPoint && typeof dataPoint === 'object' && 'r' in dataPoint ? dataPoint.r : 0;
+                return `Correlation: ${(value * 10).toFixed(1)}%`;
               }
             }
           }
@@ -175,29 +172,38 @@ export class SurveyVisualization {
   }
 
   processCorrelationData(data: SurveyResponse[]) {
+    console.log('processCorrelationData called with data:', data);
     // TODO: Implement actual correlation data processing
-    return {
+    const result = {
       data: [
-        { x: 'Function1', y: 'Sound1', v: 0.8 },
-        { x: 'Function2', y: 'Sound2', v: 0.6 },
+        { x: 1, y: 1, v: 0.8 },
+        { x: 2, y: 2, v: 0.6 },
       ]
     };
+    console.log('processCorrelationData returning:', result);
+    return result;
   }
 
   processErrorData(data: SurveyResponse[]) {
+    console.log('processErrorData called with data:', data);
     // TODO: Implement actual error data processing
-    return {
+    const result = {
       labels: ['Error Type 1', 'Error Type 2', 'Error Type 3'],
       values: [5, 3, 7]
     };
+    console.log('processErrorData returning:', result);
+    return result;
   }
 
   processSuccessData(data: SurveyResponse[]) {
+    console.log('processSuccessData called with data:', data);
     // TODO: Implement actual success rate data processing
-    return {
+    const result = {
       labels: ['Day 1', 'Day 2', 'Day 3'],
       values: [75, 85, 90]
     };
+    console.log('processSuccessData returning:', result);
+    return result;
   }
 
   formatDataForExport(data: SurveyResponse[]) {

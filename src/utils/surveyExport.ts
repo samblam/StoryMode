@@ -78,7 +78,7 @@ export async function fetchSurveyDataForExport(
     
   // Apply filters if specified
   if (mergedOptions.filterByStatus && mergedOptions.filterByStatus.length > 0) {
-    responseQuery = responseQuery.in('status', mergedOptions.filterByStatus);
+    responseQuery = responseQuery.in('participant_id.status', mergedOptions.filterByStatus); // Filter on participant status
   }
   
   // Apply sorting
@@ -301,6 +301,41 @@ export function generateSurveySummary(data: {
     updated_at: survey.updated_at,
     published_at: survey.published_at,
     generated_at: new Date().toISOString()
+  };
+}
+
+/**
+ * Validates if the data is in the correct format for export
+ * @param data The data to validate
+ * @returns Validation result with isValid flag and any errors
+ */
+export function validateFormat(data: any[]): { isValid: boolean; errors: string[] } {
+  const errors: string[] = [];
+  
+  // Check if data exists
+  if (!data || data.length === 0) {
+    errors.push('No data available for export');
+    return { isValid: false, errors };
+  }
+  
+  // Check if data has exportable properties
+  const hasExportableProperties = data.some(item => Object.keys(item).length > 0);
+  if (!hasExportableProperties) {
+    errors.push('Data contains no exportable properties');
+  }
+  
+  // Check for required fields in responses
+  const missingFields = data.some(item => {
+    return !item.id || !item.survey_id || item.status === undefined;
+  });
+  
+  if (missingFields) {
+    errors.push('Some responses are missing required fields');
+  }
+  
+  return {
+    isValid: errors.length === 0,
+    errors
   };
 }
 

@@ -1,4 +1,4 @@
-import { supabase, getClient, type ClientContext } from '../lib/supabase';
+import { supabase, getClient } from '../lib/supabase';
 import type { ClientInfo } from '../types/auth';
 import type { Database } from '../types/database';
 import type { SupabaseClient } from '@supabase/supabase-js';

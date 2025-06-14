@@ -4,6 +4,12 @@ import { getClient } from '../../lib/supabase';
 import { getSignedUrl } from '../../utils/storageUtils';
 import type { User } from '../../types/auth';
 
+// Define the structure for a function object
+interface FunctionObject {
+    id: string;
+    text: string;
+}
+
 const { id } = Astro.params;
 const user = Astro.locals.user as User | undefined;
 
@@ -32,201 +38,72 @@ if (!user && !isPreview && !isParticipantAccess) {
     return Astro.redirect('/login');
 }
 
-let survey;
-let error;
+let survey: any; // Use 'any' for now, consider defining a proper Survey type
+let error: any;
+// let verifiedParticipantData: any = null; // Removed unused variable
 
 // Use preview context if available, otherwise fetch from database
 if (isPreview && previewContext) {
     survey = previewContext.survey;
+    console.log("Running in Preview Mode with context.");
 } else if (isParticipantAccess) {
     // Participant access with token - verify token first
     console.log(`Participant access attempt - ID: ${participantId || accessId}, Token: ${(participantToken || accessToken)?.substring(0, 8)}...`);
     
-    // Get participant data to verify token
     const supabaseAdmin = getClient({ requiresAdmin: true });
-    
-    // First, try to find the participant by identifier for debugging
     const participantIdentifier = participantId || accessId;
-    // Combine tokens for query
-    
-    // Check by participant_identifier first
-    const { data: debugParticipant } = await supabaseAdmin
+    const currentToken = participantToken || accessToken;
+
+    // Simplified participant verification
+    const { data: foundParticipant, error: participantFetchError } = await supabaseAdmin
         .from('participants')
-        .select('id, participant_identifier, access_token, status, survey_id');
-        // No filter here to get all participants for debugging
-        
-    console.log(`Debug - Found ${debugParticipant?.length || 0} total participants in database`);
-    
-    // Filter locally to find potential matches for debugging
-    const possibleMatches = debugParticipant?.filter(p =>
-        p.participant_identifier === participantIdentifier ||
-        p.id === participantIdentifier
-    );
-    
-    console.log(`Debug - Found ${possibleMatches?.length || 0} possible matches for identifier ${participantIdentifier}`);
-    
-    if (possibleMatches?.length) {
-        possibleMatches.forEach((p, i) => {
-            console.log(`Debug - Possible match #${i+1}:`, {
-                id: p.id,
-                participant_identifier: p.participant_identifier,
-                has_token: !!p.access_token,
-                token_matches: p.access_token === participantToken || p.access_token === accessToken,
-                token_prefix: p.access_token ? p.access_token.substring(0, 8) + '...' : 'NONE',
-                status: p.status,
-                survey_id: p.survey_id
-            });
-        });
-    }
-    
-    // Now try to verify based on the debug data
-    let participant = null;
-    let participantError = null;
-    
-    // Based on the debug info, try to find participant with exact matching
-    const exactMatch = possibleMatches?.find(p =>
-        p.participant_identifier === participantIdentifier &&
-        (p.access_token === participantToken || p.access_token === accessToken)
-    );
-    
-    if (exactMatch) {
-        console.log('Found exact match using local filtering');
-        participant = exactMatch;
-    } else {
-        // Fallback to database query, but without the problematic .or() filters
-        console.log('No exact match found, trying separate queries');
-        
-        // Try by participant_identifier
-        if (participantIdentifier) {
-            const { data, error } = await supabaseAdmin
-                .from('participants')
-                .select('id, status, survey_id')
-                .eq('participant_identifier', participantIdentifier)
-                .single();
-                
-            if (data && !error) {
-                participant = data;
-                console.log('Found by participant_identifier');
-            } else {
-                participantError = error;
-            }
-        }
-        
-        // If that failed, try by id
-        if (!participant && participantIdentifier &&
-            participantIdentifier.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
-            const { data, error } = await supabaseAdmin
-                .from('participants')
-                .select('id, status, survey_id')
-                .eq('id', participantIdentifier)
-                .single();
-                
-            if (data && !error) {
-                participant = data;
-                console.log('Found by UUID id');
-            } else if (!participantError) {
-                participantError = error;
-            }
-        }
-    }
-    
-    if (participantError || !participant) {
-        console.error('Invalid participant access:', participantError);
-        // Provide more specific error messages for debugging
-        if (participantError?.code === 'PGRST116') {
-            console.log(`Trying alternative lookup method for participant`);
-            
-            // Try just by ID as a fallback
-            const { data: idParticipant } = await supabaseAdmin
-                .from('participants')
-                .select('id, participant_identifier, access_token, status, survey_id')
-                .eq('id', participantId)
-                .single();
-                
-            if (idParticipant) {
-                console.log(`Found participant by ID instead of identifier:`, {
-                    id: idParticipant.id,
-                    participant_identifier: idParticipant.participant_identifier,
-                    has_token: !!idParticipant.access_token,
-                    token_match: idParticipant.access_token === participantToken,
-                    status: idParticipant.status,
-                    survey_id: idParticipant.survey_id
-                });
-                
-                // Check if the token matches
-                if (idParticipant.access_token === participantToken && idParticipant.survey_id === id) {
-                    console.log(`Token matches for participant by ID, allowing access`);
-                    // Continue as if participant was found normally
-                    participant = idParticipant;
-                } else {
-                    error = { message: 'Invalid participant access token' };
-                }
-            } else {
-                error = { message: 'Invalid participant access token' };
-            }
-        } else {
-            error = { message: 'Invalid participant access token' };
-        }
-    } else if (participant.survey_id !== id) {
-        console.error('Participant trying to access wrong survey');
-        error = { message: 'This participant is not authorized for this survey' };
-    } else if (participant.status !== 'active') {
-        console.error('Participant status is not active:', participant.status);
-        error = { message: 'This survey is no longer available or has already been completed' };
+        .select('id, status, survey_id, access_token')
+        // Use participant_identifier for lookup from URL parameter
+        .eq('participant_identifier', participantIdentifier)
+        .maybeSingle(); // Use maybeSingle to handle 0 or 1 result
+
+    if (participantFetchError) {
+        console.error('Error fetching participant:', participantFetchError);
+        error = { message: 'Error verifying participant access.' };
+    } else if (!foundParticipant) {
+        console.error('Participant not found with identifier:', participantIdentifier);
+        error = { message: 'Invalid participant identifier.' };
+    } else if (foundParticipant.access_token !== currentToken) {
+        console.error('Participant token mismatch.');
+        error = { message: 'Invalid participant access token.' };
+    } else if (foundParticipant.survey_id !== id) {
+        console.error('Participant trying to access wrong survey.');
+        error = { message: 'This participant is not authorized for this survey.' };
+    } else if (foundParticipant.status !== 'active') {
+        console.error('Participant status is not active:', foundParticipant.status);
+        error = { message: 'This survey is no longer available or has already been completed.' };
     } else {
         console.log('Participant access verified successfully');
-        
+        // verifiedParticipantData = foundParticipant; // Removed assignment to unused variable
+
         // Get survey data from database with admin access
         const result = await supabaseAdmin
             .from('surveys')
             .select(`
                 *,
-                client:clients (
-                    id,
-                    name,
-                    email
-                ),
-                survey_sounds (
-                    id,
-                    sound_id,
-                    intended_function,
-                    order_index,
-                    sounds (
-                        id,
-                        name,
-                        storage_path
-                    )
-                )
+                client:clients (id, name, email),
+                survey_sounds (id, sound_id, intended_function, order_index, sounds (id, name, storage_path))
             `)
             .eq('id', id)
             .single();
         
         survey = result.data;
-        error = result.error;
+        error = result.error; // Capture potential error fetching survey
     }
 } else {
-    // Regular access (logged in user)
-    const supabase = getClient();
+    // Regular access (logged in user) - Fetch survey data
+    const supabase = getClient(); // Use regular client respecting RLS if applicable
     const result = await supabase
         .from('surveys')
         .select(`
             *,
-            client:clients (
-                id,
-                name,
-                email
-            ),
-            survey_sounds (
-                id,
-                sound_id,
-                intended_function,
-                order_index,
-                sounds (
-                    id,
-                    name,
-                    storage_path
-                )
-            )
+            client:clients (id, name, email),
+            survey_sounds (id, sound_id, intended_function, order_index, sounds (id, name, storage_path))
         `)
         .eq('id', id)
         .single();
@@ -234,114 +111,82 @@ if (isPreview && previewContext) {
     survey = result.data;
     error = result.error;
 
-    // Only redirect for admin/client users (logged in), not participants
-    if (!isPreview && !isParticipantAccess && survey && survey.status !== 'completed') {
-        return Astro.redirect(`/surveys/client-results`);
+    // Redirect logged-in users away from participant view unless previewing
+    if (!isPreview && survey) {
+         console.log("User is logged in. Redirecting is handled by middleware or specific logic elsewhere.");
+        // Potentially redirect here if needed based on user role and survey status
     }
 }
 
-// For both participant and regular access modes, generate URLs
-if (!isPreview && survey) {
+// Generate Signed URLs if survey data is available and not in preview
+if (!isPreview && survey && !error) {
     // Generate signed URL for video
     if (survey.video_url) {
         try {
-            // Add a video object with URL property similar to preview mode
-            survey.video = {
-                url: await getSignedUrl(survey.video_url, 'videos')
-            };
-        } catch (error) {
-            console.error('Error generating video URL:', error);
-            // Continue without video if there's an error
+            survey.video = { url: await getSignedUrl(survey.video_url, 'videos') };
+        } catch (urlError) {
+            console.error('Error generating video URL:', urlError);
         }
     }
 
-    // Generate signed URLs for all sounds in survey_sounds
-    if (survey.survey_sounds && survey.survey_sounds.length > 0) {
-        console.log(`${isParticipantAccess ? 'Participant' : 'Regular'} Mode - Generating signed URLs for survey sounds`);
+    // Generate signed URLs for sounds
+    if (survey.survey_sounds?.length > 0) {
+        console.log(`Generating signed URLs for survey sounds`);
         await Promise.all(
             survey.survey_sounds.map(async (surveySound: any) => {
                 try {
                     if (surveySound.sounds?.storage_path) {
-                        // Add url property if it doesn't exist
-                        if (!surveySound.sounds.url) {
-                            surveySound.sounds.url = await getSignedUrl(surveySound.sounds.storage_path, 'sounds');
-                            console.log(`Generated URL for survey sound ${surveySound.sound_id}`);
-                        }
+                        surveySound.sounds.url = await getSignedUrl(surveySound.sounds.storage_path, 'sounds');
                     } else {
                         console.warn(`Survey sound ${surveySound.id} has no storage_path`);
                     }
-                } catch (error: any) {
-                    console.error(`Error generating signed URL for survey sound ${surveySound.sound_id}: ${error.message}`);
-                    // Don't throw, just continue with other sounds
+                } catch (urlError: any) {
+                    console.error(`Error generating signed URL for survey sound ${surveySound.sound_id}: ${urlError.message}`);
                 }
             })
         );
     }
     
-    // Validate and prepare survey data
-    console.log(`${isParticipantAccess ? 'Participant' : 'Regular'} Mode - Validating survey data`);
-    
-    // Validate functions
-    if (!survey.functions?.length) {
-        console.warn('Survey functions not configured, creating placeholders');
-        survey.functions = ['Placeholder Function'];
+    // Validate functions - Ensure it's an array of objects with id and text
+    if (!Array.isArray(survey.functions) || survey.functions.length === 0 || !survey.functions.every((f: any) => typeof f === 'object' && f !== null && f.id && f.text)) {
+        console.warn('Survey functions not configured correctly (expected array of {id, text}), creating placeholders');
+        survey.functions = [{ id: 'placeholder-func-id', text: 'Placeholder Function' }];
     }
     
-    // Validate survey sounds
+    // Validate survey sounds (simplified)
     if (!survey.survey_sounds?.length) {
         console.warn('Survey sounds not configured, creating placeholders');
-        survey.survey_sounds = [{
-            id: 'placeholder-sound',
-            sound_id: 'placeholder-sound-id',
-            intended_function: 'Placeholder',
-            order_index: 0,
-            sounds: {
-                id: 'placeholder-sound-id',
-                name: 'Placeholder Sound',
-                storage_path: 'placeholder.mp3',
-                url: 'https://example.com/placeholder.mp3'
-            }
-        }];
+        // Add placeholder if needed
     } else {
-        // Ensure all survey sounds have the required fields
         survey.survey_sounds.forEach((surveySound: any) => {
-            if (!surveySound.sounds) {
-                console.warn(`Survey sound ${surveySound.id} has no sounds object, creating placeholder`);
-                surveySound.sounds = {
-                    id: `placeholder-sound-for-${surveySound.id}`,
-                    name: 'Placeholder Sound',
-                    storage_path: 'placeholder.mp3',
-                    url: 'https://example.com/placeholder.mp3'
-                };
-            } else if (!surveySound.sounds.storage_path) {
-                console.warn(`Survey sound ${surveySound.id} has no storage_path, adding placeholder`);
-                surveySound.sounds.storage_path = 'placeholder.mp3';
-                surveySound.sounds.url = surveySound.sounds.url || 'https://example.com/placeholder.mp3';
+            if (!surveySound.sounds?.storage_path) {
+                 console.warn(`Survey sound ${surveySound.id} missing storage path.`);
+                 // Handle missing path, maybe provide default URL
+                 surveySound.sounds = { ...(surveySound.sounds || {}), url: 'https://example.com/placeholder.mp3' };
             }
         });
     }
 }
 
+// Handle errors before rendering
 if (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
-        status: 500,
-    });
+    console.error("Error loading survey page:", error);
+    // Error will be displayed in the template
 }
 
-if (!survey) {
-    return new Response(JSON.stringify({ error: 'Survey not found' }), {
-        status: 404,
-    });
+// Ensure survey object exists before rendering, show error if not (and no other error occurred)
+if (!survey && !error) {
+     error = { message: "Survey data could not be loaded or found." };
 }
 
-// Sort sounds by order_index
-const sortedSounds = survey.survey_sounds.sort((a: any, b: any) => a.order_index - b.order_index);
+// Sort sounds by order_index safely
+const sortedSounds = survey?.survey_sounds?.sort((a: any, b: any) => a.order_index - b.order_index) || [];
 ---
 
 <SurveyLayout
-    title={isPreview ? `PREVIEW: ${survey.title}` : survey.title}
-    description={survey.description}
-    currentStep={1}
+    title={isPreview ? `PREVIEW: ${survey?.title || 'Survey'}` : survey?.title || 'Survey'}
+    description={survey?.description || ''}
+    currentStep={1} 
     totalSteps={sortedSounds.length}
 >
     {isPreview && (
@@ -349,21 +194,28 @@ const sortedSounds = survey.survey_sounds.sort((a: any, b: any) => a.order_index
             <p>Preview Mode - Responses will not be saved</p>
         </div>
     )}
-    <form id="survey-form" class="max-w-4xl mx-auto">
-            {/* Video display using signed URL */}
-            {survey.video && survey.video.url && (
+
+    {/* Display error message if loading failed */}
+    {error && (
+        <div class="max-w-4xl mx-auto p-4 mb-4 text-sm text-red-700 bg-red-100 rounded-lg" role="alert">
+            <span class="font-medium">Error:</span> {error.message || 'Could not load survey.'}
+        </div>
+    )}
+
+    {/* Only render form if no error and survey exists */}
+    {!error && survey && (
+        <form id="survey-form" class="max-w-4xl mx-auto">
+            {/* Video display */}
+            {survey.video?.url && (
                 <div class="mb-8">
-                    <video
-                        src={survey.video.url}
-                        controls
-                        class="w-full rounded-lg shadow-lg"
-                    >
+                    <video src={survey.video.url} controls class="w-full rounded-lg shadow-lg">
                         Your browser does not support the video tag.
                     </video>
                 </div>
             )}
     
             <div class="space-y-8">
+                {/* Map over sorted sounds */}
                 {sortedSounds.map((surveySound: any, index: number) => (
                     <div
                         class="p-6 bg-white rounded-lg shadow-md"
@@ -376,41 +228,41 @@ const sortedSounds = survey.survey_sounds.sort((a: any, b: any) => a.order_index
                                 type="button"
                                 class="play-button px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                                 data-storage-path={surveySound.sounds?.storage_path}
+                                disabled={!surveySound.sounds?.url} 
                             >
                                 Play Sound
                             </button>
                             <span class="text-gray-500">Click to play/pause</span>
                         </div>
                         <div class="space-y-4">
-                            {/* Multiple choice options based on survey functions */}
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-2">
                                     What do you think this sound represents?
                                 </label>
                                 <div class="space-y-2">
+                                    {/* Map over functions (answer options) */}
                                     {survey.functions && Array.isArray(survey.functions) ? (
-                                        survey.functions.map((func: any) => (
+                                        survey.functions.map((func: FunctionObject) => ( 
                                             <label class="flex items-center space-x-2 p-2 rounded hover:bg-gray-50 cursor-pointer">
                                                 <input
                                                     type="radio"
-                                                    type="radio"
-                                                    name={`sound-${surveySound.id}`}
-                                                    value={typeof func === 'object' ? func.id : func}
+                                                    name={`sound-${surveySound.sound_id}`} 
+                                                    value={func.id} 
                                                     class="rounded-full text-blue-600 focus:ring-blue-500"
                                                     required
                                                 />
-                                                <span>{typeof func === 'object' ? func.text : func}</span>
+                                                <span>{func.text}</span> 
                                             </label>
                                         ))
                                     ) : (
                                         <p class="text-red-500">No options available</p>
                                     )}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                ))}
-            </div>
+                                </div> {/* Close space-y-2 */}
+                            </div> {/* Close div containing label and options */}
+                        </div> {/* Close space-y-4 */}
+                    </div> /* Close div for individual sound */
+                ))} {/* Close map for sortedSounds */}
+            </div> {/* Close space-y-8 for all sounds */}
             
             <div class="mt-8 text-center">
                 <button
@@ -421,10 +273,9 @@ const sortedSounds = survey.survey_sounds.sort((a: any, b: any) => a.order_index
                     Submit Survey
                 </button>
             </div>
-    </form>
-    </div>
-</SurveyLayout>
-</SurveyLayout>
+        </form> 
+    )} {/* Close conditional rendering block */}
+</SurveyLayout> 
 
 <style>
     .preview-banner {
@@ -466,83 +317,102 @@ const sortedSounds = survey.survey_sounds.sort((a: any, b: any) => a.order_index
     });
 
     // Handle form submission
-    document.getElementById('survey-form')?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        
-        // If in preview mode, show message and don't save
-        if (isPreview) {
-            console.log('Preview mode - responses not saved');
-            alert('Preview mode: Your responses would be submitted in the actual survey.');
-            return;
-        }
-        
-        try {
-            // Get all sound elements
-            const soundElements = document.querySelectorAll('[data-sound-id]');
-            const responses = {};
-            const soundMappingResponses = {};
+    const surveyForm = document.getElementById('survey-form');
+    if (surveyForm) {
+        surveyForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
             
-            // Get data from form
-            soundElements.forEach(element => {
-                const soundId = element.getAttribute('data-sound-id');
-                const intendedFunction = element.getAttribute('data-intended-function');
-
-                if (soundId) {
-                    // Get selected function (radio button value)
-                    const selectedRadio = element.querySelector(`input[name="sound-${soundId}"]:checked`);
-                    const selectedFunction = selectedRadio ? selectedRadio.value : null;
-                    //const questionId = selectedRadio ? selectedRadio.id : null;
-
-                    // Record response - CORRECTED KEY FORMAT
-                    responses[`question_${soundId}`] = selectedFunction;
-                    
-                    // Record sound mapping if we have both values
-                    // Record sound mapping if we have both values
-                    if (selectedFunction && intendedFunction) {
-                        soundMappingResponses[soundId] = {
-                            actual: selectedFunction,
-                            intended: intendedFunction,
-                            matched: selectedFunction === intendedFunction
-                        };
-                    }
-                }
-            });
-            
-            // Get participant data - in a real implementation, this would be retrieved
-            // from a token or URL parameter rather than hardcoded
-            const participantData = {
-                participantId: new URLSearchParams(window.location.search).get('participant_id') || 'unknown',
-                participantToken: new URLSearchParams(window.location.search).get('token') || 'unknown'
-            };
-            
-            // Submit the response
-            const response = await fetch(`/api/surveys/${id}/responses`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    ...participantData,
-                    responses,
-                    soundMappingResponses,
-                    //questionId
-                })
-            });
-            
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to submit survey');
+            // If in preview mode, show message and don't save
+            if (isPreview) {
+                console.log('Preview mode - responses not saved');
+                alert('Preview mode: Your responses would be submitted in the actual survey.');
+                return;
             }
             
-            // Show success message and redirect
-            alert('Thank you! Your survey has been submitted successfully.');
-            window.location.href = '/surveys/thank-you';
-            
-        } catch (error) {
-            console.error('Error submitting survey:', error);
-            alert(`Failed to submit survey: ${error instanceof Error ? error.message : String(error)}`);
-        }
-    });
+            try {
+                // Get all sound elements
+                const soundElements = document.querySelectorAll('[data-sound-id]');
+                const responses = {}; // Store { questionId: selectedFunctionText }
+                const soundMappingResponses = {}; // Store { soundId: { actual, intended, matched } }
+                
+                // Get data from form
+                soundElements.forEach(element => {
+                    const soundId = element.getAttribute('data-sound-id');
+                    const intendedFunctionId = element.getAttribute('data-intended-function'); // Assume this holds the ID
+
+                    if (soundId) {
+                        // Get selected radio button for this sound
+                        const selectedRadio = document.querySelector(`input[name="sound-${soundId}"]:checked`);
+
+                        if (selectedRadio) {
+                            const actualFunctionId = selectedRadio.value; // This is the ID of the selected function
+                            const actualFunctionText = selectedRadio.labels?.[0]?.textContent?.trim() || null; // Get text from label
+
+                            // Find the sound object to get its name
+                            const surveySound = survey.survey_sounds?.find(ss => ss.sound_id === soundId);
+                            const soundName = surveySound?.sounds?.name || 'Unknown Sound'; // Fallback if name not found
+
+                            // Find the text for the intended function ID using the survey.functions array
+                            const intendedFunctionObject = survey.functions.find(f => f.id === intendedFunctionId);
+                            const intendedFunctionText = intendedFunctionObject ? intendedFunctionObject.text : intendedFunctionId; // Fallback to ID if not found
+
+                            // Record response using actualFunctionId as key
+                            responses[actualFunctionId] = actualFunctionText;
+
+                            // Record sound mapping using TEXT for both actual and intended, AND add sound_name
+                            if (actualFunctionText && intendedFunctionText) {
+                                soundMappingResponses[soundId] = { // Keep soundId as key
+                                    sound_name: soundName, // Add sound name field
+                                    actual: actualFunctionText, // Use TEXT
+                                    intended: intendedFunctionText, // Use TEXT
+                                    matched: actualFunctionText === intendedFunctionText // Compare TEXT
+                                };
+                            }
+                        } else {
+                            // Handle case where no option is selected for a sound (if not required)
+                            console.warn(`No selection made for sound ${soundId}`);
+                            // If required, form validation should prevent submission. If optional, decide how to record.
+                        }
+                    }
+                });
+                
+                // Get participant data from URL parameters
+                const urlParams = new URLSearchParams(window.location.search);
+                const participantData = {
+                    participantId: urlParams.get('participant_id') || urlParams.get('access_id') || 'unknown',
+                    participantToken: urlParams.get('token') || urlParams.get('access_token') || 'unknown'
+                };
+                
+                // Submit the response
+                const response = await fetch(`/api/surveys/${id}/responses`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        ...participantData,
+                        responses, // Now { questionId: selectedText, ... }
+                        soundMappingResponses // Still { soundId: { actual, intended, matched }, ... }
+                    })
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to submit survey');
+                }
+                
+                // Show success message and redirect
+                alert('Thank you! Your survey has been submitted successfully.');
+                window.location.href = '/surveys/thank-you'; // Redirect to thank you page
+                
+            } catch (error) {
+                console.error('Error submitting survey:', error);
+                alert(`Failed to submit survey: ${error instanceof Error ? error.message : String(error)}`);
+            }
+        });
+    } else {
+        console.error("Survey form element not found.");
+    }
     
     // Add a class to the body when in preview mode for potential global styling
     if (isPreview) {

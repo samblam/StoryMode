@@ -1,10 +1,8 @@
 import type { APIRoute } from 'astro';
-import { supabase, supabaseAdmin } from '../../../lib/supabase';
+import { getClient } from '../../../lib/supabase';
 import { isRLSError, handleRLSError, verifyAuthorization } from '../../../utils/accessControl';
 import { getCurrentUser } from '../../../utils/authUtils';
-import type { AuthResponse, AuthError } from '../../../types/auth';
-
-export const POST: APIRoute = async ({ request, cookies }) => {
+export const POST: APIRoute = async ({ cookies }) => {
   // Get current user from session
   const currentUser = await getCurrentUser();
   if (!currentUser) {
@@ -63,6 +61,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
         }
         
     // Verify the token
+    const supabaseAdmin = getClient({ requiresAdmin: true });
     const { data: { user: authUser }, error: authError } = await supabaseAdmin.auth.getUser(token);
     
     if (authError || !authUser) {
@@ -73,6 +72,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     }
 
       // Try with regular client first
+      const supabase = getClient();
       const { data: regularData, error: regularError } = await supabase
         .from('users')
         .select('*')
@@ -84,6 +84,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       if (regularError) {
         if (isRLSError(regularError)) {
           // Fall back to admin client if RLS blocks access
+          const supabaseAdmin = getClient({ requiresAdmin: true });
           const { data: adminData, error: adminError } = await supabaseAdmin
             .from('users')
             .select('*')

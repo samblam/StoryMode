@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { supabaseAdmin } from '../../../lib/supabase';
+import { getClient } from '../../../lib/supabase';
 import { rateLimitMiddleware } from '../../../utils/rateLimit';
 
 export const POST: APIRoute = async ({ request, cookies }) => {
@@ -38,6 +38,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
     // If we have a token, verify the user first
     if (token) {
+      const supabaseAdmin = getClient({ requiresAdmin: true });
       const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token);
       if (userError) {
         console.error('User verification error:', userError);
@@ -46,6 +47,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
 
       if (user) {
         try {
+          const supabaseAdmin = getClient({ requiresAdmin: true });
           // Sign out the specific user's session
           await supabaseAdmin.auth.admin.signOut(user.id);
         } catch (signOutError) {
@@ -56,6 +58,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     } else if (accessToken && refreshToken) {
       // If we have access and refresh tokens, try to set the session and sign out
       try {
+        const supabaseAdmin = getClient({ requiresAdmin: true });
         await supabaseAdmin.auth.setSession({
           access_token: accessToken,
           refresh_token: refreshToken
