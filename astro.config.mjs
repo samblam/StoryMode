@@ -12,7 +12,7 @@ export default defineConfig({
       enabled: true
     },
     functionPerRoute: true,
-    edgeMiddleware: true
+    edgeMiddleware: false
   }),
   server: {
     port: 4322

@@ -43,9 +43,11 @@ This file tracks the project's progress using a task list format.
 - Implemented participant status updates and access token invalidation upon survey submission
 - Implemented survey response completed field update upon survey submission
 
+- Resolved Vercel build error related to `src/components/tsconfig.json` and null byte path by refactoring `DataExporter.astro` and removing `client:load` directive.
+
 ## Current Tasks
 
-1.  **Resolve Vercel Build Error**: The primary current task is to resolve the persistent Vercel build error related to `src/components/tsconfig.json` and the "null byte" path. This is blocking deployment. (See `memory-bank/activeContext.md` for details and troubleshooting attempts).
+1.  **Investigate Login Failure on Vercel Deployment**: The immediate priority is to resolve the login issue where `/api/auth/login` returns a 404 and HTML. This is blocking user access. (See `memory-bank/activeContext.md` for details and current hypothesis).
 
 2.  **Address Technical Debt and Improvements:** Refer to `memory-bank/technicalDebtAndImprovements.md` for detailed areas of improvement, refactoring, and technical debt identified during the codebase review. This includes:
     *   Fixing `survey_matches` table data inconsistency (populating `sound_id` and `correct_match`).
@@ -63,6 +65,7 @@ This file tracks the project's progress using a task list format.
 4.  **Testing:**
     *   Test the enhanced answer saving implementation (after `survey_matches` fix).
     *   Test survey publishing and response saving workflow.
+    *   Test the DataExporter component functionality after refactoring.
 
 5.  **Existing Tasks:**
     *   Advanced analytics and reporting features
@@ -72,21 +75,20 @@ This file tracks the project's progress using a task list format.
 
 ## Next Steps
 
-The project is in active development with core functionality for user management, survey creation, sound management, participant management, and survey workflow implementation completed. Recent work has focused on fixing a critical bug on the survey results page.
+The project is in active development with core functionality for user management, survey creation, sound management, participant management, and survey workflow implementation completed. The critical Vercel build error has been resolved, but a new login issue has emerged post-deployment.
 
 Key achievements:
 - Fixed `Uncaught SyntaxError: Cannot use import statement outside a module` by adding `type="module"` to the script tag in `src/pages/admin/surveys/[id]/results.astro`.
 - Fixed error message in Analytics Dashboard by handling `undefined` `is_success` property in `calculateSuccessMetrics` function in `src/utils/surveyAnalytics.ts`.
-- Identified that the `"__vite_ssr_import_2__.validateFormat is not a function"` error is caused by `DataExporter.astro` calling a non-existent API endpoint. This issue requires further investigation.
+- Resolved the Vercel build error related to `src/components/tsconfig.json` and the null byte path by refactoring `DataExporter.astro` and removing the `client:load` directive.
 
 Current focus:
-1.  **Resolving Vercel Build Error**: This is the immediate priority. The next developer should focus on debugging the `src/components/tsconfig.json` path issue.
+1.  **Resolving Login Failure on Vercel Deployment**: This is the immediate priority. The next developer should focus on debugging the `/api/auth/login` 404 issue.
 2.  **Addressing Technical Debt and Improvements:** The next focus will be addressing the items outlined in `memory-bank/technicalDebtAndImprovements.md`.
-3.  **Investigating the `validateExport` API endpoint:** The `validateExport` function in `DataExporter.astro` is calling a non-existent API endpoint. This needs to be investigated and fixed.
-4.  Fixing remaining critical bugs (Thank You page link, survey creation, participant management, survey preview).
-5.  Testing the newly implemented features.
-6.  Adding comprehensive user feedback and validation.
-7.  Documenting the survey publishing workflow for administrators.
+3.  Fixing remaining critical bugs (Thank You page link, survey creation, participant management, survey preview).
+4.  Testing the newly implemented features, especially the DataExporter component.
+5.  Adding comprehensive user feedback and validation.
+6.  Documenting the survey publishing workflow for administrators.
 
 Recent implementations:
 1. Integrated survey publishing with background job system for email sending
