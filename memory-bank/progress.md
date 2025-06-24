@@ -45,7 +45,9 @@ This file tracks the project's progress using a task list format.
 
 ## Current Tasks
 
-1.  **Address Technical Debt and Improvements:** Refer to `memory-bank/technicalDebtAndImprovements.md` for detailed areas of improvement, refactoring, and technical debt identified during the codebase review. This includes:
+1.  **Resolve Vercel Build Error**: The primary current task is to resolve the persistent Vercel build error related to `src/components/tsconfig.json` and the "null byte" path. This is blocking deployment. (See `memory-bank/activeContext.md` for details and troubleshooting attempts).
+
+2.  **Address Technical Debt and Improvements:** Refer to `memory-bank/technicalDebtAndImprovements.md` for detailed areas of improvement, refactoring, and technical debt identified during the codebase review. This includes:
     *   Fixing `survey_matches` table data inconsistency (populating `sound_id` and `correct_match`).
     *   Reviewing redundancy in `soundMappingResponses` in `survey_responses`.
     *   Standardizing error handling and logging.
@@ -53,16 +55,16 @@ This file tracks the project's progress using a task list format.
     *   Investigating and removing the admin link from `src/pages/surveys/thank-you.astro`.
     *   Reviewing SMTP configuration and email sending logic for production readiness.
 
-2.  **Fix Remaining Critical Bugs (NEXT PRIORITY):**
+3.  **Fix Remaining Critical Bugs (NEXT PRIORITY):**
     *   Survey Creation Bug (400 error).
     *   Participant Management Bug (Sortable.js).
     *   Survey Preview Bug ("Play Sound" button).
 
-3.  **Testing:**
+4.  **Testing:**
     *   Test the enhanced answer saving implementation (after `survey_matches` fix).
     *   Test survey publishing and response saving workflow.
 
-4.  **Existing Tasks:**
+5.  **Existing Tasks:**
     *   Advanced analytics and reporting features
     *   Integration of sound profiles with surveys during response collection
     *   Enhanced user interface for survey creation and management
@@ -78,12 +80,13 @@ Key achievements:
 - Identified that the `"__vite_ssr_import_2__.validateFormat is not a function"` error is caused by `DataExporter.astro` calling a non-existent API endpoint. This issue requires further investigation.
 
 Current focus:
-1.  **Addressing Technical Debt and Improvements:** The next focus will be addressing the items outlined in `memory-bank/technicalDebtAndImprovements.md`.
-2.  **Investigating the `validateExport` API endpoint:** The `validateExport` function in `DataExporter.astro` is calling a non-existent API endpoint. This needs to be investigated and fixed.
-3.  Fixing remaining critical bugs (Thank You page link, survey creation, participant management, survey preview).
-4.  Testing the newly implemented features.
-5.  Adding comprehensive user feedback and validation.
-6.  Documenting the survey publishing workflow for administrators.
+1.  **Resolving Vercel Build Error**: This is the immediate priority. The next developer should focus on debugging the `src/components/tsconfig.json` path issue.
+2.  **Addressing Technical Debt and Improvements:** The next focus will be addressing the items outlined in `memory-bank/technicalDebtAndImprovements.md`.
+3.  **Investigating the `validateExport` API endpoint:** The `validateExport` function in `DataExporter.astro` is calling a non-existent API endpoint. This needs to be investigated and fixed.
+4.  Fixing remaining critical bugs (Thank You page link, survey creation, participant management, survey preview).
+5.  Testing the newly implemented features.
+6.  Adding comprehensive user feedback and validation.
+7.  Documenting the survey publishing workflow for administrators.
 
 Recent implementations:
 1. Integrated survey publishing with background job system for email sending

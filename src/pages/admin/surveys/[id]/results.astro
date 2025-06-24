@@ -93,7 +93,6 @@ const behaviorMetrics = trackParticipantBehavior(surveyResponses);
     <div class="flex justify-between items-center mb-8">
       <h1 class="text-3xl font-bold">Survey Results: {survey.title}</h1>
       <DataExporter
-        client:load
         surveyId={id}
         rawData={rawData}
       />

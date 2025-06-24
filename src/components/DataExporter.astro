@@ -34,7 +34,8 @@ const exportSettings = [
 ];
 ---
 
-<div class="data-exporter">
+<!-- Store data in data attributes for client-side access -->
+<div class="data-exporter" data-survey-id={surveyId} data-raw-data={JSON.stringify(rawData)}>
   <!-- Export Options -->
   <div class="flex space-x-4">
     {exportOptions.map(option => (
@@ -104,8 +105,16 @@ const exportSettings = [
   </div>
 </div>
 
-<script define:vars={{ surveyId, rawData }}>
-document.addEventListener('DOMContentLoaded', () => {
+<script is:inline>
+document.addEventListener('DOMContentLoaded', function() {
+  const exporterContainer = document.querySelector('.data-exporter');
+  if (!exporterContainer) return;
+  
+  // Get data from data attributes
+  const surveyId = exporterContainer.getAttribute('data-survey-id');
+  const rawDataStr = exporterContainer.getAttribute('data-raw-data');
+  const rawData = rawDataStr ? JSON.parse(rawDataStr) : [];
+  
   const dialog = document.querySelector('.export-dialog');
   const progressContainer = document.querySelector('.progress-container');
   const progressBar = document.querySelector('.progress-bar');
@@ -117,28 +126,33 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Update progress
   function updateProgress(status, percent) {
-    progressContainer.classList.remove('hidden');
-    progressStatus.textContent = status;
-    progressPercentage.textContent = `${percent}%`;
-    progressBar.style.width = `${percent}%`;
+    if (progressContainer) progressContainer.classList.remove('hidden');
+    if (progressStatus) progressStatus.textContent = status;
+    if (progressPercentage) progressPercentage.textContent = percent + '%';
+    if (progressBar) progressBar.style.width = percent + '%';
   }
 
   // Show error
   function showError(message) {
-    errorMessage.textContent = message;
-    errorMessage.classList.remove('hidden');
+    if (errorMessage) {
+      errorMessage.textContent = message;
+      errorMessage.classList.remove('hidden');
+    }
   }
 
   // Hide error
   function hideError() {
-    errorMessage.classList.add('hidden');
+    if (errorMessage) errorMessage.classList.add('hidden');
   }
 
   // Get export settings
   function getExportSettings() {
     const settings = {};
-    document.querySelectorAll('[data-setting]').forEach(checkbox => {
-      settings[checkbox.dataset.setting] = checkbox.checked;
+    document.querySelectorAll('[data-setting]').forEach(function(checkbox) {
+      const settingName = checkbox.getAttribute('data-setting');
+      if (settingName) {
+        settings[settingName] = checkbox.checked;
+      }
     });
     return settings;
   }
@@ -153,7 +167,7 @@ document.addEventListener('DOMContentLoaded', () => {
       updateProgress('Validating data...', 10);
       const validation = validateExport(rawData);
       if (!validation.isValid) {
-        throw new Error(`Validation failed: ${validation.errors.join(', ')}`);
+        throw new Error('Validation failed: ' + validation.errors.join(', '));
       }
 
       // Process data
@@ -168,22 +182,22 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         // Generate export using the API
         updateProgress('Generating export...', 70);
-        const exportData = await generateExport(processedData, currentExportType, settings);
+        const exportBlob = await generateExport(processedData, currentExportType, settings);
 
         // Download file
         updateProgress('Preparing download...', 90);
-        await downloadExport(exportData, currentExportType);
+        await downloadExport(exportBlob, currentExportType);
 
         updateProgress('Export complete!', 100);
         
         // Close dialog after delay
-        setTimeout(() => {
-          dialog.classList.add('hidden');
-          progressContainer.classList.add('hidden');
+        setTimeout(function() {
+          if (dialog) dialog.classList.add('hidden');
+          if (progressContainer) progressContainer.classList.add('hidden');
         }, 1000);
       } catch (exportError) {
         console.error('Export generation failed:', exportError);
-        showError(`Export generation failed: ${exportError.message || 'Unknown error'}`);
+        showError('Export generation failed: ' + (exportError.message || 'Unknown error'));
         updateProgress('Export failed', 0);
       }
     } catch (error) {
@@ -193,7 +207,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Client-side validation function instead of calling a non-existent API endpoint
+  // Client-side validation function
   function validateExport(data) {
     // Basic validation checks
     if (!data || (Array.isArray(data) && data.length === 0)) {
@@ -203,7 +217,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Format-specific validation
     if (currentExportType === 'csv') {
       // For CSV, check if data has properties that can be exported
-      const hasExportableProperties = Array.isArray(data) && data.some(item => Object.keys(item).length > 0);
+      const hasExportableProperties = Array.isArray(data) && data.some(function(item) {
+        return Object.keys(item).length > 0;
+      });
       if (!hasExportableProperties) {
         return { isValid: false, errors: ['Data contains no exportable properties'] };
       }
@@ -213,14 +229,14 @@ document.addEventListener('DOMContentLoaded', () => {
     return { isValid: true, errors: [] };
   }
 
-  // Client-side anonymization function instead of calling a potentially non-existent API endpoint
+  // Client-side anonymization function
   function anonymizeData(data) {
     // Simple anonymization: remove identifiable fields
     if (Array.isArray(data)) {
-      return data.map(item => {
-        const anonymized = { ...item };
+      return data.map(function(item) {
+        const anonymized = Object.assign({}, item);
         // Remove or mask potentially identifiable fields
-        ['participant_email', 'participant_name', 'email', 'name', 'user_id'].forEach(field => {
+        ['participant_email', 'participant_name', 'email', 'name', 'user_id'].forEach(function(field) {
           if (anonymized[field]) {
             anonymized[field] = 'ANONYMIZED';
           }
@@ -234,15 +250,15 @@ document.addEventListener('DOMContentLoaded', () => {
   async function generateExport(data, type, settings) {
     // Use the existing export API endpoint
     try {
-      const response = await fetch(`/api/surveys/${surveyId}/export`, {
+      const response = await fetch('/api/surveys/' + surveyId + '/export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data, type, settings })
+        body: JSON.stringify({ data: data, type: type, settings: settings })
       });
       
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Export failed: ${errorText}`);
+        throw new Error('Export failed: ' + errorText);
       }
       
       return await response.blob();
@@ -256,7 +272,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `survey-export-${surveyId}.${type}`;
+    a.download = 'survey-export-' + surveyId + '.' + type;
     document.body.appendChild(a);
     a.click();
     window.URL.revokeObjectURL(url);
@@ -264,27 +280,35 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Event Listeners
-  document.querySelectorAll('.export-button').forEach(button => {
-    button.addEventListener('click', () => {
-      currentExportType = button.dataset.exportType;
-      dialog.classList.remove('hidden');
+  document.querySelectorAll('.export-button').forEach(function(button) {
+    button.addEventListener('click', function() {
+      currentExportType = button.getAttribute('data-export-type');
+      if (dialog) dialog.classList.remove('hidden');
       hideError();
-      progressContainer.classList.add('hidden');
+      if (progressContainer) progressContainer.classList.add('hidden');
     });
   });
 
-  document.querySelector('.cancel-button').addEventListener('click', () => {
-    dialog.classList.add('hidden');
-  });
+  const cancelButton = document.querySelector('.cancel-button');
+  if (cancelButton) {
+    cancelButton.addEventListener('click', function() {
+      if (dialog) dialog.classList.add('hidden');
+    });
+  }
 
-  document.querySelector('.confirm-button').addEventListener('click', exportData);
+  const confirmButton = document.querySelector('.confirm-button');
+  if (confirmButton) {
+    confirmButton.addEventListener('click', exportData);
+  }
 
   // Close dialog when clicking outside
-  dialog.addEventListener('click', (e) => {
-    if (e.target === dialog) {
-      dialog.classList.add('hidden');
-    }
-  });
+  if (dialog) {
+    dialog.addEventListener('click', function(e) {
+      if (e.target === dialog) {
+        dialog.classList.add('hidden');
+      }
+    });
+  }
 });
 </script>
 
