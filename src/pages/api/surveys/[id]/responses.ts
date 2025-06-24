@@ -16,11 +16,12 @@ export const POST: APIRoute = async ({ params, request }) => {
     const {
       participantId,
       participantToken,
-      responses, // Expected format: { questionId: answerText, ... }
-      soundMappingResponses // Expected format: { soundId: { actual, intended, matched }, ... }
+      matches, // Expected format from matching.astro
+      responses, // Keep for general responses if any
+      soundMappingResponses // Keep for other response types if any
     } = body;
 
-    if (!participantId || !participantToken || !responses) {
+    if (!participantId || !participantToken || (!matches && !responses)) {
       return new Response(JSON.stringify({ error: 'Missing required fields' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
@@ -114,45 +115,36 @@ export const POST: APIRoute = async ({ params, request }) => {
 
 
     // ** Save individual answers to survey_matches **
-    if (responses && typeof responses === 'object') {
-      console.log('[Survey Response] Processing responses for survey_matches:', JSON.stringify(responses)); 
-      const matchesToInsert = [];
-      for (const [questionId, answerValue] of Object.entries(responses)) {
-        // Basic validation: Ensure questionId looks like a UUID and answerValue is a string
-        if (typeof questionId === 'string' && questionId.length > 0 && typeof answerValue === 'string') {
-           // TODO: Need a way to link questionId back to soundId if required by survey_matches schema.
-           // Assuming survey_matches only needs question_id and the answer text for now.
-           // If sound_id is required, we need to fetch survey structure or pass soundId from frontend.
-           const matchData = {
-             response_id: savedResponse.id,
-             question_id: questionId, // Use the question ID from the responses object key
-             matched_function: answerValue, // Use the answer text from the responses object value
-             correct_match: false, // Default value, logic for this might be elsewhere
-             // sound_id: ??? // How to get the corresponding sound_id? Needs clarification.
-           };
-           matchesToInsert.push(matchData);
-        } else {
-             console.warn(`[Survey Response] Skipping invalid entry for survey_matches: Key=${questionId}, Value=${answerValue}`);
-        }
-      }
+    if (matches && Array.isArray(matches)) {
+      console.log('[Survey Response] Processing matches for survey_matches:', JSON.stringify(matches));
+      const matchesToInsert = matches.map(match => {
+        const isCorrect = match.soundId === match.intendedSoundId;
+        return {
+          response_id: savedResponse.id,
+          sound_id: match.soundId,
+          question_id: match.functionId, // The unique ID of the function box
+          matched_function: match.matchedFunctionDescription,
+          correct_match: isCorrect,
+        };
+      });
 
       if (matchesToInsert.length > 0) {
-          console.log(`[Survey Response] Inserting ${matchesToInsert.length} records into survey_matches...`);
-          const { error: matchError } = await supabase
-            .from('survey_matches')
-            .insert(matchesToInsert);
+        console.log(`[Survey Response] Inserting ${matchesToInsert.length} records into survey_matches...`);
+        const { error: matchError } = await supabase
+          .from('survey_matches')
+          .insert(matchesToInsert);
 
-          if (matchError) {
-            console.error(`[Survey Response] Error saving to survey_matches for response ${savedResponse.id}:`, matchError);
-            // Decide if this should be a fatal error or just logged
-          } else {
-             console.log(`[Survey Response] Successfully saved ${matchesToInsert.length} records to survey_matches for response ${savedResponse.id}`);
-          }
+        if (matchError) {
+          console.error(`[Survey Response] Error saving to survey_matches for response ${savedResponse.id}:`, matchError);
+          // Decide if this should be a fatal error or just logged
+        } else {
+          console.log(`[Survey Response] Successfully saved ${matchesToInsert.length} records to survey_matches for response ${savedResponse.id}`);
+        }
       } else {
-           console.log(`[Survey Response] No valid entries found in responses object to save to survey_matches.`);
+        console.log(`[Survey Response] No valid entries found in matches array to save to survey_matches.`);
       }
     } else {
-         console.warn(`[Survey Response] Responses object is missing or not an object, skipping survey_matches save.`);
+      console.warn(`[Survey Response] Matches array is missing or not an array, skipping survey_matches save.`);
     }
     // ** END Save to survey_matches **
 

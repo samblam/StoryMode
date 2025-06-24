@@ -118,9 +118,9 @@ if (isPreview && previewContext) {
     }
 }
 
-// Generate Signed URLs if survey data is available and not in preview
-if (!isPreview && survey && !error) {
-    // Generate signed URL for video
+// Generate Signed URLs if survey data is available
+if (survey && !error) {
+    // Generate signed URL for video (works for both preview and live)
     if (survey.video_url) {
         try {
             survey.video = { url: await getSignedUrl(survey.video_url, 'videos') };
@@ -129,9 +129,9 @@ if (!isPreview && survey && !error) {
         }
     }
 
-    // Generate signed URLs for sounds
+    // Generate signed URLs for sounds (works for both preview and live)
     if (survey.survey_sounds?.length > 0) {
-        console.log(`Generating signed URLs for survey sounds`);
+        console.log(`Generating signed URLs for survey sounds (isPreview: ${isPreview})`);
         await Promise.all(
             survey.survey_sounds.map(async (surveySound: any) => {
                 try {

@@ -64,13 +64,20 @@ const sounds = survey.survey_sounds.map((item: any) => ({
     name: item.sounds.name,
 }));
 
-const functions = survey.survey_sounds.map((item: any) => ({
-    id: item.sound_id,
+interface FunctionData {
+    id: string;
+    description: string;
+    intendedSoundId: string;
+}
+
+const functions: FunctionData[] = survey.survey_sounds.map((item: any, index: number) => ({
+    id: `function-${index}`, // Generate a unique ID for the function
     description: item.intended_function,
+    intendedSoundId: item.sound_id, // Keep track of the intended sound
 }));
 ---
 
-<SurveyLayout 
+<SurveyLayout
     title={title}
     description="Match each sound to its intended function."
     currentStep={4}
@@ -78,16 +85,16 @@ const functions = survey.survey_sounds.map((item: any) => ({
 >
     <div class="max-w-4xl mx-auto px-4 py-8">
         <SoundGrid sounds={sounds} />
-        <FunctionGrid functions={functions} />
+        <FunctionGrid functions={functions.map((f: FunctionData) => ({ id: f.id, description: f.description }))} />
         <div class="flex justify-between items-center mt-8">
-            <button 
+            <button
                 type="button"
                 id="resetButton"
                 class="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
             >
                 Reset
             </button>
-            <button 
+            <button
                 type="button"
                 id="submitButton"
                 class="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -99,16 +106,11 @@ const functions = survey.survey_sounds.map((item: any) => ({
     </div>
 </SurveyLayout>
 
-<script>
+<script define:vars={{ functions }}>
     // State management
-    interface Match {
-        soundId: string;
-        functionId: string;
-    }
-
-    let matches: Match[] = [];
-    const submitButton = document.getElementById('submitButton') as HTMLButtonElement;
-    const resetButton = document.getElementById('resetButton') as HTMLButtonElement;
+    let matches = [];
+    const submitButton = document.getElementById('submitButton');
+    const resetButton = document.getElementById('resetButton');
     const currentSurveyId =  new URLSearchParams(window.location.search).get('id');
 
     function updateSubmitButton() {
@@ -117,10 +119,18 @@ const functions = survey.survey_sounds.map((item: any) => ({
         }
     }
 
-    function addMatch(soundId: string, functionId: string) {
+    function addMatch(soundId, functionId) {
+        const functionData = functions.find(f => f.id === functionId);
+        if (!functionData) return;
+
         // Remove any existing matches for this function
         matches = matches.filter(match => match.functionId !== functionId);
-        matches.push({ soundId, functionId });
+        matches.push({
+            soundId,
+            functionId,
+            intendedSoundId: functionData.intendedSoundId,
+            matchedFunctionDescription: functionData.description,
+        });
         updateSubmitButton();
         updateVisualFeedback();
     }
@@ -128,10 +138,10 @@ const functions = survey.survey_sounds.map((item: any) => ({
     function updateVisualFeedback() {
         // Reset all visual states
         document.querySelectorAll('.sound-button').forEach(button => {
-            (button as HTMLDivElement).classList.remove('bg-green-100');
+            button.classList.remove('bg-green-100');
         });
         document.querySelectorAll('.function-box').forEach(box => {
-            (box as HTMLDivElement).classList.remove('bg-green-100');
+            box.classList.remove('bg-green-100');
         });
 
         // Apply matched states
@@ -156,8 +166,7 @@ const functions = survey.survey_sounds.map((item: any) => ({
         button.setAttribute('draggable', 'true');
 
         button.addEventListener('dragstart', (event) => {
-            const targetElement = event.target as HTMLDivElement;
-            (event as DragEvent).dataTransfer?.setData('text/plain', targetElement.dataset.soundId || '');
+            event.dataTransfer?.setData('text/plain', event.target.dataset.soundId || '');
         });
     });
 
@@ -168,9 +177,8 @@ const functions = survey.survey_sounds.map((item: any) => ({
 
         box.addEventListener('drop', (event) => {
             event.preventDefault();
-            const soundId = (event as DragEvent).dataTransfer?.getData('text/plain');
-            const targetElement = event.target as HTMLDivElement;
-            const functionBox = targetElement.closest('.function-box') as HTMLDivElement;
+            const soundId = event.dataTransfer?.getData('text/plain');
+            const functionBox = event.target.closest('.function-box');
             const functionId = functionBox?.dataset.functionId;
 
             if (soundId && functionId) {
