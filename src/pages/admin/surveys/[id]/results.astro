@@ -27,8 +27,8 @@ if (!id) {
 }
 
 // Fetch survey data with responses
-const supabaseAdmin = getClient({ requiresAdmin: true });
-const { data: survey, error: surveyError } = await supabaseAdmin
+const supabase = getClient({ requiresAdmin: true });
+const { data: survey, error: surveyError } = await supabase
   .from('surveys')
   .select(`
     *,
@@ -53,7 +53,7 @@ if (surveyError || !survey) {
 // }
 
 // Fetch survey responses with sound matches
-const { data: responsesResult, error: responsesError } = await supabaseAdmin
+const { data: responsesResult, error: responsesError } = await supabase
   .from('survey_responses')
   .select(`
     *,

@@ -50,12 +50,12 @@ if (isPreview && previewContext) {
     // Participant access with token - verify token first
     console.log(`Participant access attempt - ID: ${participantId || accessId}, Token: ${(participantToken || accessToken)?.substring(0, 8)}...`);
     
-    const supabaseAdmin = getClient({ requiresAdmin: true });
+    const supabase = getClient({ requiresAdmin: true }); // Use getClient for admin access
     const participantIdentifier = participantId || accessId;
     const currentToken = participantToken || accessToken;
 
     // Simplified participant verification
-    const { data: foundParticipant, error: participantFetchError } = await supabaseAdmin
+    const { data: foundParticipant, error: participantFetchError } = await supabase
         .from('participants')
         .select('id, status, survey_id, access_token')
         // Use participant_identifier for lookup from URL parameter
@@ -82,7 +82,7 @@ if (isPreview && previewContext) {
         // verifiedParticipantData = foundParticipant; // Removed assignment to unused variable
 
         // Get survey data from database with admin access
-        const result = await supabaseAdmin
+        const result = await supabase
             .from('surveys')
             .select(`
                 *,

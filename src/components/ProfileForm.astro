@@ -1,7 +1,7 @@
 ---
 import type { SoundProfile } from '../types/sound';
 import type { ClientInfo } from '../types/auth';
-import { supabaseAdmin } from '../lib/supabase';
+import { getClient } from '../lib/supabase';
 
 interface Props {
   profile?: SoundProfile;
@@ -23,7 +23,8 @@ console.log('ProfileForm Debug:', {
 let clients: ClientInfo[] = [];
 if (isAdmin) {
   // Include all necessary fields in the query
-  const { data, error } = await supabaseAdmin
+  const supabase = getClient({ requiresAdmin: true });
+  const { data, error } = await supabase
     .from('clients')
     .select('id, name, company, email, active, created_at')
     .eq('active', true)
