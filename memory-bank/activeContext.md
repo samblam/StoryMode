@@ -57,24 +57,22 @@ Attempting to deploy the application to Vercel, but encountering persistent buil
 
 ✅ **Primary Build Issue Resolved**: The critical Vercel build error has been successfully fixed. The application now builds successfully.
 
-### New Critical Issue: Login Failure on Vercel Deployment
+### ✅ Resolved: Infinite Recursion in Supabase RLS Policy
 
-**Problem**: After successful deployment, the login functionality is failing with a `404` error for `/api/auth/login` and a `SyntaxError: Unexpected token '<', "<!doctype "... is not valid JSON`. This indicates the API endpoint is returning an HTML page (likely a 404 page) instead of a JSON response.
+**Problem**: The login and survey editing functionality was failing due to a Supabase Row Level Security (RLS) policy error: `infinite recursion detected in policy for relation "users"`.
 
-**Previous Hypothesis Update**: The Vercel runtime log indicated "No API Route handler exists for the method 'GET' for the route '/api/auth/login'. Found handlers: 'POST'". However, inspection of `src/components/LoginForm.astro` confirms the client is correctly sending a `POST` request.
+**Root Cause**: The RLS policy on the `users` table was causing an infinite loop by referencing itself to check for admin privileges.
 
-**Revised Hypothesis**: The issue is not a client-side request method mismatch. It is likely a deeper problem with Vercel's routing or serverless function invocation for Astro API routes, where the `POST` request is either not reaching the correct serverless function or is being misrouted by Vercel's infrastructure. This could be due to:
-    *   Vercel's internal routing configuration for Astro API routes.
-    *   A specific interaction with the Astro Vercel adapter that causes this route to be inaccessible.
-    *   Environment variables not being correctly picked up at runtime, causing the function to crash before handling the request (though less likely for a 404).
+**Solution Applied**:
+1.  Created a new SQL function `is_admin()` to check the user's role without causing recursion.
+2.  Updated the "Admins can manage all users" RLS policy to use the `is_admin()` function.
+
+**Status**: ✅ RESOLVED. The login and survey editing functionality is now working correctly.
 
 **Current Priority Tasks**:
-1.  **Deep Dive into Vercel Serverless Function Logs**: Request detailed runtime logs for the `/api/auth/login` serverless function on Vercel. This includes any logs *before* the "No API Route handler exists" warning, or any logs indicating function startup/crash.
-2.  **Review Vercel Project Settings**: Double-check Vercel project settings for any custom routing rules, redirects, or environment variable configurations that might affect API routes.
-3.  **Simplify API Route (if logs are inconclusive)**: As a last resort, consider creating a very simple test API route (e.g., `/api/test`) that just returns "OK" to isolate if the issue is specific to the login route or all API routes.
-4.  **End-to-End Testing**: Verify that the DataExporter component functions correctly in the deployed environment (after login is fixed).
-5.  **Continue with remaining issues**: Proceed with fixing other known bugs and implementing ongoing feature work as outlined in `memory-bank/progress.md` and `memory-bank/technicalDebtAndImprovements.md`.
-6.  **Monitor Build Stability**: Keep an eye on future builds to ensure the fix remains stable.
+1.  **End-to-End Testing**: Thoroughly test the login, survey editing, and other related functionality to ensure the RLS policy fix has not introduced any regressions.
+2.  **Continue with remaining issues**: Proceed with fixing other known bugs and implementing ongoing feature work as outlined in `memory-bank/progress.md` and `memory-bank/technicalDebtAndImprovements.md`.
+3.  **Monitor Build Stability**: Keep an eye on future builds to ensure the fix remains stable.
 
 **Technical Debt Addressed**:
 - ✅ Resolved problematic `define:vars` usage in Astro components

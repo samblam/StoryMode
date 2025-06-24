@@ -101,7 +101,7 @@ try {
     }
 
     // Fetch survey data
-    survey = await getSurveyById(id, Astro.url.origin, token);
+    survey = await getSurveyById(id);
     if (!survey) {
         console.log("[EDIT_ROUTE][SURVEY_FETCH]", {
             timestamp: new Date().toISOString(),

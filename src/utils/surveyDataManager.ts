@@ -33,28 +33,47 @@ export type SurveyWithRelations = Database['public']['Tables']['surveys']['Row']
 /**
  * Fetches survey data by ID with related data
  */
-export async function getSurveyById(id: string, baseUrl?: string, token?: string): Promise<SurveyWithRelations | null> {
+import { getClient } from '../lib/supabase';
+
+export async function getSurveyById(id: string): Promise<SurveyWithRelations | null> {
     try {
-        // Construct full URL using provided base URL or default to relative path
-        const url = baseUrl ? `${baseUrl}/api/surveys/${id}` : `/api/surveys/${id}`;
-        
-        const response = await fetch(url, {
-            credentials: 'include',
-            headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json',
-                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-            }
-        });
-        
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+        const adminSupabase = getClient({ requiresAdmin: true });
+        const { data, error } = await adminSupabase
+            .from('surveys')
+            .select(`
+                *,
+                client:clients (
+                    id,
+                    name,
+                    email
+                ),
+                sound_profiles (
+                    id,
+                    title
+                ),
+                survey_sounds (
+                    id,
+                    sound_id,
+                    intended_function,
+                    order_index,
+                    sounds (
+                        id,
+                        name,
+                        file_path,
+                        storage_path,
+                        profile_id
+                    )
+                )
+            `)
+            .eq('id', id)
+            .single();
+
+        if (error) {
+            throw error;
         }
-        
-        const { data } = await response.json();
+
         if (!data) {
-            throw new Error('No data returned from server');
+            return null;
         }
 
         // Generate signed URLs for all sounds
@@ -63,13 +82,11 @@ export async function getSurveyById(id: string, baseUrl?: string, token?: string
                 data.survey_sounds.map(async (surveySound: SurveyWithRelations['survey_sounds'][0]) => {
                     try {
                         if (surveySound.sounds?.storage_path) {
-                            // Extract path and ensure proper bucket name
                             const storagePath = surveySound.sounds.storage_path;
                             surveySound.sounds.url = await getSignedUrl(storagePath, 'sounds');
                         }
                     } catch (error) {
                         console.error(`Error generating signed URL for sound ${surveySound.sound_id}:`, error);
-                        // Don't throw, just continue with other sounds
                     }
                 })
             );
