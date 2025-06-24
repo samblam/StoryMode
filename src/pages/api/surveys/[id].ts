@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { supabase } from '../../../lib/supabase';
+import { getClient } from '../../../lib/supabase';
 import { verifyAuthorization } from '../../../utils/accessControl';
 
 // Add PUT handler for complete survey update
@@ -62,7 +62,8 @@ export const PUT: APIRoute = async ({ request, params, locals }) => {
 
         // Fetch existing survey data
         console.log('Survey PUT: Fetching existing survey data');
-        const { data: existingSurvey, error: fetchError } = await supabase
+        const adminSupabase = getClient({ requiresAdmin: true });
+        const { data: existingSurvey, error: fetchError } = await adminSupabase
             .from('surveys')
             .select('*')
             .eq('id', id)
@@ -208,7 +209,7 @@ export const PUT: APIRoute = async ({ request, params, locals }) => {
         console.log('Survey PUT: procedureData.survey_id - Type:', typeof procedureData.survey_id, ', Value:', procedureData.survey_id);
         console.log('Survey PUT: procedureData.survey_data - Type:', typeof procedureData.survey_data, ', Value:', procedureData.survey_data);
         console.log('Survey PUT: procedureData.sound_mappings - Type:', typeof procedureData.sound_mappings, ', Value:', procedureData.sound_mappings);
-        const { data: updatedData, error: updateError } = await supabase.rpc('update_survey_with_sounds', procedureData);
+        const { data: updatedData, error: updateError } = await adminSupabase.rpc('update_survey_with_sounds', procedureData);
 
         if (updateError) {
             console.error('Survey PUT: Database error:', updateError);
@@ -306,7 +307,8 @@ export const PATCH: APIRoute = async ({ request, params, locals }) => {
 
         // Fetch existing survey data
         console.log('Survey PATCH: Fetching existing survey data');
-        const { data: existingSurvey, error: fetchError } = await supabase
+        const adminSupabase = getClient({ requiresAdmin: true });
+        const { data: existingSurvey, error: fetchError } = await adminSupabase
             .from('surveys')
             .select('*')
             .eq('id', id)
@@ -353,7 +355,7 @@ export const PATCH: APIRoute = async ({ request, params, locals }) => {
         console.log('Survey PATCH: Update data:', updateData);
 
         // Update the survey
-        const { data: updatedSurvey, error: updateError } = await supabase
+        const { data: updatedSurvey, error: updateError } = await adminSupabase
             .from('surveys')
             .update(updateData)
             .eq('id', id)
@@ -427,7 +429,8 @@ export const GET: APIRoute = async ({ request, params, locals }) => {
         }
 
         // Fetch survey with all related data
-        const { data, error } = await supabase
+        const adminSupabase = getClient({ requiresAdmin: true });
+        const { data, error } = await adminSupabase
             .from('surveys')
             .select(`
                 *,
