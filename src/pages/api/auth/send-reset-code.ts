@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { supabaseAdmin } from '../../../lib/supabase';
+import { getClient } from '../../../lib/supabase';
 import nodemailer from 'nodemailer';
 import { randomInt } from 'crypto';
 import { RateLimiter, RATE_LIMITS, rateLimitMiddleware } from '../../../utils/rateLimit';
@@ -35,6 +35,7 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     // Verify the user exists
+    const supabaseAdmin = getClient({ requiresAdmin: true });
     const { data: userData, error: userError } = await supabaseAdmin
       .from('users')
       .select('id')

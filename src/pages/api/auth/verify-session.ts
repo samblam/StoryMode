@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { supabase, supabaseAdmin } from '../../../lib/supabase';
+import { getClient } from '../../../lib/supabase';
 import { rateLimitMiddleware } from '../../../utils/rateLimit';
 import { isRLSError, handleRLSError, verifyAuthorization } from '../../../utils/accessControl';
 import type { AuthResponse, AuthError } from '../../../types/auth';
@@ -26,6 +26,7 @@ export const POST: APIRoute = async ({ request, cookies }): Promise<Response> =>
   }
 
   try {
+    const supabaseAdmin = getClient({ requiresAdmin: true });
     const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
 
     if (error || !user) {
@@ -38,6 +39,7 @@ export const POST: APIRoute = async ({ request, cookies }): Promise<Response> =>
 
     // Get user data - try with regular client first
     let userData = null;
+    const supabase = getClient();
     const { data: regularData, error: regularError } = await supabase
       .from('users')
       .select('*')

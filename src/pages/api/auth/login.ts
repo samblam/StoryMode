@@ -1,7 +1,6 @@
 // src/pages/api/auth/login.ts
 import type { APIRoute } from 'astro';
-import { createClient } from '@supabase/supabase-js';
-import { supabase, supabaseAdmin } from '../../../lib/supabase';
+import { getClient } from '../../../lib/supabase';
 import type { Database } from '../../../types/database';
 import { RateLimiter, RATE_LIMITS, rateLimitMiddleware } from '../../../utils/rateLimit';
 import { isRLSError, handleRLSError, verifyAuthorization } from '../../../utils/accessControl';
@@ -33,21 +32,9 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       });
     }
 
-    // Create a new Supabase client for this request
-    const supabaseAuth = createClient<Database>(
-      import.meta.env.PUBLIC_SUPABASE_URL,
-      import.meta.env.PUBLIC_SUPABASE_ANON_KEY,
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-          detectSessionInUrl: false,
-        },
-      }
-    );
-
+    const supabase = getClient();
     // Step 1: Initial Authentication
-    const { data: authData, error: authError } = await supabaseAuth.auth.signInWithPassword({
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
       email: normalizedEmail,
       password,
     });
