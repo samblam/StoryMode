@@ -57,22 +57,17 @@ Attempting to deploy the application to Vercel, but encountering persistent buil
 
 ✅ **Primary Build Issue Resolved**: The critical Vercel build error has been successfully fixed. The application now builds successfully.
 
-### ✅ Resolved: Infinite Recursion in Supabase RLS Policy
+### New Critical Issue: Incorrect Survey URLs in Emails
 
-**Problem**: The login and survey editing functionality was failing due to a Supabase Row Level Security (RLS) policy error: `infinite recursion detected in policy for relation "users"`.
+**Problem**: Survey invitation emails are sending out `localhost` links instead of the production Vercel URL.
 
-**Root Cause**: The RLS policy on the `users` table was causing an infinite loop by referencing itself to check for admin privileges.
-
-**Solution Applied**:
-1.  Created a new SQL function `is_admin()` to check the user's role without causing recursion.
-2.  Updated the "Admins can manage all users" RLS policy to use the `is_admin()` function.
-
-**Status**: ✅ RESOLVED. The login and survey editing functionality is now working correctly.
+**Root Cause**: The `PUBLIC_BASE_URL` environment variable is not set in the Vercel deployment environment. The `generateParticipantUrl` function in `src/utils/participantUtils.ts` falls back to a hardcoded `localhost` URL when this variable is missing.
 
 **Current Priority Tasks**:
-1.  **End-to-End Testing**: Thoroughly test the login, survey editing, and other related functionality to ensure the RLS policy fix has not introduced any regressions.
-2.  **Continue with remaining issues**: Proceed with fixing other known bugs and implementing ongoing feature work as outlined in `memory-bank/progress.md` and `memory-bank/technicalDebtAndImprovements.md`.
-3.  **Monitor Build Stability**: Keep an eye on future builds to ensure the fix remains stable.
+1.  **Add `PUBLIC_BASE_URL` to Vercel Environment Variables**: The immediate next step is to add the `PUBLIC_BASE_URL` environment variable to the Vercel project settings with the correct production URL.
+2.  **End-to-End Testing**: After adding the environment variable, thoroughly test the survey publishing workflow to ensure the correct URLs are being sent in emails.
+3.  **Continue with remaining issues**: Proceed with fixing other known bugs and implementing ongoing feature work as outlined in `memory-bank/progress.md` and `memory-bank/technicalDebtAndImprovements.md`.
+4.  **Monitor Build Stability**: Keep an eye on future builds to ensure the fix remains stable.
 
 **Technical Debt Addressed**:
 - ✅ Resolved problematic `define:vars` usage in Astro components
