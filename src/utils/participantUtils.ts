@@ -203,11 +203,9 @@ export async function generateParticipantUrl(
         console.log(`SITE_URL fallback:`, baseUrl || 'NOT SET');
       }
       
-      // If still no URL found, use a safer default relative URL instead of hardcoded localhost
+      // If still no URL found, throw an error
       if (!baseUrl) {
-        console.warn('No base URL environment variables found. Using relative URL, which may cause issues with email links.');
-        baseUrl = 'http://localhost:4322'; // Hardcoded fallback for testing
-        console.log(`Using hardcoded fallback URL:`, baseUrl);
+        throw new Error('PUBLIC_BASE_URL environment variable is not set. Cannot generate participant URL.');
       }
     }
     
