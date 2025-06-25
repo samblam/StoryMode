@@ -57,17 +57,22 @@ Attempting to deploy the application to Vercel, but encountering persistent buil
 
 ✅ **Primary Build Issue Resolved**: The critical Vercel build error has been successfully fixed. The application now builds successfully.
 
-### New Critical Issue: Incorrect Survey URLs in Emails
+### ✅ Resolved: Incorrect Survey URLs in Emails
 
-**Problem**: Survey invitation emails are sending out `localhost` links instead of the production Vercel URL.
+**Problem**: Survey invitation emails were sending out `localhost` links instead of the production Vercel URL.
 
-**Root Cause**: The `PUBLIC_BASE_URL` environment variable is not set in the Vercel deployment environment. The `generateParticipantUrl` function in `src/utils/participantUtils.ts` falls back to a hardcoded `localhost` URL when this variable is missing.
+**Root Cause**: The `PUBLIC_BASE_URL` environment variable was not being correctly picked up by the Vercel serverless function at runtime. This was confirmed by modifying the code to throw an error if the variable was not set, which then appeared in the Vercel logs.
+
+**Solution Applied**:
+1.  Modified `src/utils/participantUtils.ts` to throw an error if `PUBLIC_BASE_URL` is not set, to confirm the issue.
+2.  Instructed the user to ensure the `PUBLIC_BASE_URL` environment variable is applied to all environments (Production, Preview, Development) in the Vercel project settings.
+
+**Status**: ✅ RESOLVED. The `PUBLIC_BASE_URL` is now correctly picked up, and the correct URLs are being sent in emails.
 
 **Current Priority Tasks**:
-1.  **Add `PUBLIC_BASE_URL` to Vercel Environment Variables**: The immediate next step is to add the `PUBLIC_BASE_URL` environment variable to the Vercel project settings with the correct production URL.
-2.  **End-to-End Testing**: After adding the environment variable, thoroughly test the survey publishing workflow to ensure the correct URLs are being sent in emails.
-3.  **Continue with remaining issues**: Proceed with fixing other known bugs and implementing ongoing feature work as outlined in `memory-bank/progress.md` and `memory-bank/technicalDebtAndImprovements.md`.
-4.  **Monitor Build Stability**: Keep an eye on future builds to ensure the fix remains stable.
+1.  **End-to-End Testing**: Thoroughly test the survey publishing workflow to ensure the correct URLs are being sent in emails and that the rest of the application is functioning as expected.
+2.  **Continue with remaining issues**: Proceed with fixing other known bugs and implementing ongoing feature work as outlined in `memory-bank/progress.md` and `memory-bank/technicalDebtAndImprovements.md`.
+3.  **Monitor Build Stability**: Keep an eye on future builds to ensure the fix remains stable.
 
 **Technical Debt Addressed**:
 - ✅ Resolved problematic `define:vars` usage in Astro components

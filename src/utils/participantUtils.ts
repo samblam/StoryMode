@@ -178,35 +178,16 @@ export async function generateParticipantUrl(
       throw new Error(`Participant does not have a valid access token`);
     }
 
-    // Get the base URL from environment variables
-    let baseUrl = import.meta.env.PUBLIC_BASE_URL;
-    console.log(`PUBLIC_BASE_URL from import.meta.env:`, baseUrl || 'NOT SET');
-    
-    // Also try process.env
+    // Get the base URL from Vercel's system environment variables
+    let baseUrl = process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : process.env.PUBLIC_BASE_URL || import.meta.env.PUBLIC_BASE_URL;
+
+    console.log(`Using base URL:`, baseUrl);
+
+    // If no base URL is found, throw an error
     if (!baseUrl) {
-      console.log(`Trying process.env for PUBLIC_BASE_URL`);
-      baseUrl = process.env.PUBLIC_BASE_URL;
-      console.log(`PUBLIC_BASE_URL from process.env:`, baseUrl || 'NOT SET');
-    }
-    
-    // If not set in environment, try to detect from request or use a safer default
-    if (!baseUrl) {
-      console.warn('PUBLIC_BASE_URL environment variable not set. Trying fallbacks...');
-      
-      // In Astro, properly configured PUBLIC_* environment variables should be available
-      // If not set, we use a fallback but log a warning to make it obvious
-      baseUrl = import.meta.env.PUBLIC_SITE_URL || process.env.PUBLIC_SITE_URL;
-      console.log(`PUBLIC_SITE_URL fallback:`, baseUrl || 'NOT SET');
-      
-      if (!baseUrl) {
-        baseUrl = import.meta.env.SITE_URL || process.env.SITE_URL;
-        console.log(`SITE_URL fallback:`, baseUrl || 'NOT SET');
-      }
-      
-      // If still no URL found, throw an error
-      if (!baseUrl) {
-        throw new Error('PUBLIC_BASE_URL environment variable is not set. Cannot generate participant URL.');
-      }
+        throw new Error('Neither VERCEL_URL nor PUBLIC_BASE_URL environment variables are set. Cannot generate participant URL.');
     }
     
     // Generate the URL with both identifier and token
