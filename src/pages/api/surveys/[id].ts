@@ -6,7 +6,7 @@ import { verifyAuthorization } from '../../../utils/accessControl';
 export const PUT: APIRoute = async ({ request, params, locals }) => {
     console.log('Survey PUT: Starting request processing');
     try {
-        // Log request details
+        // Log request detailsforme
         console.log('Survey PUT: Request details', {
             params,
             user: locals.user,
