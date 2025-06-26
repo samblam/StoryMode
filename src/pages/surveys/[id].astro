@@ -35,7 +35,25 @@ const isParticipantAccess = (participantId && participantToken) || (accessId && 
 
 // Only redirect if not logged in, not in preview mode, and not a participant with token
 if (!user && !isPreview && !isParticipantAccess) {
+    // If not authenticated, not in preview, and not a participant, redirect to login
     return Astro.redirect('/login');
+}
+
+// If it's a participant access, set the participant token as a cookie
+if (isParticipantAccess) {
+    const currentToken = participantToken || accessToken;
+    if (currentToken) {
+        // Set participant token as a cookie for middleware authentication
+        // This cookie will be sent with subsequent requests to API routes
+        Astro.cookies.set('participant-token', currentToken, {
+            path: '/',
+            httpOnly: true, // Important for security
+            secure: import.meta.env.PROD, // Only send over HTTPS in production
+            sameSite: 'lax',
+            maxAge: 60 * 60 * 24 * 7, // 1 week
+        });
+        console.log('Set participant-token cookie for middleware authentication.');
+    }
 }
 
 let survey: any; // Use 'any' for now, consider defining a proper Survey type
