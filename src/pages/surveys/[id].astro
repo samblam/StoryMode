@@ -328,15 +328,122 @@ const sortedSounds = survey?.survey_sounds?.sort((a: any, b: any) => a.order_ind
 </style>
 
 <script type="module" define:vars={{ isPreview, survey, id }}>
-    // Import client-side utilities
-    const modules = import.meta.glob('../../utils/audioManager.ts', { eager: true });
-    const audioManagerModule = modules['../../utils/audioManager.ts'];
-    const audioManager = audioManagerModule.audioManager;
-    
     // Simple client event logging function
     const logClientEvent = (event, data) => {
         console.log(`Client Event: ${event}`, data);
     };
+
+    // Simplified inline audio manager for client-side use
+    class SimpleAudioManager {
+        constructor() {
+            this.currentAudio = null;
+            this.currentSoundId = null;
+        }
+
+        async play(storagePath, soundId) {
+            try {
+                // Stop current audio if playing
+                if (this.currentAudio && !this.currentAudio.paused) {
+                    this.currentAudio.pause();
+                    this.updatePlayButton(this.currentSoundId, false);
+                }
+
+                // If clicking the same sound that's currently loaded, toggle play/pause
+                if (this.currentSoundId === soundId && this.currentAudio) {
+                    if (this.currentAudio.paused) {
+                        await this.currentAudio.play();
+                        this.updatePlayButton(soundId, true);
+                    } else {
+                        this.currentAudio.pause();
+                        this.updatePlayButton(soundId, false);
+                    }
+                    return;
+                }
+
+                // Get fresh URL for the sound
+                const response = await fetch('/api/sounds/refresh-url', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ soundId }),
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to get sound URL');
+                }
+
+                const data = await response.json();
+                if (!data.url) {
+                    throw new Error('No URL returned for sound');
+                }
+
+                // Create new audio element
+                this.currentAudio = new Audio(data.url);
+                this.currentSoundId = soundId;
+
+                // Set up event listeners
+                this.currentAudio.addEventListener('loadstart', () => {
+                    this.updatePlayButton(soundId, false, 'Loading...');
+                });
+
+                this.currentAudio.addEventListener('canplay', () => {
+                    this.updatePlayButton(soundId, false, 'Play Sound');
+                });
+
+                this.currentAudio.addEventListener('play', () => {
+                    this.updatePlayButton(soundId, true);
+                });
+
+                this.currentAudio.addEventListener('pause', () => {
+                    this.updatePlayButton(soundId, false);
+                });
+
+                this.currentAudio.addEventListener('ended', () => {
+                    this.updatePlayButton(soundId, false);
+                    this.currentSoundId = null;
+                });
+
+                this.currentAudio.addEventListener('error', (e) => {
+                    console.error('Audio error:', e);
+                    this.updatePlayButton(soundId, false, 'Error');
+                });
+
+                // Start playing
+                await this.currentAudio.play();
+
+            } catch (error) {
+                console.error('Error playing sound:', error);
+                this.updatePlayButton(soundId, false, 'Error');
+                throw error;
+            }
+        }
+
+        updatePlayButton(soundId, isPlaying, customText = null) {
+            const container = document.querySelector(`[data-sound-id="${soundId}"]`);
+            if (!container) return;
+            
+            const button = container.querySelector('.play-button');
+            if (button) {
+                if (customText) {
+                    button.textContent = customText;
+                } else {
+                    button.textContent = isPlaying ? 'Pause' : 'Play Sound';
+                }
+                
+                // Update button styling
+                button.classList.remove('bg-blue-600', 'bg-yellow-400', 'bg-gray-400');
+                if (customText === 'Loading...') {
+                    button.classList.add('bg-gray-400');
+                } else if (isPlaying) {
+                    button.classList.add('bg-yellow-400');
+                } else {
+                    button.classList.add('bg-blue-600');
+                }
+            }
+        }
+    }
+
+    // Create audio manager instance
+    const audioManager = new SimpleAudioManager();
 
     // Initialize audio player
     document.querySelectorAll('.play-button').forEach((button) => {

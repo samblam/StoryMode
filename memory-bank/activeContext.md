@@ -130,3 +130,25 @@ Attempting to deploy the application to Vercel, but encountering persistent buil
    - This should resolve the authentication failure causing redirects to login
 
 **Status**: Fixes implemented, npm dependencies being reinstalled due to rollup module issue. Testing pending.
+
+## Latest Debug Session - 2025-06-28 17:50
+
+**Problem**: Sound playback issue persisted with new error: `Uncaught TypeError: (intermediate value).glob is not a function`
+
+**Root Cause Identified**: The `import.meta.glob` approach used in the client-side script of `src/pages/surveys/[id].astro` was causing the error because `import.meta.glob` is a Vite build-time feature that's not available in browser runtime.
+
+**Fix Applied**:
+1. **Removed `import.meta.glob` usage**: Eliminated the problematic import pattern that was causing the TypeError
+2. **Implemented `SimpleAudioManager` class**: Created a lightweight inline audio manager that works directly in the browser without external imports
+3. **Uses native HTML5 Audio API**: More reliable approach using `new Audio()` instead of trying to import external modules
+4. **Proper URL fetching**: Calls `/api/sounds/refresh-url` to get fresh signed URLs for audio files
+5. **Enhanced error handling**: Shows loading states, error messages, and proper button state management
+6. **Toggle functionality**: Clicking the same sound toggles between play and pause states
+
+**Technical Details**:
+- Replaced complex module importing with simple inline class
+- Uses native browser APIs (Audio, fetch) instead of external dependencies
+- Maintains all original functionality (play/pause, button states, error handling)
+- Should resolve the `.glob is not a function` error completely
+
+**Status**: Critical sound playback fix implemented. Ready for testing.
