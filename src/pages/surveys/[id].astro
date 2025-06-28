@@ -2,6 +2,7 @@
 import SurveyLayout from '../../components/SurveyLayout.astro';
 import { getClient } from '../../lib/supabase';
 import { getSignedUrl } from '../../utils/storageUtils';
+import { audioManager } from '../../utils/audioManager.js';
 import type { User } from '../../types/auth';
 
 // Define the structure for a function object
@@ -327,10 +328,7 @@ const sortedSounds = survey?.survey_sounds?.sort((a: any, b: any) => a.order_ind
     }
 </style>
 
-<script type="module" define:vars={{ isPreview, survey, id }}>
-    // Import the AudioManager
-    import { audioManager } from '../../utils/audioManager.js';
-
+<script type="module" define:vars={{ isPreview, survey, id, audioManager }}>
     // Initialize audio player
     document.querySelectorAll('.play-button').forEach((button) => {
         button.addEventListener('click', async () => {
