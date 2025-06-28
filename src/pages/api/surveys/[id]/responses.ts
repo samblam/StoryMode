@@ -2,7 +2,7 @@ import { getClient } from '~/lib/supabase';
 import { type APIRoute } from 'astro';
 import { sendEmail, createSurveyCompletionEmail } from '~/utils/emailUtils';
 
-export const POST: APIRoute = async ({ params, request }) => {
+export const POST: APIRoute = async ({ params, request, locals }) => {
   try {
     const surveyId = params.id;
     if (!surveyId) {
@@ -14,47 +14,57 @@ export const POST: APIRoute = async ({ params, request }) => {
 
     const body = await request.json();
     const {
-      participantId,
-      participantToken,
       matches, // Expected format from matching.astro
       responses, // Keep for general responses if any
       soundMappingResponses // Keep for other response types if any
     } = body;
 
-    if (!participantId || !participantToken || (!matches && !responses)) {
-      return new Response(JSON.stringify({ error: 'Missing required fields' }), {
+    if (!matches && !responses) {
+      return new Response(JSON.stringify({ error: 'Missing response data' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
       });
     }
 
     console.log(`[Survey Response] Received submission for survey ${surveyId}`);
-    console.log(`[Survey Response] Attempting auth with participantId: ${participantId}, participantToken: ${participantToken}`);
 
-    // Verify participant access
-    const supabase = getClient({ requiresAdmin: true });
-    const { data: participant, error: participantError } = await supabase
-      .from('participants')
-      .select('*') // Select necessary fields
-      .eq('id', participantId) // Use participant ID from payload
-      .eq('access_token', participantToken)
-      .maybeSingle(); // Handle potential null result gracefully
+    // Use middleware authentication - participant should already be authenticated
+    const user = locals.user;
+    const participantId = locals.participantId;
 
-    console.log(`[Survey Response] Supabase auth query result: participant=${JSON.stringify(participant)}, error=${JSON.stringify(participantError)}`);
-
-    if (participantError || !participant) {
-      console.error(`[Survey Response] Auth failed for participantIdentifier: ${participantId}. Error: ${participantError ? JSON.stringify(participantError) : 'Participant not found or token mismatch'}`);
+    if (!user || user.role !== 'participant' || !participantId) {
+      console.error(`[Survey Response] Authentication failed - user: ${JSON.stringify(user)}, participantId: ${participantId}`);
       return new Response(JSON.stringify({ error: 'Invalid participant access' }), {
         status: 401,
         headers: { 'Content-Type': 'application/json' },
       });
     }
-     // Check survey ID match
-     if (participant.survey_id !== surveyId) {
-        console.error(`[Survey Response] Participant ${participant.id} attempting to access wrong survey ${surveyId} (expected ${participant.survey_id})`);
-        return new Response(JSON.stringify({ error: 'Participant not authorized for this survey' }), {
-            status: 403, headers: { 'Content-Type': 'application/json' }
-        });
+
+    console.log(`[Survey Response] Authenticated participant: ${participantId}`);
+
+    // Get participant details from database
+    const supabase = getClient({ requiresAdmin: true });
+    const { data: participant, error: participantError } = await supabase
+      .from('participants')
+      .select('*')
+      .eq('id', participantId)
+      .single();
+
+    if (participantError || !participant) {
+      console.error(`[Survey Response] Failed to fetch participant details: ${participantError?.message}`);
+      return new Response(JSON.stringify({ error: 'Participant not found' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Check survey ID match
+    if (participant.survey_id !== surveyId) {
+      console.error(`[Survey Response] Participant ${participant.id} attempting to access wrong survey ${surveyId} (expected ${participant.survey_id})`);
+      return new Response(JSON.stringify({ error: 'Participant not authorized for this survey' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' }
+      });
     }
 
     // For preview mode, we skip actual verification and saving

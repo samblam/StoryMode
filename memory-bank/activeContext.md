@@ -152,3 +152,33 @@ Attempting to deploy the application to Vercel, but encountering persistent buil
 - Should resolve the `.glob is not a function` error completely
 
 **Status**: Critical sound playback fix implemented. Ready for testing.
+
+## Survey Submission Authentication Fix - 2025-06-28 17:58
+
+**Problem**: Participants unable to submit surveys, receiving 401 "Invalid participant access" error despite having valid participant tokens.
+
+**Root Cause Identified**: Authentication flow mismatch between middleware and API endpoint:
+1. **Survey page**: Correctly sets `participant-token` cookie for middleware authentication
+2. **Middleware**: Properly validates participant token and sets `locals.user` and `locals.participantId`
+3. **API endpoint**: Was ignoring middleware authentication and trying to re-authenticate using request body parameters
+4. **Client script**: Was sending participant credentials in request body instead of relying on cookie authentication
+
+**Fix Applied**:
+1. **Updated API endpoint** (`src/pages/api/surveys/[id]/responses.ts`):
+   - Removed duplicate authentication logic that was checking request body parameters
+   - Now uses middleware authentication via `locals.user` and `locals.participantId`
+   - Simplified authentication flow to rely on middleware's participant validation
+   - Maintains all security checks (survey ID match, participant status, etc.)
+
+2. **Updated client script** (`src/pages/surveys/[id].astro`):
+   - Removed participant credentials from request body
+   - Authentication now handled entirely via `participant-token` cookie
+   - Simplified request payload to only include response data
+
+**Technical Details**:
+- Middleware sets `participant-token` cookie when survey page loads with valid URL parameters
+- Cookie is automatically sent with API requests via `credentials: 'include'`
+- API endpoint now trusts middleware authentication instead of duplicating validation
+- Maintains all existing security and data validation
+
+**Status**: Survey submission authentication fix implemented. Ready for testing.

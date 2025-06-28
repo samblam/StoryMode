@@ -525,14 +525,7 @@ const sortedSounds = survey?.survey_sounds?.sort((a: any, b: any) => a.order_ind
                     }
                 });
                 
-                // Get participant data from URL parameters
-                const urlParams = new URLSearchParams(window.location.search);
-                const participantData = {
-                    participantId: urlParams.get('participant_id') || urlParams.get('access_id') || 'unknown',
-                    participantToken: urlParams.get('token') || urlParams.get('access_token') || 'unknown'
-                };
-                
-                // Submit the response
+                // Submit the response (authentication handled by middleware via cookies)
                 const response = await fetch(`/api/surveys/${id}/responses`, {
                     method: 'POST',
                     headers: {
@@ -540,7 +533,6 @@ const sortedSounds = survey?.survey_sounds?.sort((a: any, b: any) => a.order_ind
                     },
                     credentials: 'include', // <-- Ensures cookies are sent with the request
                     body: JSON.stringify({
-                        ...participantData,
                         responses, // Now { questionId: selectedText, ... }
                         soundMappingResponses // Still { soundId: { actual, intended, matched }, ... }
                     })
