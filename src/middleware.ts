@@ -30,8 +30,7 @@ export const onRequest: MiddlewareHandler = async ({ request, locals, cookies },
       }
     }
 
-    let participantToken = cookies.get('participant-token')?.value;
-    let participantIdFromRequest: string | undefined;
+    const participantToken = cookies.get('participant-token')?.value;
 
     // Create a new request with mutable headers and required duplex option
     const modifiedRequest = new Request(request.url, {
@@ -47,28 +46,20 @@ export const onRequest: MiddlewareHandler = async ({ request, locals, cookies },
       modifiedRequest.headers.set('Authorization', `Bearer ${token}`);
     }
 
-    // If it's a POST request to the survey responses API, check the request body for participant data
-    if (request.method === 'POST' && request.url.includes('/api/surveys/') && request.url.includes('/responses')) {
-      try {
-        // Clone the request to read the body without consuming it for the next handler
-        const clonedRequest = request.clone();
-        const body = await clonedRequest.json();
-        if (body.participantId && body.participantToken) {
-          participantIdFromRequest = body.participantId;
-          participantToken = body.participantToken;
-          console.log('Middleware - Found participant data in request body for survey response submission.');
-        }
-      } catch (e) {
-        console.warn('Middleware - Could not parse request body for participant data:', e);
-      }
-    }
-
-    // Handle participant authentication (from cookie or request body)
+    // Handle participant authentication
     if (participantToken) {
-      console.log('Middleware - Participant token found (from cookie or body)');
-      const { participant, error } = await getParticipantById(participantToken);
-      if (participant) {
-        console.log('Middleware - Participant authenticated:', participant.id);
+      console.log('Middleware - Participant token found, attempting to validate...');
+      const { getClient } = await import('./lib/supabase');
+      const adminClient = getClient({ requiresAdmin: true });
+
+      const { data: participant, error } = await adminClient
+        .from('participants')
+        .select('id, email, status, survey_id')
+        .eq('access_token', participantToken)
+        .single();
+
+      if (participant && participant.status === 'active') {
+        console.log('Middleware - Participant authenticated via token:', participant.id);
         locals.participantId = participant.id;
         locals.user = {
           id: participant.id,
@@ -77,12 +68,19 @@ export const onRequest: MiddlewareHandler = async ({ request, locals, cookies },
           createdAt: new Date().toISOString(),
           client: null
         };
+        // Since participant is authenticated, we can proceed.
+        // The API route will handle its own authorization.
         return next();
       } else {
-        console.error('Middleware - Invalid participant token:', error);
+        if (error) {
+          console.error('Middleware - Error validating participant token:', error.message);
+        } else if (!participant) {
+          console.error('Middleware - No participant found for the provided token.');
+        } else if (participant.status !== 'active') {
+          console.error(`Middleware - Participant status is not active: ${participant.status}`);
+        }
+        // If token is invalid or participant is not active, delete the cookie and proceed.
         cookies.delete('participant-token', { path: '/' });
-        // If authentication fails, proceed to next middleware/route without participant context
-        return next();
       }
     }
 

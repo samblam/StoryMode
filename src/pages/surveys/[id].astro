@@ -137,31 +137,39 @@ if (isPreview && previewContext) {
 }
 
 // Generate Signed URLs if survey data is available
+const serverLogs: string[] = [];
 if (survey && !error) {
+    serverLogs.push("Survey data found. Generating signed URLs...");
     // Generate signed URL for video (works for both preview and live)
     if (survey.video_url) {
         try {
             survey.video = { url: await getSignedUrl(survey.video_url, 'videos') };
+            serverLogs.push(`Video URL generated successfully.`);
         } catch (urlError) {
             console.error('Error generating video URL:', urlError);
+            serverLogs.push(`Error generating video URL: ${urlError instanceof Error ? urlError.message : String(urlError)}`);
         }
     }
 
     // Generate signed URLs for sounds (works for both preview and live)
     if (survey.survey_sounds?.length > 0) {
-        console.log(`Generating signed URLs for survey sounds (isPreview: ${isPreview})`);
+        serverLogs.push(`Found ${survey.survey_sounds.length} sounds. Generating signed URLs...`);
         await Promise.all(
             survey.survey_sounds.map(async (surveySound: any) => {
                 try {
                     if (surveySound.sounds?.storage_path) {
-                        console.log(`Attempting to get signed URL for storage_path: ${surveySound.sounds.storage_path}`);
-                        surveySound.sounds.url = await getSignedUrl(surveySound.sounds.storage_path, 'sounds');
-                        console.log(`Generated URL for ${surveySound.sounds.storage_path}: ${surveySound.sounds.url ? 'SUCCESS' : 'FAILED'}`);
+                        const path = surveySound.sounds.storage_path;
+                        serverLogs.push(`Attempting to get signed URL for storage_path: ${path}`);
+                        surveySound.sounds.url = await getSignedUrl(path, 'sounds');
+                        serverLogs.push(`Generated URL for ${path}: ${surveySound.sounds.url ? 'SUCCESS' : 'FAILED'}`);
                     } else {
+                        serverLogs.push(`Survey sound ${surveySound.id} has no storage_path.`);
                         console.warn(`Survey sound ${surveySound.id} has no storage_path`);
                     }
                 } catch (urlError: any) {
-                    console.error(`Error generating signed URL for survey sound ${surveySound.sound_id} (path: ${surveySound.sounds?.storage_path}): ${urlError.message}`, urlError);
+                    const path = surveySound.sounds?.storage_path;
+                    serverLogs.push(`Error generating signed URL for sound ${surveySound.sound_id} (path: ${path}): ${urlError.message}`);
+                    console.error(`Error generating signed URL for survey sound ${surveySound.sound_id} (path: ${path}): ${urlError.message}`, urlError);
                 }
             })
         );
@@ -202,6 +210,13 @@ if (!survey && !error) {
 // Sort sounds by order_index safely
 const sortedSounds = survey?.survey_sounds?.sort((a: any, b: any) => a.order_index - b.order_index) || [];
 ---
+
+<script define:vars={{ serverLogs }}>
+    // Output server-side logs to the browser console for debugging
+    console.group("Server-Side Logs for Survey Page");
+    serverLogs.forEach(log => console.log(log));
+    console.groupEnd();
+</script>
 
 <SurveyLayout
     title={isPreview ? `PREVIEW: ${survey?.title || 'Survey'}` : survey?.title || 'Survey'}
@@ -409,6 +424,7 @@ const sortedSounds = survey?.survey_sounds?.sort((a: any, b: any) => a.order_ind
                     headers: {
                         'Content-Type': 'application/json'
                     },
+                    credentials: 'include', // <-- Ensures cookies are sent with the request
                     body: JSON.stringify({
                         ...participantData,
                         responses, // Now { questionId: selectedText, ... }
