@@ -154,12 +154,14 @@ if (survey && !error) {
             survey.survey_sounds.map(async (surveySound: any) => {
                 try {
                     if (surveySound.sounds?.storage_path) {
+                        console.log(`Attempting to get signed URL for storage_path: ${surveySound.sounds.storage_path}`);
                         surveySound.sounds.url = await getSignedUrl(surveySound.sounds.storage_path, 'sounds');
+                        console.log(`Generated URL for ${surveySound.sounds.storage_path}: ${surveySound.sounds.url ? 'SUCCESS' : 'FAILED'}`);
                     } else {
                         console.warn(`Survey sound ${surveySound.id} has no storage_path`);
                     }
                 } catch (urlError: any) {
-                    console.error(`Error generating signed URL for survey sound ${surveySound.sound_id}: ${urlError.message}`);
+                    console.error(`Error generating signed URL for survey sound ${surveySound.sound_id} (path: ${surveySound.sounds?.storage_path}): ${urlError.message}`, urlError);
                 }
             })
         );

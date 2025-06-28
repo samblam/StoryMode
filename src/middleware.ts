@@ -30,7 +30,8 @@ export const onRequest: MiddlewareHandler = async ({ request, locals, cookies },
       }
     }
 
-    const participantToken = cookies.get('participant-token');
+    let participantToken = cookies.get('participant-token')?.value;
+    let participantIdFromRequest: string | undefined;
 
     // Create a new request with mutable headers and required duplex option
     const modifiedRequest = new Request(request.url, {
@@ -46,10 +47,26 @@ export const onRequest: MiddlewareHandler = async ({ request, locals, cookies },
       modifiedRequest.headers.set('Authorization', `Bearer ${token}`);
     }
 
-    // Handle participant authentication
-    if (participantToken?.value) {
-      console.log('Middleware - Participant token found');
-      const { participant, error } = await getParticipantById(participantToken.value);
+    // If it's a POST request to the survey responses API, check the request body for participant data
+    if (request.method === 'POST' && request.url.includes('/api/surveys/') && request.url.includes('/responses')) {
+      try {
+        // Clone the request to read the body without consuming it for the next handler
+        const clonedRequest = request.clone();
+        const body = await clonedRequest.json();
+        if (body.participantId && body.participantToken) {
+          participantIdFromRequest = body.participantId;
+          participantToken = body.participantToken;
+          console.log('Middleware - Found participant data in request body for survey response submission.');
+        }
+      } catch (e) {
+        console.warn('Middleware - Could not parse request body for participant data:', e);
+      }
+    }
+
+    // Handle participant authentication (from cookie or request body)
+    if (participantToken) {
+      console.log('Middleware - Participant token found (from cookie or body)');
+      const { participant, error } = await getParticipantById(participantToken);
       if (participant) {
         console.log('Middleware - Participant authenticated:', participant.id);
         locals.participantId = participant.id;
@@ -64,12 +81,13 @@ export const onRequest: MiddlewareHandler = async ({ request, locals, cookies },
       } else {
         console.error('Middleware - Invalid participant token:', error);
         cookies.delete('participant-token', { path: '/' });
+        // If authentication fails, proceed to next middleware/route without participant context
         return next();
       }
     }
 
     if (!token) {
-      console.log('Middleware - No token found in cookies or headers');
+      console.log('Middleware - No admin/client token found in cookies or headers');
       return next();
     }
 
