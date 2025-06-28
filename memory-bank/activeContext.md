@@ -87,3 +87,46 @@ Attempting to deploy the application to Vercel, but encountering persistent buil
 - ✅ Resolved problematic `define:vars` usage in Astro components
 - ✅ Improved client-side JavaScript patterns for better build compatibility
 - ✅ Cleaned up TypeScript configuration conflicts
+
+## Failed Attempts to Resolve Sound Playback Issues
+
+**Date:** 2025-06-28
+
+**Problem:** Sound playback continues to fail in surveys. The following attempts to resolve the issue were unsuccessful:
+
+1.  **Corrected `audioManager` import path:**
+    *   **Action:** Changed the import path in `src/pages/surveys/[id].astro` from `../../utils/audioManager.js` to `../../utils/audioManager.ts`.
+    *   **Result:** This resolved the initial 404 error for the `audioManager` module, but introduced a new error: `audioManager.play is not a function`.
+
+2.  **Refactored to client-side import:**
+    *   **Action:** Moved the `audioManager` import from the Astro frontmatter to a client-side `<script>` tag in `src/pages/surveys/[id].astro` to prevent method stripping during server-side rendering.
+    *   **Result:** This led to 404 errors for both `audioManager.ts` and `clientUtils.ts`, indicating that the relative paths were not resolving correctly in the browser.
+
+3.  **Implemented `import.meta.glob`:**
+    *   **Action:** Used `import.meta.glob` in the client-side script of `src/pages/surveys/[id].astro` to bundle the `audioManager` and `clientUtils` modules.
+    *   **Result:** This introduced a new set of errors related to TypeScript type assertions (`as any`) being used in a JavaScript context.
+
+4.  **Removed TypeScript type assertions:**
+    *   **Action:** Removed the `as any` type assertions from the `import.meta.glob` implementation.
+    *   **Result:** The application still fails to play sounds, and the user has reported a regression in functionality.
+
+**Conclusion:** The root cause of the sound playback issue remains unresolved. The problem likely lies in how Astro handles client-side module imports and bundling. Future attempts should focus on finding a reliable method for importing and using the `audioManager` and `clientUtils` modules in the client-side script of `src/pages/surveys/[id].astro`.
+
+## Recent Debug Session - 2025-06-28 17:17
+
+**Problem Analysis Completed:**
+1. **Sound Playback Issue**: Root cause identified - the client-side script was trying to import `logClientEvent` from `clientUtils.ts`, but this function doesn't exist in that module.
+2. **Survey Submission Issue**: Root cause identified - API endpoint was querying participants table using `participant_identifier` field, but client was sending `participantId` which should match the `id` field.
+
+**Fixes Applied:**
+1. **Fixed Sound Playback** in `src/pages/surveys/[id].astro`:
+   - Removed non-existent `logClientEvent` import from `clientUtils`
+   - Simplified import to only load `audioManager` module
+   - Added inline `logClientEvent` function for debugging
+   - This should resolve the "audioManager.play is not a function" error
+
+2. **Fixed Survey Submission** in `src/pages/api/surveys/[id]/responses.ts`:
+   - Changed database query from `.eq('participant_identifier', participantId)` to `.eq('id', participantId)`
+   - This should resolve the authentication failure causing redirects to login
+
+**Status**: Fixes implemented, npm dependencies being reinstalled due to rollup module issue. Testing pending.

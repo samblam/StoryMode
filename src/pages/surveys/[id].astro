@@ -329,11 +329,14 @@ const sortedSounds = survey?.survey_sounds?.sort((a: any, b: any) => a.order_ind
 
 <script type="module" define:vars={{ isPreview, survey, id }}>
     // Import client-side utilities
-    const modules = import.meta.glob('../../utils/{clientUtils,audioManager}.ts', { eager: true });
-    const clientUtils = modules['../../utils/clientUtils.ts'];
+    const modules = import.meta.glob('../../utils/audioManager.ts', { eager: true });
     const audioManagerModule = modules['../../utils/audioManager.ts'];
-    const logClientEvent = clientUtils.logClientEvent;
     const audioManager = audioManagerModule.audioManager;
+    
+    // Simple client event logging function
+    const logClientEvent = (event, data) => {
+        console.log(`Client Event: ${event}`, data);
+    };
 
     // Initialize audio player
     document.querySelectorAll('.play-button').forEach((button) => {

@@ -25,11 +25,14 @@
         "multer": "^1.4.5-lts.1",
         "nanoid": "^5.0.9",
         "nodemailer": "^6.10.0",
+        "rollup": "^4.44.1",
         "tailwindcss": "^3.4.1",
-        "uuid": "^11.0.3"
+        "uuid": "^11.0.3",
+        "vite": "^7.0.0"
     },
     "devDependencies": {
         "@astrojs/react": "^4.2.1",
+        "@rollup/rollup-win32-x64-msvc": "^4.44.1",
         "@types/howler": "^2.2.12",
         "@types/nodemailer": "^6.4.17",
         "@types/uuid": "^10.0.0",

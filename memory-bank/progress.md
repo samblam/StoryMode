@@ -61,6 +61,7 @@ This file tracks the project's progress using a task list format.
     *   Survey Creation Bug (400 error).
     *   Participant Management Bug (Sortable.js).
     *   Survey Preview Bug ("Play Sound" button).
+    *   **[UNRESOLVED]** Sound playback in surveys is not functional. Multiple attempts to fix the issue have failed, and the root cause is still unknown. See `memory-bank/activeContext.md` for a detailed list of failed attempts.
 
 4.  **Testing:**
     *   Test the enhanced answer saving implementation (after `survey_matches` fix).
