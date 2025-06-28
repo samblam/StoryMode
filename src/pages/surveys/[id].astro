@@ -329,7 +329,7 @@ const sortedSounds = survey?.survey_sounds?.sort((a: any, b: any) => a.order_ind
 
 <script type="module" define:vars={{ isPreview, survey, id }}>
     // Import the AudioManager
-    import { audioManager } from '/src/utils/audioManager.js';
+    import { audioManager } from '../../utils/audioManager.js';
 
     // Initialize audio player
     document.querySelectorAll('.play-button').forEach((button) => {

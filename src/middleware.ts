@@ -16,7 +16,9 @@ declare module 'astro' {
 
 export const onRequest: MiddlewareHandler = async ({ request, locals, cookies }, next) => {
   try {
-    console.log('Middleware - Starting authentication check');
+    console.log('Middleware - Starting authentication check for request:', request.url);
+    // Log all cookies for debugging purposes
+    console.log('Middleware - Raw cookie header:', request.headers.get('cookie'));
     
     // Get token from cookie or Authorization header
     let token = cookies.get('sb-token')?.value;
