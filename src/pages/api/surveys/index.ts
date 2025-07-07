@@ -177,7 +177,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
       });
     }
 
-    console.log('Survey created successfully with ID:', survey.id); // Add this line
     // Add survey sounds if any
     if (sounds && sounds.length > 0) {
       console.log('Adding survey sounds:', sounds);
