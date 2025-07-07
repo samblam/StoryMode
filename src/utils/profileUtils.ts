@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase';
+import { getClient } from '../lib/supabase';
 import type { Database } from '../types/database';
 
 type SoundProfile = Database['public']['Tables']['sound_profiles']['Row'];
@@ -11,9 +11,12 @@ interface ProfileResponse {
 /**
  * Get all sound profiles, optionally filtered by client ID
  */
-export async function getSoundProfiles(token: string, clientId?: string): Promise<ProfileResponse> {
+export async function getSoundProfiles(clientId?: string): Promise<ProfileResponse> {
     try {
-        let query = supabase
+        // Use the admin client as this function is called from an admin-only page
+        const supabaseAdmin = getClient({ requiresAdmin: true });
+        
+        let query = supabaseAdmin
             .from('sound_profiles')
             .select('*')
             .order('title');

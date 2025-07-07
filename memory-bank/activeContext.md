@@ -61,6 +61,16 @@ Attempting to deploy the application to Vercel, but encountering persistent buil
     *   **Action**: Added comprehensive `console.log` statements to `src/pages/api/sounds/upload.ts` and `src/utils/storageUtils.ts` to trace execution flow and pinpoint the exact point of failure.
     *   **Next Step**: Awaiting server logs from user after re-attempting sound upload.
 
+*   **Internal Server Error on "Upload New Sound" Page Access**:
+    *   **Fixed**: Modified `src/utils/profileUtils.ts` to remove the unnecessary `token` parameter from `getSoundProfiles` and ensure it uses the admin Supabase client (`getClient({ requiresAdmin: true })`).
+    *   **Root Cause**: The `getSoundProfiles` function was being called without arguments from `src/components/SoundUploader.astro`, leading to an argument mismatch and a server-side crash during page rendering. Additionally, using the regular Supabase client for an admin function could lead to RLS issues.
+    *   **Impact**: The "Upload New Sound" page should now load correctly without an internal server error.
+
+*   **Import Error in `src/utils/profileUtils.ts`**:
+    *   **Fixed**: Modified `src/utils/profileUtils.ts` to import `getClient` from `../lib/supabase` instead of `supabase`.
+    *   **Root Cause**: The `getClient` function was being called without being imported, leading to a runtime error.
+    *   **Impact**: `getSoundProfiles` can now correctly initialize the Supabase admin client.
+
 ## Next Steps (For the next developer)
 
 ✅ **Primary Build Issue Resolved**: The critical Vercel build error has been successfully fixed. The application now builds successfully.
