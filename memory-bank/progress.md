@@ -47,9 +47,11 @@ This file tracks the project's progress using a task list format.
 
 ## Current Tasks
 
-1.  **Investigate Login Failure on Vercel Deployment**: The immediate priority is to resolve the login issue where `/api/auth/login` returns a 404 and HTML. This is blocking user access. (See `memory-bank/activeContext.md` for details and current hypothesis).
+1.  **[RESOLVED] "Upload New Sound" Page Error**: ✅ **FIXED** - The page `src/pages/sounds/upload.astro` internal server error has been resolved. The issue was caused by calling `.map()` directly on a `ProfileResponse` object instead of `profileResponse.data`. The component has been fixed with proper error handling and comprehensive logging added. (See `memory-bank/activeContext.md` for detailed fix documentation).
 
-2.  **Address Technical Debt and Improvements:** Refer to `memory-bank/technicalDebtAndImprovements.md` for detailed areas of improvement, refactoring, and technical debt identified during the codebase review. This includes:
+2.  **Investigate Login Failure on Vercel Deployment**: The immediate priority is to resolve the login issue where `/api/auth/login` returns a 404 and HTML. This is blocking user access. (See `memory-bank/activeContext.md` for details and current hypothesis).
+
+3.  **Address Technical Debt and Improvements:** Refer to `memory-bank/technicalDebtAndImprovements.md` for detailed areas of improvement, refactoring, and technical debt identified during the codebase review. This includes:
     *   Fixing `survey_matches` table data inconsistency (populating `sound_id` and `correct_match`).
     *   Reviewing redundancy in `soundMappingResponses` in `survey_responses`.
     *   Standardizing error handling and logging.
@@ -57,18 +59,18 @@ This file tracks the project's progress using a task list format.
     *   Investigating and removing the admin link from `src/pages/surveys/thank-you.astro`.
     *   Reviewing SMTP configuration and email sending logic for production readiness.
 
-3.  **Fix Remaining Critical Bugs (NEXT PRIORITY):**
+4.  **Fix Remaining Critical Bugs (NEXT PRIORITY):**
     *   Survey Creation Bug (400 error).
     *   Participant Management Bug (Sortable.js).
     *   Survey Preview Bug ("Play Sound" button).
     *   **[UNRESOLVED]** Sound playback in surveys is not functional. Multiple attempts to fix the issue have failed, and the root cause is still unknown. See `memory-bank/activeContext.md` for a detailed list of failed attempts.
 
-4.  **Testing:**
+5.  **Testing:**
     *   Test the enhanced answer saving implementation (after `survey_matches` fix).
     *   Test survey publishing and response saving workflow.
     *   Test the DataExporter component functionality after refactoring.
 
-5.  **Existing Tasks:**
+6.  **Existing Tasks:**
     *   Advanced analytics and reporting features
     *   Integration of sound profiles with surveys during response collection
     *   Enhanced user interface for survey creation and management

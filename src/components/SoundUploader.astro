@@ -1,29 +1,80 @@
 ---
 import { getSoundProfiles } from '../utils/profileUtils';
+import type { Database } from '../types/database';
 
-const profiles = await getSoundProfiles();
+type SoundProfile = Database['public']['Tables']['sound_profiles']['Row'];
+
+// Add comprehensive logging for debugging
+console.log('[SoundUploader] Starting component initialization...');
+
+let profiles: SoundProfile[] = [];
+let profileError: string | null = null;
+
+try {
+  console.log('[SoundUploader] Calling getSoundProfiles()...');
+  const profileResponse = await getSoundProfiles();
+  console.log('[SoundUploader] getSoundProfiles() response:', {
+    hasData: !!profileResponse.data,
+    dataLength: profileResponse.data?.length || 0,
+    error: profileResponse.error,
+    fullResponse: profileResponse
+  });
+  
+  if (profileResponse.error) {
+    console.error('[SoundUploader] Error from getSoundProfiles():', profileResponse.error);
+    profileError = profileResponse.error;
+    profiles = [];
+  } else {
+    profiles = profileResponse.data || [];
+    console.log('[SoundUploader] Successfully loaded profiles:', profiles.length);
+  }
+} catch (error) {
+  console.error('[SoundUploader] Exception in getSoundProfiles():', error);
+  profileError = error instanceof Error ? error.message : 'Unknown error loading profiles';
+  profiles = [];
+}
+
+console.log('[SoundUploader] Component initialization complete. Profiles available:', profiles.length);
 ---
 
 <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
   <h3 class="text-2xl font-editorial mb-4">Upload New Sound</h3>
   
+  {profileError && (
+    <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+      <strong>Error loading sound profiles:</strong> {profileError}
+      <br />
+      <small>Please check the server logs for more details.</small>
+    </div>
+  )}
+  
   <form id="upload-form" class="space-y-4">
     <div>
       <label for="profileId" class="block text-lg mb-2">Sound Profile</label>
-      <select 
-        id="profileId" 
-        name="profileId" 
-        required 
+      <select
+        id="profileId"
+        name="profileId"
+        required
         class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400"
+        disabled={profileError || profiles.length === 0}
       >
-        <option value="">Select a profile</option>
+        <option value="">
+          {profileError ? 'Error loading profiles' :
+           profiles.length === 0 ? 'No profiles available' :
+           'Select a profile'}
+        </option>
         {profiles.map(profile => (
           <option value={profile.id} data-slug={profile.slug}>
             {profile.title}
           </option>
         ))}
       </select>
-      <p class="text-sm text-gray-600 mt-1">Choose which profile this sound belongs to</p>
+      <p class="text-sm text-gray-600 mt-1">
+        {profileError ? 'Fix the error above to continue' : 'Choose which profile this sound belongs to'}
+      </p>
+      {profiles.length === 0 && !profileError && (
+        <p class="text-sm text-yellow-600 mt-1">No sound profiles found. Create a profile first.</p>
+      )}
     </div>
 
     <div>

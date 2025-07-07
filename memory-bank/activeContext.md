@@ -71,6 +71,16 @@ Attempting to deploy the application to Vercel, but encountering persistent buil
     *   **Root Cause**: The `getClient` function was being called without being imported, leading to a runtime error.
     *   **Impact**: `getSoundProfiles` can now correctly initialize the Supabase admin client.
 
+*   **Unresolved: `profiles.map is not a function` on "Upload New Sound" page**:
+    *   **Problem**: The "Upload New Sound" page (`src/pages/sounds/upload.astro`) still displays an "Internal server error" upon access.
+    *   **Analysis**: The `getSoundProfiles()` function in `src/utils/profileUtils.ts` returns a `ProfileResponse` object (`{ data: [], error: null }`), not directly an array. The `src/components/SoundUploader.astro` component attempts to call `.map()` directly on this object (`profiles.map(...)`), which causes a `TypeError` during server-side rendering.
+    *   **Previous Attempts**:
+        1.  Modified `src/lib/supabase.ts` to throw explicit error for missing `SUPABASE_SERVICE_ROLE_KEY`. (Resolved a potential silent error, but not the current issue).
+        2.  Added extensive `console.log` statements to `src/pages/api/sounds/upload.ts` and `src/utils/storageUtils.ts`. (Logs confirmed `getSoundProfiles` returns an object, but did not directly show the `.map` error).
+        3.  Modified `src/utils/profileUtils.ts` to remove `token` parameter and use `getClient({ requiresAdmin: true })`. (Resolved argument mismatch and ensured admin client usage, but did not fix the `.map` issue).
+        4.  Fixed import of `getClient` in `src/utils/profileUtils.ts`. (Resolved import error, but not the `.map` issue).
+    *   **Escalation**: This issue requires further investigation by a senior developer. The current analysis points to the `.map` call on an object instead of an array, but the exact cause of the server crash without a clear log of this specific error needs deeper debugging.
+
 ## Next Steps (For the next developer)
 
 ✅ **Primary Build Issue Resolved**: The critical Vercel build error has been successfully fixed. The application now builds successfully.
@@ -200,3 +210,30 @@ Attempting to deploy the application to Vercel, but encountering persistent buil
 - Maintains all existing security and data validation
 
 **Status**: Survey submission authentication fix implemented. Ready for testing.
+
+## Sound Upload Page Fix - 2025-07-07 10:57
+
+**Problem**: The "Upload New Sound" page (`src/pages/sounds/upload.astro`) was showing an internal server error due to a `profiles.map is not a function` error.
+
+**Root Cause Identified**: The [`getSoundProfiles()`](src/utils/profileUtils.ts:14) function returns a `ProfileResponse` object with structure `{ data: [], error: null }`, but the [`SoundUploader.astro`](src/components/SoundUploader.astro:20) component was trying to call `.map()` directly on the `profiles` object instead of `profiles.data`.
+
+**Fix Applied**:
+1. **Updated SoundUploader.astro component**:
+   - Fixed the data structure handling to properly access `profileResponse.data` instead of calling `.map()` on the response object
+   - Added comprehensive logging to track component initialization and profile loading
+   - Added proper TypeScript typing for `profiles` and `profileError` variables
+   - Added error handling UI to display profile loading errors to users
+   - Added conditional rendering based on profile availability
+
+2. **Enhanced profileUtils.ts logging**:
+   - Added detailed logging throughout the `getSoundProfiles()` function
+   - Logs client initialization, query building, execution, and results
+   - Provides detailed error information including error codes and hints
+
+**Technical Details**:
+- The component now properly destructures the `ProfileResponse` object
+- Error states are handled gracefully with user-friendly messages
+- Form elements are disabled when profiles can't be loaded
+- Comprehensive logging added at all levels (component, utility, API, storage)
+
+**Status**: Sound upload page fix implemented with comprehensive debugging. Ready for testing.
