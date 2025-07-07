@@ -16,23 +16,29 @@ export class StorageError extends Error {
 }
 
 export async function getSignedUrl(path: string, bucket: string): Promise<string> {
+  console.log('StorageUtils: getSignedUrl - Attempting to get signed URL for path:', path, 'bucket:', bucket);
   try {
     const supabase = getClient({ requiresAdmin: true });
+    console.log('StorageUtils: getSignedUrl - Supabase client initialized');
 
     // Validate bucket name
     const validBuckets = ['sounds', 'videos'];
     if (!validBuckets.includes(bucket)) {
+      console.error('StorageUtils: getSignedUrl - Invalid bucket name:', bucket);
       throw new StorageError(`Invalid bucket name: ${bucket}`);
     }
+    console.log('StorageUtils: getSignedUrl - Bucket name validated');
 
     // Validate path exists
     if (!path) {
+      console.error('StorageUtils: getSignedUrl - No path provided');
       throw new StorageError('No path provided');
     }
+    console.log('StorageUtils: getSignedUrl - Path validated');
 
     // Remove bucket prefix if present for storage operations
     const storagePath = path.startsWith(`${bucket}/`) ? path.slice(bucket.length + 1) : path;
-    console.log('Creating signed URL for:', { bucket, path: storagePath });
+    console.log('StorageUtils: getSignedUrl - Creating signed URL for:', { bucket, path: storagePath });
 
     // Create signed URL with 1 hour expiration using corrected path
     const { data, error } = await supabase.storage
@@ -42,15 +48,19 @@ export async function getSignedUrl(path: string, bucket: string): Promise<string
       });
 
     if (error) {
+      console.error('StorageUtils: getSignedUrl - Supabase error creating signed URL:', error.message);
       throw new StorageError(`Supabase error: ${error.message}`);
     }
 
     if (!data?.signedUrl) {
+      console.error('StorageUtils: getSignedUrl - No signed URL returned from Supabase');
       throw new StorageError('No signed URL returned from Supabase');
     }
+    console.log('StorageUtils: getSignedUrl - Signed URL successfully generated');
 
     return data.signedUrl;
   } catch (error) {
+    console.error('StorageUtils: getSignedUrl - Failed to get signed URL:', error);
     if (error instanceof StorageError) {
       throw error;
     }
@@ -70,22 +80,28 @@ export async function uploadSound({
   path: string;
   signedUrl: string;
 }> {
+  console.log('StorageUtils: uploadSound - Starting sound upload process');
   try {
     // Validate file size (50MB limit for Supabase free tier)
     const maxSize = 50 * 1024 * 1024;
     if (file.size > maxSize) {
+      console.error('StorageUtils: uploadSound - File size exceeds limit:', file.size);
       throw new StorageError(
         `File size exceeds 50MB limit. Current size: ${(file.size / (1024 * 1024)).toFixed(2)}MB`
       );
     }
+    console.log('StorageUtils: uploadSound - File size validated');
 
     // Create a unique filename
     const fileExt = file.name.split('.').pop()?.toLowerCase() || 'mp3';
     const fileName = `${profileSlug}/${uuidv4()}.${fileExt}`;
+    console.log('StorageUtils: uploadSound - Generated filename:', fileName);
 
     const supabase = getClient({ requiresAdmin: true });
+    console.log('StorageUtils: uploadSound - Supabase client initialized for upload');
 
     // Upload to Supabase Storage with explicit content type
+    console.log('StorageUtils: uploadSound - Attempting to upload file to Supabase Storage');
     const { data, error } = await supabase.storage
       .from('sounds')
       .upload(fileName, file, {
@@ -95,14 +111,18 @@ export async function uploadSound({
       });
 
     if (error) {
+      console.error('StorageUtils: uploadSound - Supabase upload failed:', error.message);
       throw new StorageError(`Upload failed: ${error.message}`);
     }
 
     if (!data?.path) {
+      console.error('StorageUtils: uploadSound - Upload successful but no path returned');
       throw new StorageError('Upload successful but no path returned');
     }
+    console.log('StorageUtils: uploadSound - File uploaded to Supabase Storage. Path:', data.path);
 
     // Get signed URL with correct content type
+    console.log('StorageUtils: uploadSound - Attempting to generate signed URL for uploaded file');
     const { data: urlData, error: urlError } = await supabase.storage
       .from('sounds')
       .createSignedUrl(data.path, 60 * 60, {
@@ -113,14 +133,17 @@ export async function uploadSound({
       });
 
     if (urlError || !urlData?.signedUrl) {
+      console.error('StorageUtils: uploadSound - Failed to generate signed URL:', urlError?.message);
       throw new StorageError('Failed to generate signed URL');
     }
+    console.log('StorageUtils: uploadSound - Signed URL generated:', urlData.signedUrl);
 
     return {
       path: data.path,
       signedUrl: urlData.signedUrl
     };
   } catch (error) {
+    console.error('StorageUtils: uploadSound - Unexpected error during upload process:', error);
     if (error instanceof StorageError) {
       throw error;
     }

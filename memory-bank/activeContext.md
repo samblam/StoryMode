@@ -57,6 +57,10 @@ Attempting to deploy the application to Vercel, but encountering persistent buil
     *   **Fixed**: Modified `src/lib/supabase.ts` to throw an explicit error when `SUPABASE_SERVICE_ROLE_KEY` is missing, instead of silently falling back to a non-admin client.
     *   **Impact**: This will now provide a clear error message if the service role key is not configured, preventing silent failures during sound uploads due to insufficient permissions.
 
+*   **Debugging Silent Internal Service Error on Sound Upload**:
+    *   **Action**: Added comprehensive `console.log` statements to `src/pages/api/sounds/upload.ts` and `src/utils/storageUtils.ts` to trace execution flow and pinpoint the exact point of failure.
+    *   **Next Step**: Awaiting server logs from user after re-attempting sound upload.
+
 ## Next Steps (For the next developer)
 
 ✅ **Primary Build Issue Resolved**: The critical Vercel build error has been successfully fixed. The application now builds successfully.
