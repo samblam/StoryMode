@@ -35,10 +35,7 @@ function getSupabaseAdminClient(): SupabaseClient<Database> {
   const supabaseServiceRole = import.meta.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseServiceRole) {
-    console.warn('SUPABASE_SERVICE_ROLE_KEY not found. Admin client will not be created.');
-    // Return a regular client as a fallback, but with a warning.
-    // This might not be suitable for all use cases.
-    return getSupabaseClient();
+    throw new Error('SUPABASE_SERVICE_ROLE_KEY is not set. Admin client cannot be created.');
   }
 
   return createClient<Database>(
