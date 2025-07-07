@@ -137,7 +137,7 @@ try {
     }
 
     // Fetch sound profiles
-    const profilesResponse = await getSoundProfiles(token, survey.client_id);
+    const profilesResponse = await getSoundProfiles(survey.client_id);
     if (!profilesResponse.error) {
         soundProfiles = profilesResponse.data;
     } else {

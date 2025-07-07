@@ -237,3 +237,20 @@ Attempting to deploy the application to Vercel, but encountering persistent buil
 - Comprehensive logging added at all levels (component, utility, API, storage)
 
 **Status**: Sound upload page fix implemented with comprehensive debugging. Ready for testing.
+
+## New Bug: Invalid UUID on Survey Edit Page - 2025-07-07 11:35:53
+
+**Problem**: After creating a survey, attempting to open its "edit" page results in an "invalid input syntax for type uuid" error, with the provided value being a JWT token.
+
+**Analysis & Root Cause (Assumption)**:
+1.  The URL for the edit page (`/admin/surveys/[id]/edit.astro`) correctly receives a UUID as `Astro.params.id`.
+2.  The `SurveyList.astro` component correctly fetches survey IDs as UUIDs from the database.
+3.  The `CreateSurveyForm.astro` component does not explicitly set the survey ID; it relies on Supabase to generate a UUID during insertion.
+4.  The error occurs within `src/pages/admin/surveys/[id]/edit.astro` when calling `getSoundProfiles(token, survey.client_id)`.
+5.  The `getSoundProfiles` function in `src/utils/profileUtils.ts` expects an optional `clientId` as its *only* argument.
+6.  **Assumption**: The JWT `token` (from `Astro.cookies.get('sb-token')?.value`) is being incorrectly passed as the `clientId` to `getSoundProfiles`, leading to the Supabase query attempting to filter a UUID column (`client_id`) with a JWT string, thus causing the "invalid input syntax for type uuid" error.
+
+**Fix Applied**:
+-   Modified `src/pages/admin/surveys/[id]/edit.astro` to call `getSoundProfiles` with only `survey.client_id`, removing the `token` argument. This prevents the JWT from being incorrectly passed as a UUID to the Supabase query.
+
+**Current Status**: Fix applied. Ready for testing.
