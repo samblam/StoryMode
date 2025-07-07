@@ -44,6 +44,7 @@ This file tracks the project's progress using a task list format.
 - Implemented survey response completed field update upon survey submission
 
 - Resolved Vercel build error related to `src/components/tsconfig.json` and null byte path by refactoring `DataExporter.astro` and removing `client:load` directive.
+- Implemented "meaning" field for survey functions in admin and participant views.
 
 ## Current Tasks
 

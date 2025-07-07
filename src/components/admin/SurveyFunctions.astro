@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 interface FunctionObject {
     id: string;
     text: string;
+    meaning: string;
 }
 
 interface Props {
@@ -27,9 +28,13 @@ if (Array.isArray(survey?.functions)) {
             // Attempt to handle legacy string format (assign a temporary ID if needed, though ideally these should be migrated)
             console.warn(`Found legacy string function "${func}". Consider migrating to object format.`);
             // For now, we might skip showing delete button or handle differently
-            return { id: `legacy-${Math.random().toString(36).substring(7)}`, text: func }; 
+            return { id: `legacy-${Math.random().toString(36).substring(7)}`, text: func, meaning: '' };
         } else if (typeof func === 'object' && func !== null && func.id && func.text) {
-            return func as FunctionObject;
+            return {
+                id: func.id,
+                text: func.text,
+                meaning: func.meaning || '' // Ensure meaning is present, default to empty string
+            } as FunctionObject;
         }
         console.warn('Found invalid function format:', func);
         return null; // Filter out invalid formats
@@ -48,18 +53,23 @@ if (error) {
     <!-- Function List -->
     <div id="function-list" class="space-y-2 mb-4">
         {functions.map((func: FunctionObject) => (
-            <div class="flex items-center justify-between bg-gray-50 p-2 rounded" data-function-id={func.id}>
-                <span>{func.text}</span>
-                <button
-                    type="button"
-                    class="delete-function text-red-600 hover:text-red-800"
-                    data-id={func.id}
-                    data-text={func.text}
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
-                    </svg>
-                </button>
+            <div class="bg-gray-50 p-3 rounded" data-function-id={func.id}>
+                <div class="flex items-center justify-between mb-1">
+                    <span class="font-medium text-gray-900">{func.text}</span>
+                    <button
+                        type="button"
+                        class="delete-function text-red-600 hover:text-red-800"
+                        data-id={func.id}
+                        data-text={func.text}
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                        </svg>
+                    </button>
+                </div>
+                {func.meaning && (
+                    <p class="text-sm text-gray-600 mt-1">{func.meaning}</p>
+                )}
             </div>
         ))}
         {functions.length === 0 && (
@@ -68,18 +78,32 @@ if (error) {
     </div>
 
     <!-- Add Function Form -->
-    <form id="add-function-form" class="flex gap-2">
-        <input
-            type="text"
-            id="new-function"
-            name="new-function"
-            class="flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-            placeholder="Enter new function text"
-            required
-        />
+    <form id="add-function-form" class="space-y-3">
+        <div>
+            <label for="new-function-text" class="block text-sm font-medium text-gray-700">Function Text</label>
+            <input
+                type="text"
+                id="new-function-text"
+                name="new-function-text"
+                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                placeholder="e.g., Activity"
+                required
+            />
+        </div>
+        <div>
+            <label for="new-function-meaning" class="block text-sm font-medium text-gray-700">Meaning</label>
+            <textarea
+                id="new-function-meaning"
+                name="new-function-meaning"
+                rows="3"
+                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                placeholder="e.g., Sound of selecting your hobbies and interests when you’re first completing your profile."
+                required
+            ></textarea>
+        </div>
         <button
             type="submit"
-            class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            class="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
         >
             Add Function
         </button>
@@ -142,20 +166,23 @@ if (error) {
     // Function to render a single function item
     const renderFunctionItem = (func) => {
         const div = document.createElement('div');
-        div.className = 'flex items-center justify-between bg-gray-50 p-2 rounded';
+        div.className = 'bg-gray-50 p-3 rounded';
         div.setAttribute('data-function-id', func.id);
         div.innerHTML = `
-            <span>${func.text}</span>
-            <button
-                type="button"
-                class="delete-function text-red-600 hover:text-red-800"
-                data-id="${func.id}"
-                data-text="${func.text}"
-            >
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
-                </svg>
-            </button>
+            <div class="flex items-center justify-between mb-1">
+                <span class="font-medium text-gray-900">${func.text}</span>
+                <button
+                    type="button"
+                    class="delete-function text-red-600 hover:text-red-800"
+                    data-id="${func.id}"
+                    data-text="${func.text}"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+            </div>
+            ${func.meaning ? `<p class="text-sm text-gray-600 mt-1">${func.meaning}</p>` : ''}
         `;
         return div;
     };
@@ -164,10 +191,16 @@ if (error) {
     document.getElementById('add-function-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const form = /** @type {HTMLFormElement} */ (e.target);
-        const input = /** @type {HTMLInputElement} */ (form.querySelector('#new-function'));
-        const functionText = input.value.trim();
+        const textInput = /** @type {HTMLInputElement} */ (form.querySelector('#new-function-text'));
+        const meaningInput = /** @type {HTMLTextAreaElement} */ (form.querySelector('#new-function-meaning'));
+        
+        const functionText = textInput.value.trim();
+        const functionMeaning = meaningInput.value.trim();
 
-        if (!functionText) return;
+        if (!functionText || !functionMeaning) {
+            alert('Both function text and meaning are required.');
+            return;
+        }
 
         try {
             const supabase = window.supabase;
@@ -187,8 +220,10 @@ if (error) {
             // Ensure functions is an array of objects
             let currentFunctions = [];
             if (Array.isArray(survey?.functions)) {
-                currentFunctions = survey.functions.map(func => 
-                    (typeof func === 'object' && func !== null && func.id && func.text) ? func : null
+                currentFunctions = survey.functions.map(func =>
+                    (typeof func === 'object' && func !== null && func.id && func.text)
+                        ? { id: func.id, text: func.text, meaning: func.meaning || '' }
+                        : null
                 ).filter(f => f !== null);
             }
 
@@ -204,7 +239,8 @@ if (error) {
             // Create new function object with UUID
             const newFunction = {
                 id: crypto.randomUUID(), // Generate UUID
-                text: functionText
+                text: functionText,
+                meaning: functionMeaning
             };
 
             const newFunctionsArray = [...currentFunctions, newFunction];
@@ -222,8 +258,9 @@ if (error) {
 
             console.log('Update successful');
 
-            // Clear input and update UI
-            input.value = '';
+            // Clear inputs and update UI
+            textInput.value = '';
+            meaningInput.value = '';
             const functionList = document.getElementById('function-list');
             if (functionList) {
                  // Remove "No functions" message if present

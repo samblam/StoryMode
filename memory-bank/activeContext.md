@@ -254,3 +254,15 @@ Attempting to deploy the application to Vercel, but encountering persistent buil
 -   Modified `src/pages/admin/surveys/[id]/edit.astro` to call `getSoundProfiles` with only `survey.client_id`, removing the `token` argument. This prevents the JWT from being incorrectly passed as a UUID to the Supabase query.
 
 **Current Status**: Fix applied. Ready for testing.
+
+## Feature Implemented: Survey Function Meaning - 2025-07-07 12:34:00
+
+**Problem**: The user requested a text box to define the "meaning" of survey functions, applicable to existing surveys.
+
+**Solution Implemented**:
+1.  **Updated `FunctionObject` interface**: Modified `src/components/admin/SurveyFunctions.astro` and `src/pages/surveys/[id].astro` to include a `meaning: string;` property in the `FunctionObject` interface.
+2.  **Admin Interface Modification**: Added a `textarea` field for "Meaning" in `src/components/admin/SurveyFunctions.astro` to allow administrators to input the description for each function.
+3.  **Survey Display Update**: Modified `src/pages/surveys/[id].astro` to display the `meaning` text below the function name for survey participants.
+4.  **Data Handling**: Ensured that the `meaning` field is correctly handled when fetching and updating survey functions in `src/components/admin/SurveyFunctions.astro` and when validating functions in `src/pages/surveys/[id].astro`.
+
+**Impact**: Administrators can now provide detailed explanations for each survey function, improving clarity for participants. This change is backward-compatible with existing surveys, which will simply have empty "meaning" fields until updated.
