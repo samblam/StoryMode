@@ -1,0 +1,225 @@
+---
+// src/components/AnalyticsDashboard.astro
+import type { SurveyResponse } from '../types/database';
+
+interface Props {
+  responses: SurveyResponse[];
+  isLoading?: boolean;
+  error?: string | null;
+  surveyId: string;
+}
+
+const { responses, isLoading = false, error: initialError = null, surveyId } = Astro.props;
+
+import * as analytics from '../utils/surveyAnalytics';
+import * as exporter from '../utils/surveyExport';
+
+// Process analytics if we have responses and no error
+let analyticsData = null;
+let exportValidation = null;
+let errorMessage = initialError;
+
+if (!isLoading && !errorMessage && responses.length > 0) {
+  try {
+    // Get cached results or process new ones
+    analyticsData = analytics.getCachedAnalytics(surveyId);
+    
+    if (!analyticsData) {
+      // Process in batches for large datasets
+      analyticsData = analytics.processBatchResults(responses);
+      analytics.cacheAnalyticsResults(surveyId, analyticsData);
+    }
+    
+    // Validate export format
+    exportValidation = exporter.validateFormat(responses);
+  } catch (err) {
+    errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
+  }
+}
+
+// Calculate completion percentage for loading state
+const loadingProgress = isLoading ? Math.floor(Math.random() * 30) + 70 : 100;
+---
+
+<div class="analytics-dashboard bg-white rounded-lg shadow-lg p-6 space-y-6">
+  <!-- Header with Export Controls -->
+  <div class="flex justify-between items-center border-b pb-4">
+    <h2 class="text-2xl font-bold text-gray-800">Analytics Dashboard</h2>
+    
+    {!isLoading && !errorMessage && responses.length > 0 && (
+      <div class="flex space-x-4">
+        <button
+          class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+          data-export="csv"
+        >
+          Export CSV
+        </button>
+        <button
+          class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+          data-export="pdf"
+        >
+          Export PDF
+        </button>
+      </div>
+    )}
+  </div>
+
+  {/* Loading State */}
+  {isLoading && (
+    <div class="flex flex-col items-center justify-center py-12 space-y-4">
+      <div class="w-full max-w-md bg-gray-200 rounded-full h-4">
+        <div
+          class="bg-blue-600 h-4 rounded-full transition-all duration-500"
+          style={`width: ${loadingProgress}%`}
+        ></div>
+      </div>
+      <p class="text-gray-600">Loading analytics data...</p>
+    </div>
+  )}
+
+  {/* Error State */}
+  {errorMessage && (
+    <div class="bg-red-50 border-l-4 border-red-500 p-4">
+      <div class="flex">
+        <div class="flex-shrink-0">
+          <svg class="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+          </svg>
+        </div>
+        <div class="ml-3">
+          <p class="text-sm text-red-700">{errorMessage}</p>
+        </div>
+      </div>
+    </div>
+  )}
+
+  {/* Main Content */}
+  {!isLoading && !errorMessage && analyticsData && (
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {/* Success Metrics Card */}
+      <div class="bg-gray-50 rounded-lg p-6 shadow-sm">
+        <h3 class="text-lg font-semibold text-gray-800 mb-4">Success Metrics</h3>
+        <div class="space-y-4">
+          <div>
+            <p class="text-sm text-gray-600">Success Rate</p>
+            <p class="text-2xl font-bold text-blue-600">
+              {(analyticsData.successMetrics.successRate * 100).toFixed(1)}%
+            </p>
+          </div>
+          <div>
+            <p class="text-sm text-gray-600">Avg. Completion Time</p>
+            <p class="text-2xl font-bold text-blue-600">
+              {(analyticsData.successMetrics.averageCompletionTime / 1000).toFixed(2)}s
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Sound Performance Card */}
+      <div class="bg-gray-50 rounded-lg p-6 shadow-sm">
+        <h3 class="text-lg font-semibold text-gray-800 mb-4">Sound Performance</h3>
+        <div class="space-y-4">
+          <div>
+            <p class="text-sm text-gray-600">Most Chosen Sound</p>
+            <p class="text-xl font-bold text-blue-600">
+              {analyticsData.soundPerformance.majorityChoice || 'N/A'}
+            </p>
+          </div>
+          <div>
+            <p class="text-sm text-gray-600">Selection Count</p>
+            <p class="text-xl font-bold text-blue-600">
+              {analyticsData.soundPerformance.majorityChoiceCount}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Participant Behavior Card */}
+      <div class="bg-gray-50 rounded-lg p-6 shadow-sm">
+        <h3 class="text-lg font-semibold text-gray-800 mb-4">Participant Behavior</h3>
+        <div class="space-y-4">
+          <div>
+            <p class="text-sm text-gray-600">Avg. Time per Question</p>
+            <p class="text-xl font-bold text-blue-600">
+              {(analyticsData.participantBehavior.averageTimePerQuestion / 1000).toFixed(2)}s
+            </p>
+          </div>
+          <div>
+            <p class="text-sm text-gray-600">Drop-off Rate</p>
+            <p class="text-xl font-bold text-blue-600">
+              {(analyticsData.participantBehavior.dropOffRate * 100).toFixed(1)}%
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  )}
+
+  {/* Export Validation Warnings */}
+  {exportValidation && !exportValidation.isValid && (
+    <div class="mt-6 bg-yellow-50 border-l-4 border-yellow-500 p-4">
+      <div class="flex">
+        <div class="flex-shrink-0">
+          <svg class="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+          </svg>
+        </div>
+        <div class="ml-3">
+          <h3 class="text-sm font-medium text-yellow-800">Export Validation Warnings</h3>
+          <div class="mt-2 text-sm text-yellow-700">
+            <ul class="list-disc list-inside">
+              {exportValidation.errors.map((error) => (
+                <li>{error}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  )}
+</div>
+
+<script define:vars={{ surveyId }}>
+document.addEventListener('DOMContentLoaded', () => {
+  async function exportData(format) {
+    try {
+      const response = await fetch(`/api/surveys/${surveyId}/export`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ format }),
+      });
+
+      if (!response.ok) throw new Error('Export failed');
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `survey-results.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Export error:', error);
+      alert('Failed to export data. Please try again.');
+    }
+  }
+
+  // Add click handlers for export buttons
+  document.querySelectorAll('[data-export]').forEach(button => {
+    button.addEventListener('click', (e) => {
+      const format = e.target.dataset.export;
+      exportData(format);
+    });
+  });
+});
+</script>
+
+<style>
+.analytics-dashboard {
+  @apply w-full max-w-7xl mx-auto;
+}
+</style>

@@ -1,5 +1,8 @@
-import { supabase } from '../lib/supabase';
+import type { PostgrestError } from '@supabase/supabase-js';
+import { supabase, getClient } from '../lib/supabase';
 import type { User, AuthError } from '../types/auth';
+import { isRLSError } from './accessControl';
+import type { AstroCookies } from 'astro';
 
 /**
  * Normalizes an email address by trimming whitespace and converting to lowercase
@@ -9,26 +12,121 @@ function normalizeEmail(email: string): string {
 }
 
 /**
- * Gets the current authenticated user
+ * Gets the current authenticated user with RLS support
+ * @returns User object or null if not authenticated
+ * @throws RLSError if RLS policy prevents access
  */
-export async function getCurrentUser(): Promise<User | null> {
+export async function getCurrentUser(cookies?: AstroCookies): Promise<User | null> {
   try {
-    const {
-      data: { session },
-      error: sessionError,
-    } = await supabase.auth.getSession();
+    // Try to get token from cookies if provided
+    const token = cookies?.get('sb-token')?.value;
+    
+    if (token) {
+      const adminClient = getClient({ requiresAdmin: true });
+
+      // If we have a token, verify it first
+      const { data: { user: authUser }, error: authError } =
+        await adminClient.auth.getUser(token);
+
+      if (authError || !authUser) {
+        console.error('Auth error or no user found:', authError);
+        return null;
+      }
+
+      // Get user data with admin client to bypass RLS
+      const { data: userData, error: userError } = await adminClient
+        .from('users')
+        .select(`
+          *,
+          clients!client_id (
+            id,
+            name,
+            email,
+            active
+          )
+        `)
+        .eq('id', authUser.id)
+        .single();
+
+      if (userError) {
+        console.error('Error fetching user data:', userError);
+        return null;
+      }
+
+      // Ensure we have valid user data
+      if (!userData) {
+        console.error('No user data found after query');
+        return null;
+      }
+
+      // Log the user data for debugging
+      console.log('User data from query:', {
+        id: userData.id,
+        email: userData.email,
+        role: userData.role,
+        clientId: userData.client_id,
+        clients: userData.clients
+      });
+
+      // Construct user object with proper client data
+      const user: User = {
+        id: userData.id,
+        email: userData.email,
+        role: userData.role || 'client', // Default to client if no role
+        clientId: userData.client_id,
+        client: userData.clients ? {
+          id: userData.clients.id,
+          name: userData.clients.name,
+          email: userData.clients.email,
+          active: userData.clients.active
+        } : null,
+        createdAt: authUser.created_at || new Date().toISOString(),
+      };
+
+      console.log('Constructed user object:', user);
+      return user;
+    }
+
+    // If no token or no cookies provided, try session
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
     if (sessionError || !session?.user) {
       return null;
     }
 
+    // First try with regular client
     const { data: userData, error: userError } = await supabase
       .from('users')
       .select('*')
       .eq('id', session.user.id)
       .single();
 
-    if (userError || !userData) {
+    if (userError) {
+      if (isRLSError(userError)) {
+        // Fall back to admin client if RLS blocks access
+        const adminClient = getClient({ requiresAdmin: true });
+        const { data: adminData } = await adminClient
+          .from('users')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+        
+        if (!adminData) {
+          return null;
+        }
+
+        return {
+          id: adminData.id,
+          email: adminData.email,
+          role: adminData.role,
+          clientId: adminData.client_id,
+          createdAt: adminData.created_at,
+        };
+      }
+      throw userError;
+    }
+
+    if (!userData) {
       return null;
     }
 
@@ -40,13 +138,30 @@ export async function getCurrentUser(): Promise<User | null> {
       createdAt: userData.created_at,
     };
   } catch (error) {
+    if (isRLSError(error)) {
+      throw error;
+    }
     console.error('Error getting current user:', error);
     return null;
   }
 }
 
 /**
- * Signs in a user with email and password
+ * Checks if user is authorized for a specific operation
+ * @param user - The user to check
+ * @param requiredRole - The required role for the operation
+ * @returns boolean indicating authorization status
+ */
+export function isUserAuthorized(user: User | undefined, requiredRole: string): boolean {
+  if (!user) return false;
+  return user.role === requiredRole || user.role === 'admin';
+}
+
+/**
+ * Signs in a user with RLS support
+ * @param email - User's email address
+ * @param password - User's password
+ * @returns Object containing user data and error information
  */
 export async function signIn(
   email: string,
@@ -55,6 +170,7 @@ export async function signIn(
   try {
     const normalizedEmail = normalizeEmail(email);
     
+    // First try with regular client
     const { data, error } = await supabase.auth.signInWithPassword({
       email: normalizedEmail,
       password,
@@ -66,6 +182,7 @@ export async function signIn(
         error: {
           message: error.message,
           status: 401,
+          code: 'AUTH_ERROR',
         },
       };
     }
@@ -76,22 +193,59 @@ export async function signIn(
         error: {
           message: 'No user found',
           status: 404,
+          code: 'USER_NOT_FOUND',
         },
       };
     }
 
+    // Try to get user data with regular client first
     const { data: userData, error: userError } = await supabase
       .from('users')
       .select('*')
       .eq('id', data.user.id)
       .single();
 
-    if (userError || !userData) {
+    if (userError) {
+      if (isRLSError(userError)) {
+        // Fall back to admin client if RLS blocks access
+        const adminClient = getClient({ requiresAdmin: true });
+        const { data: adminData } = await adminClient
+          .from('users')
+          .select('*')
+          .eq('id', data.user.id)
+          .single();
+        
+        if (adminData) {
+          return {
+            user: {
+              id: adminData.id,
+              email: adminData.email,
+              role: adminData.role,
+              clientId: adminData.client_id,
+              createdAt: adminData.created_at,
+            },
+            error: null,
+          };
+        }
+      }
+      
+      return {
+        user: null,
+        error: {
+          message: userError.message,
+          status: 403,
+          code: 'PERMISSION_DENIED',
+        },
+      };
+    }
+
+    if (!userData) {
       return {
         user: null,
         error: {
           message: 'User data not found',
           status: 404,
+          code: 'USER_NOT_FOUND',
         },
       };
     }
@@ -107,12 +261,24 @@ export async function signIn(
       error: null,
     };
   } catch (error) {
+    if (isRLSError(error)) {
+      return {
+        user: null,
+        error: {
+          message: 'Access denied',
+          status: 403,
+          code: 'PERMISSION_DENIED',
+        },
+      };
+    }
+    
     return {
       user: null,
       error: {
         message:
           error instanceof Error ? error.message : 'An unknown error occurred',
         status: 500,
+        code: 'INTERNAL_ERROR',
       },
     };
   }
@@ -172,7 +338,7 @@ export async function getClientId(): Promise<string | null> {
  * Middleware function to require authentication
  */
 export function requireAuth() {
-  return async ({ request }: { request: Request }) => {
+  return async ({ }: { request: Request }) => {
     const user = await getCurrentUser();
     if (!user) {
       return new Response('Redirect', {
@@ -187,10 +353,170 @@ export function requireAuth() {
 }
 
 /**
+ * Creates a new survey participant
+ * @param email - Participant's email address (optional)
+ * @returns Object containing participant ID and error information
+ */
+export async function createParticipant(
+  email?: string
+): Promise<{ participantId: string | null; error: AuthError | null }> {
+  try {
+    const { data, error } = await supabase
+      .from('participants')
+      .insert({
+        email: email ? normalizeEmail(email) : null
+      })
+      .select('id')
+      .single();
+
+    if (error) {
+      const authError: AuthError = {
+        message: error.message,
+        status: 500,
+        code: 'CREATE_PARTICIPANT_ERROR',
+      };
+      return {
+        participantId: null,
+        error: authError,
+      };
+    }
+
+    return {
+      participantId: data.id,
+      error: null,
+    };
+  } catch (error) {
+    const err = error as any;
+    const authError: AuthError = {
+      message: err.message || 'An unknown error occurred',
+      status: 500,
+      code: 'INTERNAL_ERROR',
+    };
+    return {
+      participantId: null,
+      error: authError,
+    };
+  }
+}
+
+/**
+ * Gets a participant by ID with RLS support
+ * @param participantId - The participant's ID
+ * @returns Object containing participant data and error information
+ */
+export async function getParticipantById(
+  participantId: string
+): Promise<{ participant: { id: string, email: string | null } | null; error: AuthError | null }> {
+  try {
+    const { data, error } = await supabase
+      .from('participants')
+      .select('id, email')
+      .eq('id', participantId)
+      .single();
+
+    if (error) {
+      if (isRLSError(error)) {
+        // Fall back to admin client if RLS blocks access
+        const adminClient = getClient({ requiresAdmin: true });
+        const { data: adminData } = await adminClient
+          .from('participants')
+          .select('id, email')
+          .eq('id', participantId)
+          .single();
+
+        if (!adminData) {
+          const authError: AuthError = {
+            message: 'Participant not found',
+            status: 404,
+            code: 'PARTICIPANT_NOT_FOUND',
+          };
+          return {
+            participant: null,
+            error: authError,
+          };
+        }
+
+        return {
+          participant: adminData,
+          error: null,
+        };
+      } else {
+        // Type assertion: Tell TypeScript 'error' is a PostgrestError
+        const pgError = error as PostgrestError;
+        const authError: AuthError = {
+          message: pgError.message,
+          status: 403,
+          code: 'PERMISSION_DENIED',
+        };
+        return {
+          participant: null,
+          error: authError,
+        };
+      }
+    }
+
+    return {
+      participant: data,
+      error: null,
+    };
+  } catch (error) {
+    const authError: AuthError = {
+      message: error instanceof Error ? error.message : 'An unknown error occurred',
+      status: 500,
+      code: 'INTERNAL_ERROR',
+    };
+    return {
+      participant: null,
+      error: authError,
+    };
+  }
+}
+
+/**
+ * Validates if a participant has access to a specific survey
+ * @param participantId - The participant's ID
+ * @param surveyId - The survey's ID
+ * @returns boolean indicating access status
+ */
+export async function validateParticipantAccess(
+  participantId: string,
+  surveyId: string
+): Promise<boolean> {
+  try {
+    const { data, error } = await supabase
+      .from('survey_responses')
+      .select('id')
+      .eq('participant_id', participantId)
+      .eq('survey_id', surveyId)
+      .single();
+
+    if (error) {
+      if (isRLSError(error)) {
+        // Fall back to admin client if RLS blocks access
+        const adminClient = getClient({ requiresAdmin: true });
+        const { data: adminData } = await adminClient
+          .from('survey_responses')
+          .select('id')
+          .eq('participant_id', participantId)
+          .eq('survey_id', surveyId)
+          .single();
+
+        return !!adminData;
+      }
+      return false;
+    }
+
+    return !!data;
+  } catch (error) {
+    console.error('Error validating participant access:', error);
+    return false;
+  }
+}
+/**
  * Middleware function to require admin access
  */
 export function requireAdmin() {
-  return async ({ request }: { request: Request }) => {
+  return async ({ }: { request: Request }) => {
     const user = await getCurrentUser();
     if (!user || user.role !== 'admin') {
       return new Response('Redirect', {

@@ -1,0 +1,1200 @@
+---
+import { getClient } from '../../lib/supabase';
+
+interface Props {
+    surveyId: string;
+}
+
+const { surveyId } = Astro.props;
+
+import type { Database } from '../../types/database';
+type Participant = Database['public']['Tables']['participants']['Row'];
+
+let existingParticipants: Participant[] = [];
+
+try {
+    const supabase = getClient({ requiresAdmin: true });
+    const { data, error } = await supabase
+        .from('participants')
+        .select('*')
+        .eq('survey_id', surveyId)
+        .order('created_at', { ascending: true });
+
+    if (error) {
+        console.error('Error fetching participants:', JSON.stringify(error, null, 2));
+    } else {
+        existingParticipants = data || [];
+        console.log('Fetched existing participants:', JSON.stringify(existingParticipants, null, 2));
+    }
+} catch (error) {
+    console.error('Error fetching participants:', JSON.stringify(error, null, 2));
+}
+
+---
+
+<div class="bg-white shadow rounded-lg p-6">
+    <h2 class="text-xl font-bold text-gray-900 mb-4">Participant Management</h2>
+    
+    <div class="border-b border-gray-200">
+        <nav class="-mb-px flex space-x-8" aria-label="Tabs">
+            <button
+                id="manual-tab"
+                class="border-b-2 border-blue-500 text-blue-600 whitespace-nowrap py-4 px-1 font-medium text-sm"
+                aria-controls="manual-panel"
+                role="tab"
+                aria-selected="true"
+                data-tab="manual"
+            >
+                Manual Input
+            </button>
+            <button
+                id="csv-tab"
+                class="border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 font-medium text-sm"
+                aria-controls="csv-panel"
+                role="tab"
+                aria-selected="false"
+                data-tab="csv"
+            >
+                CSV Upload
+            </button>
+            <button
+                id="json-tab"
+                class="border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 font-medium text-sm"
+                aria-controls="json-panel"
+                role="tab"
+                aria-selected="false"
+                data-tab="json"
+            >
+                JSON Upload
+            </button>
+            <button
+                id="existing-tab"
+                class="border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 font-medium text-sm"
+                aria-controls="existing-panel"
+                role="tab"
+                aria-selected="false"
+                data-tab="existing"
+            >
+                Existing Participants
+            </button>
+        </nav>
+    </div>
+
+    <div id="tabs-content" class="mt-4">
+        <!-- Manual Input Panel -->
+        <div
+            id="manual-panel"
+            role="tabpanel"
+            aria-labelledby="manual-tab"
+            class="space-y-4"
+        >
+            <form id="manual-form" class="space-y-4">
+                <div>
+                    <label for="email" class="block text-sm font-medium text-gray-700">
+                        Email
+                    </label>
+                    <input
+                        type="email"
+                        name="email"
+                        id="email"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                        required
+                    />
+                </div>
+                <div>
+                    <label for="name" class="block text-sm font-medium text-gray-700">
+                        Name
+                    </label>
+                    <input
+                        type="text"
+                        name="name"
+                        id="name"
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                    />
+                </div>
+                <button
+                    type="submit"
+                    class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                    Add Participant
+                </button>
+            </form>
+        </div>
+
+        <!-- CSV Upload Panel -->
+        <div
+            id="csv-panel"
+            role="tabpanel"
+            aria-labelledby="csv-tab"
+            class="space-y-4 hidden"
+        >
+            <div class="bg-gray-50 p-4 rounded-md">
+                <h3 class="text-sm font-medium text-gray-900">CSV Format Requirements:</h3>
+                <ul class="mt-2 text-sm text-gray-600 list-disc list-inside">
+                    <li>File must be in CSV format</li>
+                    <li>Required column: email</li>
+                    <li>Optional column: name</li>
+                    <li>First row must contain column header</li>
+                    <li>Example:
+                        <pre class="mt-1 text-xs bg-gray-100 p-2 rounded">email,name
+john@example.com,John Smith
+jane@example.com,Jane Doe</pre>
+                    </li>
+                </ul>
+            </div>
+            <form id="csv-form" class="space-y-4">
+                <div>
+                    <label for="csvFile" class="block text-sm font-medium text-gray-700">
+                        Upload CSV File
+                    </label>
+                    <input
+                        type="file"
+                        name="csvFile"
+                        id="csvFile"
+                        accept=".csv"
+                        class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                        required
+                    />
+                </div>
+                <button
+                    type="submit"
+                    class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                    Upload CSV
+                </button>
+            </form>
+        </div>
+
+        <!-- JSON Upload Panel -->
+        <div
+            id="json-panel"
+            role="tabpanel"
+            aria-labelledby="json-tab"
+            class="space-y-4 hidden"
+        >
+            <div class="bg-gray-50 p-4 rounded-md">
+                <h3 class="text-sm font-medium text-gray-900">JSON Format Requirements:</h3>
+                <ul class="mt-2 text-sm text-gray-600 list-disc list-inside">
+                    <li>File must be in JSON format</li>
+                    <li>Content must be an array of participant objects</li>
+                    <li>Each object must have an email field</li>
+                    <li>Name field is optional</li>
+                    <li>Example:
+                        <pre class="mt-1 text-xs bg-gray-100 p-2 rounded">[
+  {`{`}
+    "email": "john@example.com",
+    "name": "John Smith"
+  {`}`},
+  {`{`}
+    "email": "jane@example.com",
+    "name": "Jane Doe"
+  {`}`}
+]</pre>
+                    </li>
+                </ul>
+            </div>
+            <form id="json-form" class="space-y-4">
+            <div>
+                <label for="jsonFile" class="block text-sm font-medium text-gray-700">
+                    Upload JSON File
+                </label>
+                <input
+                    type="file"
+                    name="jsonFile"
+                    id="jsonFile"
+                    accept=".json"
+                    class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                    required
+                />
+            </div>
+            <button
+                type="submit"
+                class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+                Upload JSON
+            </button>
+        </form>
+    </div>
+
+        <!-- Existing Participants Panel -->
+        <div
+            id="existing-panel"
+            role="tabpanel"
+            aria-labelledby="existing-tab"
+            class="space-y-4 hidden"
+        >
+            {/* Search, Filter, and Pagination Controls */}
+            <div class="flex flex-col md:flex-row justify-between items-center mb-4">
+                <button
+                    id="delete-all-button"
+                    class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 mb-2 md:mb-0"
+                    onclick="handleDeleteAllClick(event)"
+                >
+                    Delete All
+                </button>
+                <div class="w-full md:w-1/3 mb-2 md:mb-0">
+                    <label for="search" class="sr-only">Search</label>
+                    <div class="relative rounded-md shadow-sm">
+                        <div class="pointer-events-none absolute inset-y-0 left-0 pl-3 flex items-center">
+                            <svg class="h-5 w-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                                <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
+                            </svg>
+                        </div>
+                        <input
+                            type="text"
+                            name="search"
+                            id="search"
+                            class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                            placeholder="Search participants..."
+                        />
+                    </div>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <div>
+                        <label for="filter-email" class="block text-sm font-medium text-gray-700 sr-only">Filter by Email</label>
+                        <select id="filter-email" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                            <option value="">All Emails</option>
+                            {/* Add email options dynamically here */}
+                        </select>
+                    </div>
+                    <div>
+                        <label for="filter-status" class="block text-sm font-medium text-gray-700 sr-only">Filter by Status</label>
+                        <select id="filter-status" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                            <option value="">All Statuses</option>
+                            <option value="inactive">Inactive</option>
+                            <option value="active">Active</option>
+                            <option value="completed">Completed</option>
+                            <option value="expired">Expired</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <button id="batch-status-btn" class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                        Batch Actions
+                    </button>
+                </div>
+                <div class="flex space-x-2">
+                    <button id="batch-status-btn" class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                        Batch Actions
+                    </button>
+                    <button id="save-button" class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                        Save
+                    </button>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Participant Identifier</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                            <th scope="col" class="relative px-6 py-3">
+                                <span class="sr-only">Actions</span>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="existing-participants-tbody" class="bg-white divide-y divide-gray-200 sortable-list">
+                        {existingParticipants.map((participant) => (
+                            <tr class="participant-row" data-id={participant.id}>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    <span class="drag-handle cursor-move mr-2">⋮</span>
+                                    {participant.email || 'No email'}
+                                    {participant.name ? `<br><span class="text-xs text-gray-400">{participant.name}</span>` : ''}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{participant.participant_identifier}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    <span class={`px-2 py-1 rounded-full text-xs ${
+                                        participant.status === 'active' ? 'bg-green-100 text-green-800' :
+                                        participant.status === 'completed' ? 'bg-blue-100 text-blue-800' :
+                                        'bg-gray-100 text-gray-800'
+                                    }`}>
+                                        {participant.status || 'unknown'}
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-right font-medium">
+                                    <div class="flex items-center justify-end space-x-2">
+                                        <select class="status-update text-sm rounded-md border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500" data-id={participant.id}>
+                                            <option value="">Change Status</option>
+                                            <option value="inactive">Set Inactive</option>
+                                            <option value="active">Set Active</option>
+                                            <option value="completed">Set Completed</option>
+                                            <option value="expired">Set Expired</option>
+                                        </select>
+                                        <button
+                                            class="text-red-600 hover:text-red-900 delete-participant-btn"
+                                            data-participant-id={participant.id}
+                                        >
+                                            Delete
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+
+            {/* Batch Actions */}
+            <div id="batch-actions-panel" class="hidden p-4 bg-gray-50 rounded-md mt-4 mb-4 border border-gray-200">
+                <h3 class="text-lg font-medium text-gray-900 mb-3">Batch Status Update</h3>
+                <div class="flex flex-wrap items-end gap-4">
+                    <div>
+                        <label for="batch-status-select" class="block text-sm font-medium text-gray-700 mb-1">New Status</label>
+                        <select id="batch-status-select" class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                            <option value="">Select New Status</option>
+                            <option value="inactive">Set Inactive</option>
+                            <option value="active">Set Active</option>
+                            <option value="completed">Set Completed</option>
+                            <option value="expired">Set Expired</option>
+                        </select>
+                    </div>
+                    <div class="flex space-x-2">
+                        <button id="apply-batch-status" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                            Apply to Selected
+                        </button>
+                        <button id="apply-all-status" class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                            Apply to All
+                        </button>
+                        <button id="close-batch-panel" class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {/* Pagination Controls */}
+            <div class="flex justify-between items-center mt-4">
+                <button id="prev-page" class="bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded inline-flex items-center">
+                    <svg class="fill-current w-4 h-4 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z"/></svg>
+                    <span>Previous</span>
+                </button>
+                <div class="text-sm text-gray-700">
+                    Showing <span id="current-page">1</span> to <span id="total-pages">1</span> of <span id="total-participants">0</span> participants
+                </div>
+                <button id="next-page" class="bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded inline-flex items-center">
+                    <span>Next</span>
+                    <svg class="fill-current w-4 h-4 ml-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"/></svg>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script define:vars={{ surveyId }}>
+// Note: Sortable.js is already loaded in Layout.astro, no need to load it again
+
+// Import the getClient function directly in the client-side script
+// This is needed because the import at the top of the file is only available in the server-side code
+async function getClientWrapper(options = {}) {
+    // Since we can't directly import getClient in client-side code,
+    // we'll make a fetch request to a simple endpoint that uses the client
+    try {
+        console.log('Fetching participants from API...', JSON.stringify({surveyId}));
+        console.log(`Request URL: /api/surveys/${surveyId}/participants`, JSON.stringify({surveyId}));
+
+        // Get search and filter values
+        const searchTerm = document.getElementById('search')?.value || '';
+        const filterEmail = document.getElementById('filter-email')?.value || '';
+        const filterStatus = document.getElementById('filter-status')?.value || '';
+
+        // Construct API URL with parameters
+        let apiUrl = `/api/surveys/${surveyId}/participants?`;
+        if (searchTerm) apiUrl += `search=${searchTerm}&`;
+        if (filterEmail) apiUrl += `email=${filterEmail}&`;
+        if (filterStatus) apiUrl += `status=${filterStatus}&`;
+
+        // Pagination parameters
+        const currentPage = parseInt(document.getElementById('current-page')?.innerText || '1');
+        const pageSize = 10;
+        apiUrl += `page=${currentPage}&pageSize=${pageSize}`;
+
+        console.log('Constructed API URL:', apiUrl);
+
+        const response = await fetch(apiUrl, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        console.log('Response status:', JSON.stringify(response.status));
+        console.log('Response status text:', JSON.stringify(response.statusText));
+        
+        if (!response.ok) {
+            console.error('API response not OK:', response.status, response.statusText);
+            const errorText = await response.text();
+            console.error('Error response body:', errorText);
+            throw new Error(`Failed to fetch participants: ${response.status} ${response.statusText}`);
+        }
+        
+        const result = await response.json();
+        console.log('API response data:', JSON.stringify(result));
+        console.log('Participants count:', JSON.stringify(result.data?.length || 0));
+        
+        if (result.error) {
+            console.error('API returned error:', result.error);
+            throw new Error(result.error);
+        }
+
+        // Update total participants and total pages in UI
+        const totalParticipantsSpan = document.getElementById('total-participants');
+        const totalPagesSpan = document.getElementById('total-pages');
+
+        if (result.total !== undefined) {
+            totalParticipantsSpan.innerText = result.total.toString();
+            totalPagesSpan.innerText = Math.ceil(result.total / 10).toString(); // Assuming page size of 10
+        }
+        
+        return result;
+    } catch (error) {
+        console.error('Error in getClientWrapper:', error);
+        console.error('Error details:', error.message);
+        return { data: [], error };
+    }
+}
+
+/**
+ * @typedef {Object} Participant
+ * @property {string} id
+ * @property {string} email
+ * @property {string} name
+ * @property {string} participant_identifier
+ * @property {string} status
+ */
+
+function initializeSortable() {
+    const tbody = document.getElementById('existing-participants-tbody');
+    if (!tbody) {
+        console.error('Participant tbody element not found');
+        return;
+    }
+    
+    if (typeof window.Sortable === 'undefined') {
+        console.error('Sortable.js not available. Retrying in 500ms...');
+        setTimeout(initializeSortable, 500);
+        return;
+    }
+    
+    try {
+        // Check if Sortable is already initialized on this element
+        if (tbody.classList.contains('sortable-initialized')) {
+            console.log('Sortable already initialized on this element');
+            return;
+        }
+        
+        // Initialize Sortable
+        new window.Sortable(tbody, {
+            handle: '.drag-handle',
+            animation: 150,
+            onEnd: async function(evt) {
+                const participantId = evt.item.getAttribute('data-id');
+                const newIndex = evt.newIndex;
+                
+                if (!participantId) return;
+                
+                try {
+                    const response = await fetch(`/api/surveys/${surveyId}/participants/reorder`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            participantId,
+                            newIndex
+                        })
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error('Failed to update participant order');
+                    }
+                } catch (error) {
+                    console.error('Error updating participant order:', error);
+                    // Optionally refresh the list to restore original order
+                    await refreshParticipantList();
+                }
+            }
+        });
+        
+        // Mark as initialized
+        tbody.classList.add('sortable-initialized');
+        console.log('Sortable successfully initialized on participant list');
+    } catch (error) {
+        console.error('Error initializing Sortable:', error);
+    }
+}
+
+// Function to refresh participant list
+async function refreshParticipantList() {
+    try {
+        console.log('Refreshing participant list...');
+        const { data, error } = await getClientWrapper();
+
+        if (error) {
+            console.error('Error fetching participants:', error);
+            console.error('Error details:', error.message);
+            throw error;
+        }
+
+        console.log(`Fetched ${data?.length || 0} participants`);
+        if (data && data.length > 0) {
+            console.log('First participant:', data[0]);
+        } else {
+            console.log('No participants found');
+        }
+
+        const tbody = document.getElementById('existing-participants-tbody');
+        if (!tbody) {
+            console.error('Participant tbody element not found');
+            return;
+        }
+        
+        if (data) {
+            console.log('Updating participant table with', data.length, 'participants');
+            tbody.innerHTML = data.map((participant) => {
+                // Log each participant for debugging
+                console.log('Processing participant:', participant);
+                
+                return `
+                <tr class="participant-row" data-id="${participant.id}">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <span class="drag-handle cursor-move mr-2">⋮</span>
+                        ${participant.email || 'No email'}
+                        ${participant.name ? `<br><span class="text-xs text-gray-400">${participant.name}</span>` : ''}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${participant.participant_identifier || 'No identifier'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <span class="px-2 py-1 rounded-full text-xs ${
+                            participant.status === 'active' ? 'bg-green-100 text-green-800' :
+                            participant.status === 'completed' ? 'bg-blue-100 text-blue-800' :
+                            'bg-gray-100 text-gray-800'
+                        }">
+                            ${participant.status || 'unknown'}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right font-medium">
+                        <div class="flex items-center justify-end space-x-2">
+                            <select class="status-update text-sm rounded-md border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500" data-id="${participant.id}">
+                                <option value="">Change Status</option>
+                                <option value="inactive">Set Inactive</option>
+                                <option value="active">Set Active</option>
+                                <option value="completed">Set Completed</option>
+                                <option value="expired">Set Expired</option>
+                            </select>
+                            <button
+                                class="text-red-600 hover:text-red-900 delete-participant-btn"
+                                data-participant-id="${participant.id}"
+                            >
+                                Delete
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            }).join('');
+            
+            console.log('Participant table updated');
+            
+            // Re-initialize Sortable
+            initializeSortable();
+            // Re-attach event listeners
+            attachDeleteListeners();
+        }
+    } catch (error) {
+        console.error('Error refreshing participant list:', error);
+        console.error('Error stack:', error.stack);
+    }
+}
+
+// Function to delete participant
+async function deleteParticipant(participantId) {
+    if (!confirm('Are you sure you want to delete this participant?')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/surveys/${surveyId}/participants/delete`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ participantId })
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            await refreshParticipantList();
+            alert('Participant deleted successfully');
+        } else {
+            alert(result.error || 'Failed to delete participant');
+        }
+    } catch (error) {
+        alert('Error deleting participant');
+        console.error('Error:', error);
+    }
+}
+
+// Attach event listeners to delete buttons
+function attachDeleteListeners() {
+    const deleteButtons = document.querySelectorAll('.delete-participant-btn');
+    deleteButtons.forEach(button => {
+        // Remove existing listeners to prevent duplicates
+        button.removeEventListener('click', handleDeleteClick);
+        // Add new listener
+        button.addEventListener('click', handleDeleteClick);
+    });
+    console.log(`Attached delete listeners to ${deleteButtons.length} buttons`);
+}
+
+// Attach event listeners for status update dropdowns
+function setupStatusUpdateListeners() {
+    const statusDropdowns = document.querySelectorAll('.status-update');
+    statusDropdowns.forEach(dropdown => {
+        // Remove existing listeners to prevent duplicates
+        dropdown.removeEventListener('change', handleStatusChange);
+        // Add new listener
+        dropdown.addEventListener('change', handleStatusChange);
+    });
+    console.log(`Attached status update listeners to ${statusDropdowns.length} dropdowns`);
+}
+
+// Function to attach event listener to the save button
+function setupSaveButtonListener() {
+   const saveButton = document.getElementById('save-button');
+   saveButton?.addEventListener('click', saveParticipantStatuses);
+   console.log('Attached save button listener');
+}
+
+// Handler for status dropdown changes
+async function handleStatusChange(event) {
+    const dropdown = event.currentTarget;
+    const participantId = dropdown.getAttribute('data-id');
+    const newStatus = dropdown.value;
+
+    if (!participantId || !newStatus) return;
+
+    dropdown.value = ''; // Reset dropdown
+}
+
+// Function to handle saving participant statuses
+async function saveParticipantStatuses() {
+    const statusDropdowns = document.querySelectorAll('.status-update');
+    const updates = [];
+
+    for (const dropdown of statusDropdowns) {
+        const participantId = dropdown.getAttribute('data-id');
+        const newStatus = dropdown.value; // Get the current value of the dropdown
+
+        console.log(`Participant ID: ${participantId}, New Status: ${newStatus}`); // Add logging
+
+        if (participantId && newStatus) {
+            updates.push({ participantId, newStatus });
+        }
+    }
+
+    if (updates.length === 0) {
+        alert('No changes to save.');
+        return;
+    }
+
+    try {
+        for (const update of updates) {
+            console.log(`Updating participant ${update.participantId} to status ${update.newStatus}`);
+            await updateParticipantStatus(update.participantId, update.newStatus);
+        }
+        alert('Participant statuses updated successfully.');
+        await refreshParticipantList();
+    } catch (error) {
+        console.error('Error updating participant statuses:', error);
+        alert('Error updating participant statuses.');
+    }
+}
+
+// Handler for delete button clicks
+function handleDeleteClick(event) {
+    const button = event.currentTarget;
+    const participantId = button.getAttribute('data-participant-id');
+    if (participantId) {
+        deleteParticipant(participantId);
+    } else {
+        console.error('Participant ID not found on button');
+    }
+}
+
+// Handler for delete all button clicks
+async function handleDeleteAllClick(event) {
+    console.log('Delete All button clicked!');
+    event.preventDefault(); // Prevent any default behavior
+    
+    if (confirm('Are you sure you want to delete ALL participants for this survey? This action cannot be undone!')) {
+        console.log('User confirmed delete all action');
+        try {
+            console.log('Sending delete-all request to:', `/api/surveys/${surveyId}/participants/delete-all`);
+            const response = await fetch(`/api/surveys/${surveyId}/participants/delete-all`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            });
+            
+            console.log('Delete all response status:', response.status);
+            const result = await response.json();
+            console.log('Delete all response data:', result);
+
+            if (response.ok) {
+                await refreshParticipantList();
+                alert('All participants deleted successfully');
+            } else {
+                alert(result.error || 'Failed to delete all participants');
+            }
+        } catch (error) {
+            alert('Error deleting all participants');
+            console.error('Error deleting all participants:', error);
+            console.error('Error stack:', error.stack);
+        }
+    } else {
+        console.log('User cancelled delete all action');
+    }
+}
+
+// Make handleDeleteAllClick available globally
+window.handleDeleteAllClick = handleDeleteAllClick;
+
+// Handle status updates
+async function updateParticipantStatus(participantId, newStatus) {
+    try {
+        console.log(`Updating participant ${participantId} to status: ${newStatus}`);
+        const response = await fetch(`/api/participants/${participantId}/status`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ newStatus }),
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to update status');
+        }
+        
+        const result = await response.json();
+        console.log('Status update result:', result);
+        
+        return result;
+    } catch (error) {
+        console.error('Error updating participant status:', error);
+        alert(`Error: ${error.message}`);
+        throw error;
+    }
+}
+
+// Handle batch status updates
+async function batchUpdateStatus(participantIds, newStatus) {
+    try {
+        console.log(`Batch updating ${participantIds.length} participants to status: ${newStatus}`);
+        const response = await fetch('/api/participants/batch-update', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                participantIds,
+                newStatus
+            }),
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to update statuses');
+        }
+        
+        const result = await response.json();
+        console.log('Batch update result:', result);
+        
+        return result;
+    } catch (error) {
+        console.error('Error batch updating participant statuses:', error);
+        alert(`Error: ${error.message}`);
+        throw error;
+    }
+}
+
+// Function to setup search, filter, and pagination
+function setupSearchFilterPagination() {
+    const searchInput = document.getElementById('search');
+    const emailFilter = document.getElementById('filter-email');
+    const statusFilter = document.getElementById('filter-status');
+    const prevPageBtn = document.getElementById('prev-page');
+    const nextPageBtn = document.getElementById('next-page');
+    
+    // Add event listeners for search and filters
+    searchInput?.addEventListener('input', debounce(() => refreshParticipantList(), 500));
+    emailFilter?.addEventListener('change', () => refreshParticipantList());
+    statusFilter?.addEventListener('change', () => refreshParticipantList());
+    
+    // Pagination controls
+    prevPageBtn?.addEventListener('click', () => {
+        const currentPage = parseInt(document.getElementById('current-page')?.innerText || '1');
+        if (currentPage > 1) {
+            document.getElementById('current-page').innerText = (currentPage - 1).toString();
+            refreshParticipantList();
+        }
+    });
+    
+    nextPageBtn?.addEventListener('click', () => {
+        const currentPage = parseInt(document.getElementById('current-page')?.innerText || '1');
+        const totalPages = parseInt(document.getElementById('total-pages')?.innerText || '1');
+        if (currentPage < totalPages) {
+            document.getElementById('current-page').innerText = (currentPage + 1).toString();
+            refreshParticipantList();
+        }
+    });
+}
+
+// Simple debounce function for search input
+function debounce(func, wait) {
+    let timeout;
+    return function() {
+        const context = this;
+        const args = arguments;
+        clearTimeout(timeout);
+        timeout = setTimeout(() => {
+            func.apply(context, args);
+        }, wait);
+    };
+}
+
+// Function to handle showing/hiding batch actions panel
+function setupBatchActions() {
+    const batchStatusBtn = document.getElementById('batch-status-btn');
+    const batchActionsPanel = document.getElementById('batch-actions-panel');
+    const closeBatchPanelBtn = document.getElementById('close-batch-panel');
+    const applyBatchStatusBtn = document.getElementById('apply-batch-status');
+    const applyAllStatusBtn = document.getElementById('apply-all-status');
+    const batchStatusSelect = document.getElementById('batch-status-select');
+    
+    // Toggle batch actions panel
+    batchStatusBtn?.addEventListener('click', () => {
+        batchActionsPanel?.classList.toggle('hidden');
+    });
+    
+    // Close batch actions panel
+    closeBatchPanelBtn?.addEventListener('click', () => {
+        batchActionsPanel?.classList.add('hidden');
+    });
+    
+    // Apply status to selected participants
+    applyBatchStatusBtn?.addEventListener('click', async () => {
+        const selectedStatus = batchStatusSelect?.value;
+        if (!selectedStatus) {
+            alert('Please select a status');
+            return;
+        }
+        
+        const selectedRows = document.querySelectorAll('tr.selected');
+        if (selectedRows.length === 0) {
+            alert('Please select at least one participant');
+            return;
+        }
+        
+        const participantIds = Array.from(selectedRows).map(row => row.getAttribute('data-id'));
+        
+        try {
+            await batchUpdateStatus(participantIds, selectedStatus);
+            await refreshParticipantList();
+            batchActionsPanel?.classList.add('hidden');
+            alert(`Successfully updated ${participantIds.length} participants to ${selectedStatus}`);
+        } catch (error) {
+            console.error('Failed to update statuses:', error);
+        }
+    });
+    
+    // Apply status to all participants
+    applyAllStatusBtn?.addEventListener('click', async () => {
+        const selectedStatus = batchStatusSelect?.value;
+        if (!selectedStatus) {
+            alert('Please select a status');
+            return;
+        }
+        
+        if (!confirm(`Are you sure you want to set ALL participants to ${selectedStatus}?`)) {
+            return;
+        }
+        
+        try {
+            const response = await fetch('/api/participants/batch-update', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    surveyId,
+                    newStatus: selectedStatus
+                }),
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to update statuses');
+            }
+            
+            const result = await response.json();
+            await refreshParticipantList();
+            batchActionsPanel?.classList.add('hidden');
+            alert(`Successfully updated ${result.participants?.length || 0} participants to ${selectedStatus}`);
+        } catch (error) {
+            console.error('Failed to update all statuses:', error);
+            alert(`Error: ${error.message}`);
+        }
+    });
+}
+
+// Setup form submission handlers
+function setupFormHandlers() {
+    // Manual form submission
+    const manualForm = document.getElementById('manual-form');
+    manualForm?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        console.log('Manual form submission started');
+        
+        const emailInput = document.getElementById('email');
+        const nameInput = document.getElementById('name');
+        
+        if (!emailInput || !emailInput.value) {
+            alert('Email is required');
+            return;
+        }
+        
+        const formData = new FormData();
+        formData.append('email', emailInput.value);
+        if (nameInput && nameInput.value) {
+            formData.append('name', nameInput.value);
+        }
+        
+        try {
+            const response = await fetch(`/api/surveys/${surveyId}/participants/manual`, {
+                method: 'POST',
+                body: formData
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok) {
+                emailInput.value = '';
+                if (nameInput) nameInput.value = '';
+                alert('Participant added successfully');
+                refreshParticipantList();
+            } else {
+                alert(result.error || 'Failed to add participant');
+            }
+        } catch (error) {
+            console.error('Error adding participant:', error);
+            alert('Error adding participant');
+        }
+    });
+    
+    // CSV form submission
+    const csvForm = document.getElementById('csv-form');
+    csvForm?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        console.log('CSV form submission started');
+        
+        const csvFileInput = document.getElementById('csvFile');
+        if (!csvFileInput || !csvFileInput.files || csvFileInput.files.length === 0) {
+            alert('CSV file is required');
+            return;
+        }
+        
+        const formData = new FormData();
+        formData.append('csvFile', csvFileInput.files[0]);
+        
+        try {
+            const response = await fetch(`/api/surveys/${surveyId}/participants/csv`, {
+                method: 'POST',
+                body: formData
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok) {
+                csvFileInput.value = '';
+                alert('Participants added successfully');
+                refreshParticipantList();
+            } else {
+                alert(result.error || 'Failed to add participants');
+            }
+        } catch (error) {
+            console.error('Error adding participants from CSV:', error);
+            alert('Error adding participants from CSV');
+        }
+    });
+    
+    // JSON form submission
+    const jsonForm = document.getElementById('json-form');
+    jsonForm?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        console.log('JSON form submission started');
+        
+        const jsonFileInput = document.getElementById('jsonFile');
+        if (!jsonFileInput || !jsonFileInput.files || jsonFileInput.files.length === 0) {
+            alert('JSON file is required');
+            return;
+        }
+        
+        const formData = new FormData();
+        formData.append('jsonFile', jsonFileInput.files[0]);
+        
+        try {
+            const response = await fetch(`/api/surveys/${surveyId}/participants/json`, {
+                method: 'POST',
+                body: formData
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok) {
+                jsonFileInput.value = '';
+                alert('Participants added successfully');
+                refreshParticipantList();
+            } else {
+                alert(result.error || 'Failed to add participants');
+            }
+        } catch (error) {
+            console.error('Error adding participants from JSON:', error);
+            alert('Error adding participants from JSON');
+        }
+    });
+}
+
+// Initialize when DOM is ready
+function initializeComponent() {
+    console.log('Initializing participant manager component');
+    setupTabSwitching();
+    attachDeleteListeners();
+    initializeSortable();
+    setupSearchFilterPagination();
+    setupBatchActions();
+    setupStatusUpdateListeners();
+    setupSaveButtonListener();
+    setupFormHandlers(); // Initialize form handlers
+    refreshParticipantList(); // Apply pagination on initial load
+    attachDeleteAllListener(); // Attach listener to Delete All button
+    
+    // Add a direct click handler for the delete all button
+    const deleteAllButton = document.getElementById('delete-all-button');
+    if (deleteAllButton) {
+        console.log('Adding direct click handler to Delete All button');
+        deleteAllButton.onclick = handleDeleteAllClick;
+    }
+    
+    // Initialize first tab
+    switchTab('manual-tab');
+}
+
+// Function to attach event listener to Delete All button
+function attachDeleteAllListener() {
+    const deleteAllButton = document.getElementById('delete-all-button');
+    console.log('Delete All button found:', deleteAllButton);
+    
+    if (deleteAllButton) {
+        // Remove any existing click listeners to prevent duplicates
+        deleteAllButton.removeEventListener('click', handleDeleteAllClick);
+        // Add the click listener
+        deleteAllButton.addEventListener('click', handleDeleteAllClick);
+        console.log('Click listener attached to Delete All button');
+        
+        // Make sure the button is visible and clickable
+        deleteAllButton.style.pointerEvents = 'auto';
+        deleteAllButton.style.opacity = '1';
+    } else {
+        console.error('Delete All button not found in the DOM');
+    }
+}
+
+// Use both DOMContentLoaded and astro:page-load for compatibility
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeComponent);
+} else {
+    initializeComponent();
+}
+
+// Also listen for Astro's page load event
+document.addEventListener('astro:page-load', initializeComponent);
+
+// Tab switching logic
+function setupTabSwitching() {
+    const tabButtons = document.querySelectorAll('[role="tab"]');
+    const tabPanels = document.querySelectorAll('[role="tabpanel"]');
+    
+    console.log(`Found ${tabButtons.length} tab buttons and ${tabPanels.length} tab panels`);
+    
+    // Remove existing listeners to prevent duplicates
+    tabButtons.forEach(button => {
+        button.removeEventListener('click', handleTabClick);
+        button.addEventListener('click', handleTabClick);
+    });
+}
+
+function handleTabClick(event) {
+    const tabId = event.currentTarget.id;
+    switchTab(tabId);
+}
+
+function switchTab(tabId) {
+    console.log(`Switching to tab: ${tabId}`);
+    
+    // Get fresh references to DOM elements
+    const tabButtons = document.querySelectorAll('[role="tab"]');
+    const tabPanels = document.querySelectorAll('[role="tabpanel"]');
+    
+    if (tabButtons.length === 0 || tabPanels.length === 0) {
+        console.error('Tab elements not found in the DOM');
+        return;
+    }
+
+    // Deactivate all tabs
+    tabButtons.forEach(btn => {
+        btn.setAttribute('aria-selected', 'false');
+        btn.classList.remove('border-blue-500', 'text-blue-600');
+        btn.classList.add('border-transparent', 'text-gray-500');
+    });
+
+    // Hide all panels
+    tabPanels.forEach(panel => {
+        panel.classList.add('hidden');
+    });
+
+    // Activate selected tab
+    const selectedTab = document.getElementById(tabId);
+    if (selectedTab) {
+        selectedTab.setAttribute('aria-selected', 'true');
+        selectedTab.classList.remove('border-transparent', 'text-gray-500');
+        selectedTab.classList.add('border-blue-500', 'text-blue-600');
+
+        // Show corresponding panel
+        const panelId = selectedTab.getAttribute('aria-controls');
+        if (panelId) {
+            const panel = document.getElementById(panelId);
+            if (panel) {
+                panel.classList.remove('hidden');
+                console.log(`Showing panel: ${panelId}`);
+                
+                // If switching to the existing participants tab, ensure delete all button is properly set up
+                if (panelId === 'existing-panel') {
+                    console.log('Switched to existing participants tab, ensuring delete all button is set up');
+                    setTimeout(() => {
+                        attachDeleteAllListener();
+                        attachDeleteListeners();
+                    }, 100); // Small delay to ensure DOM is ready
+                }
+            } else {
+                console.error(`Panel not found: ${panelId}`);
+            }
+        }
+    } else {
+        console.error(`Tab not found: ${tabId}`);
+    }
+}
+</script>

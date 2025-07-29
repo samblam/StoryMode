@@ -1,25 +1,41 @@
 import type { APIRoute } from 'astro';
-import { supabaseAdmin } from '../../../lib/supabase';
+import { getClient } from '../../../lib/supabase';
 import nodemailer from 'nodemailer';
 import { randomInt } from 'crypto';
+import { rateLimitMiddleware } from '../../../utils/rateLimit';
 
 function generateResetCode(): string {
   return randomInt(100000, 999999).toString();
 }
 
 export const POST: APIRoute = async ({ request }) => {
+  const headers = {
+    'Content-Type': 'application/json'
+  };
+
   try {
+    // Apply rate limiting middleware
+    const rateLimitResponse = await rateLimitMiddleware('PASSWORD_RESET')(request);
+    if (rateLimitResponse instanceof Response) {
+      return rateLimitResponse;
+    }
+    Object.assign(headers, rateLimitResponse.headers);
+
     const { email } = await request.json();
     const normalizedEmail = email.trim().toLowerCase();
 
     if (!normalizedEmail) {
       return new Response(
         JSON.stringify({ error: 'Email is required' }),
-        { status: 400 }
+        { 
+          status: 400,
+          headers
+        }
       );
     }
 
     // Verify the user exists
+    const supabaseAdmin = getClient({ requiresAdmin: true });
     const { data: userData, error: userError } = await supabaseAdmin
       .from('users')
       .select('id')
@@ -29,7 +45,10 @@ export const POST: APIRoute = async ({ request }) => {
     if (userError || !userData) {
       return new Response(
         JSON.stringify({ error: 'No account found with this email' }),
-        { status: 404 }
+        { 
+          status: 404,
+          headers
+        }
       );
     }
 
@@ -77,13 +96,19 @@ export const POST: APIRoute = async ({ request }) => {
       console.error('Failed to send password reset email:', error);
       return new Response(
         JSON.stringify({ error: 'Failed to send password reset email. Please try again later.' }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } }
+        { 
+          status: 500,
+          headers
+        }
       );
     }
 
     return new Response(
       JSON.stringify({ success: true }),
-      { status: 200 }
+      { 
+        status: 200,
+        headers
+      }
     );
   } catch (error) {
     console.error('Password reset error:', error);
@@ -91,7 +116,10 @@ export const POST: APIRoute = async ({ request }) => {
       JSON.stringify({
         error: error instanceof Error ? error.message : 'Failed to send reset code',
       }),
-      { status: 500 }
+      { 
+        status: 500,
+        headers
+      }
     );
   }
 };

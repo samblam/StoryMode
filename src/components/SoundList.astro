@@ -2,6 +2,7 @@
 import type { Sound } from '../types/sound';
 import VolumeControl from './VolumeControl.astro';
 import AudioProgress from './AudioProgress.astro';
+import LoadingIndicator from './LoadingIndicator.astro';
 
 interface Props {
   sounds: Sound[];
@@ -26,11 +27,15 @@ const { sounds, isAdmin } = Astro.props;
           </div>
           <div class="flex space-x-2">
             <button
-              class="play-button bg-green-400 text-white px-4 py-2 rounded-lg hover:bg-green-500 transition-colors"
+              class="play-button bg-green-400 text-white px-4 py-2 rounded-lg hover:bg-green-500 transition-colors relative"
               data-sound={sound.file}
               data-sound-id={sound.id}
             >
-              Play
+              <span class="button-text">Play</span>
+              <!-- Loading Spinner (hidden by default) -->
+              <div class="button-spinner hidden absolute inset-0 flex items-center justify-center">
+                <div class="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              </div>
             </button>
             <button
               class="download-button bg-blue-400 text-white px-4 py-2 rounded-lg hover:bg-blue-500 transition-colors"
@@ -51,6 +56,7 @@ const { sounds, isAdmin } = Astro.props;
             )}
           </div>
         </div>
+        <LoadingIndicator soundId={sound.id} />
         <AudioProgress soundId={sound.id} soundFile={sound.file} />
       </div>
     </div>
@@ -65,8 +71,30 @@ const { sounds, isAdmin } = Astro.props;
     const buttonEl = button as HTMLButtonElement;
     const soundUrl = buttonEl.getAttribute('data-sound');
     const soundId = buttonEl.getAttribute('data-sound-id');
+    const buttonText = buttonEl.querySelector('.button-text') as HTMLElement;
+    const buttonSpinner = buttonEl.querySelector('.button-spinner') as HTMLElement;
     
     if (!soundUrl || !soundId) return;
+
+    // Update button state based on loading state
+    const updateButtonState = (state: { status: string; progress: number }) => {
+      if (state.status === 'loading') {
+        buttonEl.disabled = true;
+        buttonSpinner.classList.remove('hidden');
+        buttonText.classList.add('invisible');
+      } else {
+        buttonEl.disabled = false;
+        buttonSpinner.classList.add('hidden');
+        buttonText.classList.remove('invisible');
+      }
+    };
+
+    // Listen for loading state changes
+    document.addEventListener('audioLoadingStateChange', ((event: CustomEvent) => {
+      if (event.detail.soundId === soundId) {
+        updateButtonState(event.detail.state);
+      }
+    }) as EventListener);
 
     buttonEl.addEventListener('click', async () => {
       try {

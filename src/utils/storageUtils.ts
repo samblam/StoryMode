@@ -1,5 +1,6 @@
-import { supabaseAdmin } from '../lib/supabase';
+import { getClient } from '../lib/supabase';
 import { v4 as uuidv4 } from 'uuid';
+import type { FileObject } from '@supabase/storage-js';
 
 interface UploadOptions {
   file: File;
@@ -14,22 +15,45 @@ export class StorageError extends Error {
   }
 }
 
-export async function getSignedUrl(path: string): Promise<string> {
+export async function getSignedUrl(path: string, bucket: string): Promise<string> {
   try {
-    const { data, error } = await supabaseAdmin.storage
-      .from('sounds')
-      .createSignedUrl(path, 60 * 60, {
-        download: false,
-        transform: {
-          format: 'origin'
-        }
+    const supabase = getClient({ requiresAdmin: true });
+
+    // Validate bucket name
+    const validBuckets = ['sounds', 'videos'];
+    if (!validBuckets.includes(bucket)) {
+      throw new StorageError(`Invalid bucket name: ${bucket}`);
+    }
+
+    // Validate path exists
+    if (!path) {
+      throw new StorageError('No path provided');
+    }
+
+    // Remove bucket prefix if present for storage operations
+    const storagePath = path.startsWith(`${bucket}/`) ? path.slice(bucket.length + 1) : path;
+    console.log('Creating signed URL for:', { bucket, path: storagePath });
+
+    // Create signed URL with 1 hour expiration using corrected path
+    const { data, error } = await supabase.storage
+      .from(bucket)
+      .createSignedUrl(storagePath, 3600, {
+        download: false
       });
 
-    if (error) throw error;
-    if (!data?.signedUrl) throw new Error('No signed URL returned');
+    if (error) {
+      throw new StorageError(`Supabase error: ${error.message}`);
+    }
+
+    if (!data?.signedUrl) {
+      throw new StorageError('No signed URL returned from Supabase');
+    }
 
     return data.signedUrl;
   } catch (error) {
+    if (error instanceof StorageError) {
+      throw error;
+    }
     throw new StorageError(
       `Failed to get signed URL: ${
         error instanceof Error ? error.message : 'Unknown error'
@@ -59,8 +83,10 @@ export async function uploadSound({
     const fileExt = file.name.split('.').pop()?.toLowerCase() || 'mp3';
     const fileName = `${profileSlug}/${uuidv4()}.${fileExt}`;
 
+    const supabase = getClient({ requiresAdmin: true });
+
     // Upload to Supabase Storage with explicit content type
-    const { data, error } = await supabaseAdmin.storage
+    const { data, error } = await supabase.storage
       .from('sounds')
       .upload(fileName, file, {
         cacheControl: '3600',
@@ -77,7 +103,7 @@ export async function uploadSound({
     }
 
     // Get signed URL with correct content type
-    const { data: urlData, error: urlError } = await supabaseAdmin.storage
+    const { data: urlData, error: urlError } = await supabase.storage
       .from('sounds')
       .createSignedUrl(data.path, 60 * 60, {
         download: false,
@@ -106,7 +132,8 @@ export async function uploadSound({
 
 export async function deleteSound(path: string): Promise<void> {
   try {
-    const { error } = await supabaseAdmin.storage.from('sounds').remove([path]);
+    const supabase = getClient({ requiresAdmin: true });
+    const { error } = await supabase.storage.from('sounds').remove([path]);
 
     if (error) {
       throw new StorageError(`Delete failed: ${error.message}`);
@@ -125,8 +152,10 @@ export async function deleteSound(path: string): Promise<void> {
 
 export async function deleteSoundsByProfile(profileSlug: string): Promise<void> {
   try {
+    const supabase = getClient({ requiresAdmin: true });
+    
     // List all files in the profile directory
-    const { data: files, error: listError } = await supabaseAdmin.storage
+    const { data: files, error: listError } = await supabase.storage
       .from('sounds')
       .list(profileSlug);
 
@@ -139,9 +168,9 @@ export async function deleteSoundsByProfile(profileSlug: string): Promise<void> 
     }
 
     // Delete all files in the profile directory
-    const { error: deleteError } = await supabaseAdmin.storage
+    const { error: deleteError } = await supabase.storage
       .from('sounds')
-      .remove(files.map((file) => `${profileSlug}/${file.name}`));
+      .remove(files.map((file: FileObject) => `${profileSlug}/${file.name}`));
 
     if (deleteError) {
       throw new StorageError(`Failed to delete files: ${deleteError.message}`);

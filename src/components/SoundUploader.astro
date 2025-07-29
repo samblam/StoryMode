@@ -1,5 +1,7 @@
 ---
 import { getSoundProfiles } from '../utils/profileUtils';
+import type { Database } from '../types/database';
+type SoundProfile = Database['public']['Tables']['sound_profiles']['Row'];
 
 const profiles = await getSoundProfiles();
 ---
@@ -17,11 +19,11 @@ const profiles = await getSoundProfiles();
         class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400"
       >
         <option value="">Select a profile</option>
-        {profiles.map(profile => (
+        {profiles ? profiles.data.map((profile: SoundProfile) => (
           <option value={profile.id} data-slug={profile.slug}>
             {profile.title}
           </option>
-        ))}
+        )) : <option value="">No profiles found</option>}
       </select>
       <p class="text-sm text-gray-600 mt-1">Choose which profile this sound belongs to</p>
     </div>

@@ -1,0 +1,37 @@
+---
+import Layout from '../layouts/Layout.astro';
+import SurveyProgress from './SurveyProgress.astro';
+import SurveyNavigation from './SurveyNavigation.astro';
+
+interface Props {
+    title: string;
+    description?: string;
+    currentStep?: number;
+    totalSteps?: number;
+    showNavigation?: boolean;
+}
+
+const {
+    title,
+    description,
+    currentStep = 1,
+    totalSteps = 1,
+    showNavigation = false
+} = Astro.props;
+---
+
+<Layout title={title}>
+    <div class="flex flex-col h-full">
+        <header class="p-4 border-b">
+            <h1 class="text-2xl font-bold">{title}</h1>
+            {description && <p class="text-gray-600">{description}</p>}
+        </header>
+        <main class="flex-1 p-4">
+            <slot />
+        </main>
+        <footer class="p-4 border-t flex justify-between items-center">
+            <SurveyProgress currentStep={currentStep} totalSteps={totalSteps} />
+            <SurveyNavigation showNavigation={showNavigation} />
+        </footer>
+    </div>
+</Layout>

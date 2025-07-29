@@ -1,36 +1,78 @@
 import type { APIRoute } from 'astro';
-import { supabaseAdmin } from '../../../lib/supabase';
+import { getClient } from '../../../lib/supabase';
+import { rateLimitMiddleware } from '../../../utils/rateLimit';
+import { getCurrentUser } from '../../../utils/authUtils';
 
-export const POST: APIRoute = async ({ request }) => {
+export const POST: APIRoute = async ({ request, cookies }): Promise<Response> => {
+  const headers = {
+    'Content-Type': 'application/json'
+  };
+
   try {
+    // Get current user from session to verify admin status, passing cookies
+    const currentUser = await getCurrentUser(cookies);
+    
+    if (!currentUser || currentUser.role !== 'admin') {
+      console.error('Unauthorized: User is not admin', { currentUser });
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Unauthorized - Admin access required'
+      }), {
+        status: 401,
+        headers
+      });
+    }
+
+    console.log('Admin user verified:', { userId: currentUser.id, role: currentUser.role });
+
+    // Apply rate limiting middleware
+    const rateLimitResponse = await rateLimitMiddleware('CREATE_USER')(request);
+    if (rateLimitResponse instanceof Response) {
+      return rateLimitResponse;
+    }
+    Object.assign(headers, rateLimitResponse.headers);
+
     const { email, password, role, name, company } = await request.json();
     const normalizedEmail = email.trim().toLowerCase();
 
     // Validate required fields
     if (!normalizedEmail || !password || !role) {
-      return new Response(
-        JSON.stringify({ error: 'Missing required fields' }), 
-        { status: 400 }
-      );
+      console.error('Validation failed: Missing required fields');
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Missing required fields'
+      }), { 
+        status: 400,
+        headers
+      });
     }
 
     // Validate role
     if (!['admin', 'client'].includes(role)) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid role' }),
-        { status: 400 }
-      );
+      console.error('Invalid role specified:', role);
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Invalid role'
+      }), { 
+        status: 400,
+        headers
+      });
     }
 
     // If client role, validate client name
     if (role === 'client' && !name) {
-      return new Response(
-        JSON.stringify({ error: 'Client name is required' }),
-        { status: 400 }
-      );
+      console.error('Client name required for client role');
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Client name is required'
+      }), { 
+        status: 400,
+        headers
+      });
     }
 
     // Check if email already exists
+    const supabaseAdmin = getClient({ requiresAdmin: true });
     const { data: existingUser } = await supabaseAdmin
       .from('users')
       .select('id')
@@ -38,27 +80,52 @@ export const POST: APIRoute = async ({ request }) => {
       .maybeSingle();
 
     if (existingUser) {
-      return new Response(
-        JSON.stringify({ error: 'Email already in use' }),
-        { status: 400 }
-      );
+      console.error('Email already in use:', normalizedEmail);
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Email already in use'
+      }), { 
+        status: 400,
+        headers
+      });
     }
 
     // 1. Create auth user
+    console.log('Creating auth user...');
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email: normalizedEmail,
       password,
       email_confirm: true
     });
 
-    if (authError) throw new Error(`Auth creation failed: ${authError.message}`);
-    if (!authData.user) throw new Error('No user returned from auth creation');
+    if (authError) {
+      console.error('Auth user creation failed:', authError);
+      return new Response(JSON.stringify({
+        success: false,
+        error: authError.message
+      }), {
+        status: 500,
+        headers
+      });
+    }
+
+    if (!authData.user) {
+      console.error('No user returned from auth creation');
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Failed to create user'
+      }), {
+        status: 500,
+        headers
+      });
+    }
 
     const userId = authData.user.id;
 
     // 2. If client role, create client record
     let clientId: string | null = null;
     if (role === 'client') {
+      console.log('Creating client record...');
       const { data: clientData, error: clientError } = await supabaseAdmin
         .from('clients')
         .insert({
@@ -73,13 +140,21 @@ export const POST: APIRoute = async ({ request }) => {
       if (clientError) {
         // Cleanup auth user if client creation fails
         await supabaseAdmin.auth.admin.deleteUser(userId);
-        throw new Error(`Client creation failed: ${clientError.message}`);
+        console.error('Client creation failed:', clientError);
+        return new Response(JSON.stringify({
+          success: false,
+          error: clientError.message
+        }), {
+          status: 500,
+          headers
+        });
       }
 
       clientId = clientData.id;
     }
 
     // 3. Create user record
+    console.log('Creating user record...');
     const { error: userError } = await supabaseAdmin
       .from('users')
       .insert({
@@ -95,21 +170,33 @@ export const POST: APIRoute = async ({ request }) => {
       if (clientId) {
         await supabaseAdmin.from('clients').delete().eq('id', clientId);
       }
-      throw new Error(`User record creation failed: ${userError.message}`);
+      console.error('User record creation failed:', userError);
+      return new Response(JSON.stringify({
+        success: false,
+        error: userError.message
+      }), {
+        status: 500,
+        headers
+      });
     }
 
-    return new Response(
-      JSON.stringify({ success: true }),
-      { status: 200 }
-    );
+    console.log('User creation successful:', { userId, role, clientId });
+    return new Response(JSON.stringify({
+      success: true,
+      userId
+    }), {
+      status: 200,
+      headers
+    });
 
   } catch (error) {
     console.error('Create user error:', error);
-    return new Response(
-      JSON.stringify({ 
-        error: error instanceof Error ? error.message : 'Failed to create user'
-      }),
-      { status: 500 }
-    );
+    return new Response(JSON.stringify({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to create user'
+    }), {
+      status: 500,
+      headers
+    });
   }
 };

@@ -1,14 +1,15 @@
-import { supabase } from '../lib/supabase';
-import type { Client } from '../types/auth';
+import { supabase, getClient } from '../lib/supabase';
+import type { ClientInfo } from '../types/auth';
 import type { Database } from '../types/database';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 type ClientResponse = {
-  data: Client | null;
+  data: ClientInfo | null;
   error: string | null;
 };
 
 type ClientsResponse = {
-  data: Client[];
+  data: ClientInfo[];
   error: string | null;
 };
 
@@ -38,7 +39,7 @@ export async function createClient(
         email: data.email,
         company: data.company ?? undefined,
         active: data.active,
-        createdAt: data.created_at,
+        created_at: data.created_at,
       },
       error: null,
     };
@@ -54,7 +55,7 @@ export async function createClient(
 
 export async function updateClient(
   id: string,
-  updates: Partial<Omit<Client, 'id' | 'createdAt'>>
+  updates: Partial<Omit<ClientInfo, 'id' | 'created_at'>>
 ): Promise<ClientResponse> {
   try {
     const { data, error } = await supabase
@@ -73,7 +74,7 @@ export async function updateClient(
         email: data.email,
         company: data.company ?? undefined,
         active: data.active,
-        createdAt: data.created_at,
+        created_at: data.created_at,
       },
       error: null,
     };
@@ -87,7 +88,7 @@ export async function updateClient(
   }
 }
 
-export async function getClient(id: string): Promise<ClientResponse> {
+export async function getClientById(id: string): Promise<ClientResponse> {
   try {
     const { data, error } = await supabase
       .from('clients')
@@ -104,7 +105,7 @@ export async function getClient(id: string): Promise<ClientResponse> {
         email: data.email,
         company: data.company ?? undefined,
         active: data.active,
-        createdAt: data.created_at,
+        created_at: data.created_at,
       },
       error: null,
     };
@@ -118,9 +119,15 @@ export async function getClient(id: string): Promise<ClientResponse> {
   }
 }
 
-export async function getAllClients(): Promise<ClientsResponse> {
+export async function getAllClients(token?: string): Promise<ClientsResponse> {
   try {
-    const { data, error } = await supabase
+    const client = getClient({ requiresAdmin: true }) as SupabaseClient<Database>;
+    
+    if (token) {
+      await client.auth.setSession({ access_token: token, refresh_token: '' });
+    }
+
+    const { data, error } = await client
       .from('clients')
       .select('*')
       .order('name');
@@ -128,13 +135,13 @@ export async function getAllClients(): Promise<ClientsResponse> {
     if (error) throw error;
 
     return {
-      data: data.map((client) => ({
-        id: client.id,
-        name: client.name,
-        email: client.email,
-        company: client.company ?? undefined,
-        active: client.active,
-        createdAt: client.created_at,
+      data: data.map((clientData: Database['public']['Tables']['clients']['Row']) => ({
+        id: clientData.id,
+        name: clientData.name,
+        email: clientData.email,
+        company: clientData.company ?? undefined,
+        active: clientData.active,
+        created_at: clientData.created_at,
       })),
       error: null,
     };

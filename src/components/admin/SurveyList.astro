@@ -1,0 +1,147 @@
+---
+import { getClient } from '../../lib/supabase';
+import SurveyActions from './SurveyActions.astro';
+import DeleteSurveyModal from './DeleteSurveyModal.astro';
+// Remove unused import since we're using SurveyWithRelations directly
+
+
+// Fetch surveys with client and sound profile information
+const { data: surveys, error } = await getClient({ requiresAdmin: true })
+  .from('surveys')
+  .select(`
+    *,
+    client:clients!client_id (
+      id,
+      name,
+      email
+    ),
+    sound_profiles!sound_profile_id (
+      id,
+      title
+    )
+  `)
+  .order('created_at', { ascending: false });
+
+console.log('Fetched surveys:', surveys);
+console.log('First survey client:', surveys?.[0]?.client);
+console.log('Full first survey:', JSON.stringify(surveys?.[0], null, 2));
+
+if (error) {
+  console.error('Error fetching surveys:', error);
+}
+
+// Import the type from database.ts to ensure consistency
+import type { SurveyWithRelations } from '../../types/database';
+
+// Add type assertion to match the query structure
+type LocalSurveyWithRelations = Omit<SurveyWithRelations, 'clients'> & {
+  client?: {
+    id: string;
+    name: string;
+    email: string;
+  } | null;
+};
+
+function getStatusClasses(active: boolean, approved: boolean): string {
+  if (approved) {
+    return 'bg-blue-100 text-blue-800';
+  }
+  if (active) {
+    return 'bg-green-100 text-green-800';
+  }
+  return 'bg-gray-100 text-gray-800';
+}
+
+function getStatusText(active: boolean, approved: boolean): string {
+  if (approved) {
+    return 'Approved';
+  }
+  if (active) {
+    return 'Active';
+  }
+  return 'Draft';
+}
+---
+
+<div class="space-y-6">
+  {!surveys || surveys.length === 0 ? (
+    <div class="text-center py-12">
+      <p class="text-gray-500 text-lg">No surveys found.</p>
+    </div>
+  ) : (
+    <div class="grid gap-4">
+      {surveys.map((survey: LocalSurveyWithRelations) => (
+        <div class="bg-white shadow rounded-lg p-6">
+          <div class="flex items-center justify-between">
+            <div class="flex-1">
+              <div class="flex items-center space-x-4 mb-2">
+                <h3 class="text-xl font-semibold">{survey.title}</h3>
+                <span class={`px-2 py-1 rounded-full text-xs font-medium ${getStatusClasses(survey.active, survey.approved)}`}>
+                  {getStatusText(survey.active, survey.approved)}
+                </span>
+              </div>
+              
+              <div class="text-sm text-gray-600 space-y-2">
+                <div class="flex items-center gap-2">
+                  <span class="font-medium">Client:</span>
+                  <span>{survey.client?.name || 'No Client'}</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="font-medium">Sound Profile:</span>
+                  <span>{survey.sound_profiles?.title || 'None'}</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="font-medium">Created:</span>
+                  <span>{new Date(survey.created_at).toLocaleDateString()}</span>
+                </div>
+                {survey.description && (
+                  <p class="mt-2 text-gray-700">{survey.description}</p>
+                )}
+              </div>
+            </div>
+
+            <div class="flex items-center space-x-4">
+              <form method="GET" action={`/admin/surveys/${survey.id}/edit`} style="display: inline;">
+                <button
+                  type="submit"
+                  class="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                  </svg>
+                  Edit Survey
+                </button>
+              </form>
+              
+              <button
+                type="button"
+                class="inline-flex items-center px-3 py-2 border border-transparent rounded-md text-sm font-medium text-red-700 bg-red-100 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                onclick={`window.triggerDeleteModal('${survey.id}')`}
+              >
+                Delete
+              </button>
+
+              <SurveyActions surveyId={survey.id} active={survey.active} />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  )}
+
+  <DeleteSurveyModal />
+</div>
+
+<script>
+  declare global {
+    interface Window {
+      triggerDeleteModal: (surveyId: string) => void;
+    }
+  }
+</script>
+
+<style>
+  .shadow {
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  }
+</style>

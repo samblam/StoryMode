@@ -1,0 +1,281 @@
+---
+import type { SurveyResponse } from '../../../../types/database';
+import Layout from '../../../../layouts/Layout.astro';
+import { getCurrentUser } from '../../../../utils/authUtils';
+import { verifyAuthorization } from '../../../../utils/accessControl';
+import { getClient } from '../../../../lib/supabase';
+import AnalyticsDashboard from '../../../../components/AnalyticsDashboard.astro';
+import ReportGenerator from '../../../../components/ReportGenerator.astro';
+import StaticExporter from '../../../../components/StaticExporter.astro';
+import { calculateSuccessMetrics, performSoundPerformanceAnalysis, trackParticipantBehavior } from '../../../../utils/surveyAnalytics';
+import { prepareGraphData } from '../../../../utils/surveyResults';
+
+// Ensure admin access
+const user = await getCurrentUser(Astro.cookies);
+if (!user) {
+  return Astro.redirect('/', 302);
+}
+
+const { authorized } = await verifyAuthorization(user, 'admin', 'admin');
+if (!authorized) {
+  return Astro.redirect('/', 302);
+}
+
+const { id } = Astro.params;
+if (!id) {
+  return Astro.redirect('/admin/surveys', 302);
+}
+
+// Fetch survey data with responses
+const supabaseAdmin = getClient({ requiresAdmin: true });
+const { data: survey, error: surveyError } = await supabaseAdmin
+  .from('surveys')
+  .select(`
+    *,
+    clients (
+      id,
+      name
+    ),
+    sound_profiles (
+      id,
+      title
+    )
+  `)
+  .eq('id', id)
+  .single();
+
+if (surveyError || !survey) {
+  return Astro.redirect('/admin/surveys', 302);
+}
+
+// if (survey.status !== 'completed') {
+//   return Astro.redirect('/admin/surveys', 302);
+// }
+
+// Fetch survey responses with sound matches
+const { data: responsesResult } = await supabaseAdmin
+  .from('survey_responses')
+  .select(`
+    *,
+    survey_matches (
+      id,
+      sound_id,
+      matched_function
+    )
+  `)
+  .eq('survey_id', id)
+  .order('created_at', { ascending: false });
+
+const responses = responsesResult;
+
+// Process survey data
+const surveyResponses = responses || [];
+
+// Calculate display metrics
+const totalResponses = surveyResponses.length;
+const completedResponses = surveyResponses.filter((r: SurveyResponse) => r.status === 'completed').length;
+const completionRate = totalResponses ? (completedResponses / totalResponses * 100).toFixed(1) : 0;
+
+// Prepare data for visualization
+const graphData = prepareGraphData(surveyResponses);
+
+// Calculate metrics for ReportGenerator
+const metrics = calculateSuccessMetrics(surveyResponses);
+const performanceAnalysis = performSoundPerformanceAnalysis(surveyResponses);
+const behaviorMetrics = trackParticipantBehavior(surveyResponses);
+
+---
+
+<Layout title={`Survey Results: ${survey.title}`}>
+  <div class="container mx-auto px-4 py-8">
+    <div class="flex justify-between items-center mb-8">
+      <h1 class="text-3xl font-bold">Survey Results: {survey.title}</h1>
+      <StaticExporter
+        surveyId={id}
+      />
+    </div>
+
+    <AnalyticsDashboard
+      responses={surveyResponses}
+      surveyId={id}
+      error={null}
+    />
+
+    <ReportGenerator
+      surveyData={survey}
+      responses={surveyResponses}
+      metrics={metrics}
+      performanceAnalysis={performanceAnalysis}
+      behaviorMetrics={behaviorMetrics}
+      class="mb-8"
+    />
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <!-- Summary Cards -->
+      <div class="bg-white shadow rounded-lg p-6">
+        <h3 class="text-lg font-semibold text-gray-700 mb-2">Total Responses</h3>
+        <p class="text-3xl font-bold">{totalResponses}</p>
+      </div>
+      
+      <div class="bg-white shadow rounded-lg p-6">
+        <h3 class="text-lg font-semibold text-gray-700 mb-2">Completed</h3>
+        <p class="text-3xl font-bold">{completedResponses}</p>
+      </div>
+      
+      <div class="bg-white shadow rounded-lg p-6">
+        <h3 class="text-lg font-semibold text-gray-700 mb-2">Completion Rate</h3>
+        <p class="text-3xl font-bold">{completionRate}%</p>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <!-- Sound-Function Correlation -->
+      <div class="bg-white shadow rounded-lg p-6">
+        <h2 class="text-xl font-semibold mb-4">Sound-Function Correlation</h2>
+        <div>
+          <canvas id="correlationChart" class="h-64"></canvas>
+        </div>
+      </div>
+
+      <!-- Success Rates -->
+      <div class="bg-white shadow rounded-lg p-6">
+        <h2 class="text-xl font-semibold mb-4">Success Rates</h2>
+        <div>
+          <canvas id="successRateChart" class="h-64"></canvas>
+        </div>
+      </div>
+
+      <!-- Response Timeline -->
+      <div class="bg-white shadow rounded-lg p-6">
+        <h2 class="text-xl font-semibold mb-4">Response Timeline</h2>
+        <div>
+          <canvas id="timelineChart" class="h-64"></canvas>
+        </div>
+      </div>
+
+      <!-- Error Patterns -->
+      <div class="bg-white shadow rounded-lg p-6">
+        <h2 class="text-xl font-semibold mb-4">Error Patterns</h2>
+        <div>
+          <canvas id="errorPatternChart" class="h-64"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Detailed Responses Table -->
+    <div class="mt-8 bg-white shadow rounded-lg p-6">
+      <h2 class="text-xl font-semibold mb-4">Detailed Responses</h2>
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead>
+            <tr>
+              <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Date
+              </th>
+              <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Status
+              </th>
+              <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Success Rate
+              </th>
+              <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Time Taken
+              </th>
+            </tr>
+          </thead>
+          <tbody class="bg-white divide-y divide-gray-200">
+            {responses?.map((response: SurveyResponse) => (
+              <tr>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {new Date(response.created_at).toLocaleDateString()}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <span class={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                    response.status === 'completed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                  }`}>
+                    {response.status}
+                  </span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {response.success_rate ? `${(response.success_rate * 100).toFixed(1)}%` : 'N/A'}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {response.time_taken ? `${Math.round(response.time_taken / 1000)}s` : 'N/A'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</Layout>
+
+<script type="module" define:vars={{ graphData }}>
+  import { Chart, registerables } from 'chart.js';
+  Chart.register(...registerables);
+
+  // Use the server-side processed graphData
+  const { correlationData, successRateData, errorPatternData, timelineData } = graphData;
+
+  // Wait for DOM to be ready
+  document.addEventListener('DOMContentLoaded', () => {
+    const chartConfig = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'bottom'
+        }
+      }
+    };
+
+    // Render correlation chart
+    const correlationCtx = document.getElementById('correlationChart');
+    if (correlationCtx) {
+      new Chart(correlationCtx, {
+        type: 'bar',
+        data: correlationData,
+        options: chartConfig
+      });
+    }
+
+    // Render success rate chart
+    const successRateCtx = document.getElementById('successRateChart');
+    if (successRateCtx) {
+      new Chart(successRateCtx, {
+        type: 'line',
+        data: successRateData,
+        options: {
+          ...chartConfig,
+          scales: {
+            y: {
+              beginAtZero: true,
+              max: 100
+            }
+          }
+        }
+      });
+    }
+
+    // Render timeline chart
+    const timelineCtx = document.getElementById('timelineChart');
+    if (timelineCtx) {
+      new Chart(timelineCtx, {
+        type: 'line',
+        data: timelineData,
+        options: chartConfig
+      });
+    }
+
+    // Render error pattern chart
+    const errorPatternCtx = document.getElementById('errorPatternChart');
+    if (errorPatternCtx) {
+      new Chart(errorPatternCtx, {
+        type: 'bar',
+        data: errorPatternData,
+        options: chartConfig
+      });
+    }
+  });
+</script>

@@ -1,0 +1,174 @@
+---
+interface Props {
+    surveyId: string;
+    active: boolean;
+}
+
+const { surveyId, active } = Astro.props;
+---
+
+<div class="flex flex-col space-y-2">
+    <!-- Status Toggle Button -->
+    <button
+        data-survey-id={surveyId}
+        data-is-active={active}
+        data-action="toggle-status"
+        class={`px-4 py-2 rounded-md text-sm font-medium ${
+            active
+                ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'
+                : 'bg-green-100 text-green-800 hover:bg-green-200'
+        }`}
+    >
+        {active ? 'Deactivate Survey' : 'Activate Survey'}
+    </button>
+
+    <!-- Action Buttons -->
+    <div class="flex flex-col space-y-2">
+        <button
+            data-survey-id={surveyId}
+            data-action="view-stats"
+            class="inline-flex items-center justify-center px-4 py-2 bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100"
+        >
+            View Detailed Stats
+        </button>
+
+        <button
+            data-survey-id={surveyId}
+            data-action="export-data"
+            class="inline-flex items-center justify-center px-4 py-2 bg-green-50 text-green-700 rounded-md hover:bg-green-100"
+        >
+            Export Data
+        </button>
+
+        <button
+            data-survey-id={surveyId}
+            data-action="manage-visibility"
+            class="inline-flex items-center justify-center px-4 py-2 bg-purple-50 text-purple-700 rounded-md hover:bg-purple-100"
+        >
+            Manage Visibility
+        </button>
+    </div>
+</div>
+
+<script>
+let isProcessing = false;
+
+// Status toggle handler
+async function handleStatusToggle(button: HTMLButtonElement) {
+    if (isProcessing) return;
+    
+    try {
+        isProcessing = true;
+        button.disabled = true;
+        
+        const surveyId = button.dataset.surveyId;
+        const isActive = button.dataset.isActive === 'true';
+        
+        if (!surveyId) throw new Error('Survey ID not found');
+
+        const response = await fetch(`/api/surveys/${surveyId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ active: !isActive })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.message || 'Failed to update survey status');
+        }
+
+        // Reload page to show updated state
+        window.location.reload();
+    } catch (error) {
+        console.error('Error updating survey status:', error);
+        alert('Failed to update survey status. Please try again.');
+    } finally {
+        isProcessing = false;
+        button.disabled = false;
+    }
+}
+
+// Export data handler
+async function handleExport(button: HTMLButtonElement) {
+    try {
+        const surveyId = button.dataset.surveyId;
+        if (!surveyId) throw new Error('Survey ID not found');
+
+        // Show loading state
+        button.disabled = true;
+        button.textContent = 'Exporting...';
+
+        const response = await fetch(`/api/surveys/${surveyId}/export`);
+        if (!response.ok) throw new Error('Export failed');
+
+        // Download file
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `survey-${surveyId}-export.csv`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+    } catch (error) {
+        console.error('Export error:', error);
+        alert('Failed to export data. Please try again.');
+    } finally {
+        button.disabled = false;
+        button.textContent = 'Export Data';
+    }
+}
+
+// Visibility management handler
+async function handleVisibility(button: HTMLButtonElement) {
+    try {
+        const surveyId = button.dataset.surveyId;
+        if (!surveyId) throw new Error('Survey ID not found');
+
+        const response = await fetch(`/api/surveys/${surveyId}/visibility`);
+        if (!response.ok) throw new Error('Failed to get visibility settings');
+
+        const data = await response.json();
+        console.log('Visibility data:', data);
+        // Implement visibility modal/controls here
+    } catch (error) {
+        console.error('Visibility management error:', error);
+        alert('Failed to manage visibility. Please try again.');
+    }
+}
+
+// Attach event listeners
+document.addEventListener('click', (e: MouseEvent) => {
+    const target = e.target as HTMLElement;
+    const button = target.closest('button');
+    if (!button) return;
+
+    const action = button.dataset.action;
+    if (!action) return;
+    
+    e.preventDefault(); // Only prevent default for buttons with data-action
+
+    switch (action) {
+        case 'toggle-status':
+            handleStatusToggle(button);
+            break;
+        case 'export-data':
+            handleExport(button);
+            break;
+        case 'manage-visibility':
+            handleVisibility(button);
+            break;
+        case 'view-stats':
+            const surveyId = button.dataset.surveyId;
+            const targetUrl = `/admin/surveys/${surveyId}/results`;
+            console.log(`Action: view-stats, surveyId: ${surveyId}, Navigating to: ${targetUrl}`); // Log to browser console
+            if (surveyId) {
+                window.location.href = targetUrl;
+            } else {
+                console.error('Survey ID not found for view-stats action.');
+            }
+            break;
+    }
+});
+</script>

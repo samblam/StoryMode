@@ -1,0 +1,66 @@
+---
+// A simplified version of DataExporter.astro to avoid build issues
+// Removing TypeScript interfaces and complex client-side logic
+
+// Use plain JavaScript destructuring
+const { surveyId, rawData } = Astro.props;
+---
+
+<div class="data-exporter">
+  <button
+    id="export-csv-button"
+    class="export-button flex items-center px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+    type="button"
+  >
+    <span class="text-gray-600">
+      <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+    </span>
+    <span class="ml-2">Export Data</span>
+  </button>
+</div>
+
+<script>
+// Simple client-side script with minimal functionality
+document.addEventListener('DOMContentLoaded', () => {
+  const exportButton = document.getElementById('export-csv-button');
+  
+  if (exportButton) {
+    exportButton.addEventListener('click', async () => {
+      try {
+        // Simple export functionality
+        const response = await fetch(`/api/surveys/${Astro.props.surveyId}/export`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            type: 'csv',
+            settings: { 
+              includeMetadata: true,
+              includeTimestamps: true
+            }
+          })
+        });
+        
+        if (!response.ok) {
+          throw new Error('Export failed');
+        }
+        
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `survey-export-${Astro.props.surveyId}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+      } catch (error) {
+        console.error('Export failed:', error);
+        alert('Export failed. Please try again later.');
+      }
+    });
+  }
+});
+</script>

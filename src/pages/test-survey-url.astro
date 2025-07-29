@@ -1,0 +1,146 @@
+---
+import Layout from '../layouts/Layout.astro';
+
+// No authentication required for this test page
+let testUrl = '';
+let testResult = null;
+let error = null;
+
+// If there's a test action, run the test
+if (Astro.request.method === 'POST') {
+    try {
+        const formData = await Astro.request.formData();
+        const action = formData.get('action');
+        
+        if (action === 'test-generate-url') {
+            // Call our test endpoint with credentials to include cookies
+            const response = await fetch(`${Astro.url.origin}/api/test-participant-url`, {
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                credentials: 'include' // This ensures cookies are sent with the request
+            });
+            
+            const result = await response.json();
+            
+            if (!response.ok) {
+                error = result.error || 'Failed to test URL generation';
+            } else {
+                testResult = result;
+                testUrl = result.url;
+            }
+        }
+    } catch (e) {
+        error = e instanceof Error ? e.message : 'Unknown error';
+    }
+}
+---
+
+<Layout title="Test Survey URL Generation">
+    <main class="container mx-auto px-4 py-8">
+        <h1 class="text-3xl font-bold mb-6">Test Survey URL Generation</h1>
+        
+        <div class="mb-8 p-4 bg-yellow-100 border border-yellow-400 rounded">
+            <p class="text-yellow-800">
+                <strong>Note:</strong> This page is for testing the fix for the URL parameter mismatch issue.
+                It generates a test participant URL and validates that the parameters are correct.
+            </p>
+            <p class="mt-2">
+                <a href="/test-url-fix" class="text-blue-600 hover:underline font-medium">
+                    ← Back to Test Homepage
+                </a> |
+                <a href="/test-publish-workflow" class="text-blue-600 hover:underline font-medium">
+                    Go to Publish Workflow Test →
+                </a>
+            </p>
+        </div>
+        
+        {error && (
+            <div class="mb-6 p-4 bg-red-100 border border-red-400 rounded">
+                <p class="text-red-800"><strong>Error:</strong> {error}</p>
+            </div>
+        )}
+        
+        <div class="mb-8">
+            <h2 class="text-xl font-bold mb-4">Generate Test URL</h2>
+            <form method="POST" class="space-y-4">
+                <input type="hidden" name="action" value="test-generate-url" />
+                <button 
+                    type="submit"
+                    class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                >
+                    Generate Test URL
+                </button>
+            </form>
+        </div>
+        
+        {testResult && (
+            <div class="space-y-6">
+                <h2 class="text-xl font-bold">Test Results</h2>
+                
+                <div class="p-4 bg-green-100 border border-green-400 rounded">
+                    <p class="text-green-800">
+                        URL generation {testResult.verification.idMatches && testResult.verification.tokenMatches 
+                            ? 'successful! Parameters match expected values.' 
+                            : 'has issues. Parameters do not match expected values.'}
+                    </p>
+                </div>
+                
+                <div class="p-4 bg-gray-100 border border-gray-300 rounded">
+                    <h3 class="font-bold mb-2">Generated URL:</h3>
+                    <p class="mb-2 break-all">{testUrl}</p>
+                    <a href={testUrl} target="_blank" class="inline-block mt-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                        Open URL in New Tab
+                    </a>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="p-4 bg-gray-100 border border-gray-300 rounded">
+                        <h3 class="font-bold mb-2">URL Parameters:</h3>
+                        <ul class="list-disc list-inside space-y-1">
+                            <li><strong>participant_id:</strong> {testResult.urlParameters.participantId}</li>
+                            <li><strong>token:</strong> {testResult.urlParameters.token}</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="p-4 bg-gray-100 border border-gray-300 rounded">
+                        <h3 class="font-bold mb-2">Participant Info:</h3>
+                        <ul class="list-disc list-inside space-y-1">
+                            <li><strong>ID:</strong> {testResult.participant.id}</li>
+                            <li><strong>Identifier:</strong> {testResult.participant.identifier}</li>
+                            <li><strong>Access Token:</strong> {testResult.participant.accessToken}</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div class="p-4 bg-gray-100 border border-gray-300 rounded">
+                    <h3 class="font-bold mb-2">Verification:</h3>
+                    <ul class="list-disc list-inside space-y-1">
+                        <li>
+                            <strong>ID Match:</strong> 
+                            <span class={testResult.verification.idMatches ? "text-green-600" : "text-red-600"}>
+                                {testResult.verification.idMatches ? "✓ Yes" : "✗ No"}
+                            </span>
+                        </li>
+                        <li>
+                            <strong>Token Match:</strong> 
+                            <span class={testResult.verification.tokenMatches ? "text-green-600" : "text-red-600"}>
+                                {testResult.verification.tokenMatches ? "✓ Yes" : "✗ No"}
+                            </span>
+                        </li>
+                    </ul>
+                </div>
+                
+                <div class="mt-6 p-4 bg-blue-100 border border-blue-400 rounded">
+                    <h3 class="font-bold mb-2">Next Steps:</h3>
+                    <ol class="list-decimal list-inside space-y-1">
+                        <li>Click "Open URL in New Tab" to access the survey with the generated URL</li>
+                        <li>Complete and submit the survey form</li>
+                        <li>Verify in the database that a survey response was created</li>
+                        <li>Verify that the participant status was updated to "completed"</li>
+                    </ol>
+                </div>
+            </div>
+        )}
+    </main>
+</Layout>

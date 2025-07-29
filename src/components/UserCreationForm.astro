@@ -10,6 +10,7 @@
       id="email"
       name="email"
       required
+      autocomplete="username"
       class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-400"
       placeholder="user@example.com"
     />
@@ -23,6 +24,7 @@
       name="password"
       required
       minlength="8"
+      autocomplete="new-password"
       class="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-400"
       placeholder="Minimum 8 characters"
     />
@@ -164,12 +166,15 @@ form?.addEventListener('submit', async (e) => {
       ...(role === 'client' && { name, company })
     };
 
+    console.log('Submitting user data:', { ...userData, password: '[REDACTED]' });
+
     const response = await fetch('/api/auth/create-user', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(userData),
+      credentials: 'include' // Important: Include credentials for admin check
     });
 
     const result = await response.json();
@@ -178,6 +183,7 @@ form?.addEventListener('submit', async (e) => {
       throw new Error(result.error || 'Failed to create user');
     }
 
+    // Show success message
     formStatus.classList.remove('hidden');
     successMessage.classList.remove('hidden');
     successMessage.textContent = 'User created successfully!';

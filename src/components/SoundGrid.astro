@@ -1,0 +1,122 @@
+---
+interface Props {
+    sounds: {
+        id: string;
+        url: string;
+        name: string;
+    }[];
+}
+
+const { sounds } = Astro.props;
+---
+
+<div class="grid grid-cols-2 gap-4 mb-8">
+    {sounds.map((sound, index) => (
+        <div 
+            class="sound-button bg-white p-4 rounded-lg shadow-md hover:shadow-lg transition-shadow"
+            data-sound-id={sound.id}
+            data-sound-url={sound.url}
+        >
+            <button
+                type="button"
+                class="w-full h-full flex flex-col items-center justify-center space-y-2 focus:outline-none"
+            >
+                <div class="w-12 h-12 flex items-center justify-center bg-blue-100 rounded-full">
+                    <svg 
+                        class="w-6 h-6 text-blue-600 play-icon" 
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                    >
+                        <path 
+                            stroke-linecap="round" 
+                            stroke-linejoin="round" 
+                            stroke-width="2" 
+                            d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
+                        />
+                        <path 
+                            stroke-linecap="round" 
+                            stroke-linejoin="round" 
+                            stroke-width="2" 
+                            d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                    </svg>
+                </div>
+                <span class="text-gray-600">Sound {index + 1}</span>
+                <div class="loading-indicator hidden">
+                    <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                </div>
+            </button>
+        </div>
+    ))}
+</div>
+
+<script>
+    let currentAudio: HTMLAudioElement | null = null;
+    const soundButtons = document.querySelectorAll('.sound-button');
+
+    soundButtons.forEach(button => {
+        const url = button.getAttribute('data-sound-url');
+        const loadingIndicator = button.querySelector('.loading-indicator');
+        const playIcon = button.querySelector('.play-icon');
+
+        button.addEventListener('click', async () => {
+            if (!url) return;
+
+            // Stop current audio if playing
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio.currentTime = 0;
+                // Reset all buttons to initial state
+                soundButtons.forEach(btn => {
+                    btn.querySelector('.loading-indicator')?.classList.add('hidden');
+                    btn.querySelector('.play-icon')?.classList.remove('hidden');
+                });
+            }
+
+            // If clicking the same button that's playing, just stop
+            if (currentAudio?.src === url) {
+                currentAudio = null;
+                return;
+            }
+
+            // Show loading state
+            if (loadingIndicator && playIcon) {
+                loadingIndicator.classList.remove('hidden');
+                playIcon.classList.add('hidden');
+            }
+
+            // Create and play new audio
+            try {
+                currentAudio = new Audio(url);
+                await currentAudio.play();
+
+                // Reset loading state
+                if (loadingIndicator && playIcon) {
+                    loadingIndicator.classList.add('hidden');
+                    playIcon.classList.remove('hidden');
+                }
+
+                // Handle audio completion
+                currentAudio.addEventListener('ended', () => {
+                    currentAudio = null;
+                });
+            } catch (error) {
+                console.error('Error playing audio:', error);
+                // Reset loading state on error
+                if (loadingIndicator && playIcon) {
+                    loadingIndicator.classList.add('hidden');
+                    playIcon.classList.remove('hidden');
+                }
+            }
+        });
+    });
+
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', () => {
+        if (currentAudio) {
+            currentAudio.pause();
+            currentAudio = null;
+        }
+    });
+</script>

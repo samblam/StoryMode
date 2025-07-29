@@ -1,0 +1,32 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import SurveyResults from '../../components/client/SurveyResults.astro';
+import { getCurrentUser } from '../../utils/authUtils';
+import { verifyAuthorization } from '../../utils/accessControl';
+
+// Ensure client access
+const user = await getCurrentUser(Astro.cookies);
+if (!user || user.role !== 'client') {
+  return Astro.redirect('/login', 302);
+}
+
+const { authorized } = await verifyAuthorization(user, 'client', 'read');
+if (!authorized || !user.clientId) {
+  return Astro.redirect('/', 302);
+}
+
+const clientId = user.clientId;
+---
+
+<Layout title="Survey Results">
+  <div class="container mx-auto px-4 py-8">
+    <div class="mb-8">
+      <h1 class="text-3xl font-bold">Your Survey Results</h1>
+      <p class="text-gray-600 mt-2">
+        View and analyze the results of your completed surveys.
+      </p>
+    </div>
+
+    <SurveyResults clientId={clientId} />
+  </div>
+</Layout>

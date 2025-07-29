@@ -2,20 +2,30 @@
 /// <reference types="astro/client" />
 
 interface User {
-  id: string; // Unique user ID
-  email: string; // Email address
-  role: 'admin' | 'client'; // User role
-  clientId?: string; // Optional client ID, if applicable
-  createdAt?: string; // Timestamp for when the user was created
+  id: string;
+  email: string;
+  role: 'admin' | 'client' | 'participant';
+  clientId?: string | null;
+  createdAt: string;
   client?: {
-    id: string; // Associated client ID
-    name: string; // Client name
-    active: boolean; // Client active status
-  };
+    id: string;
+    name: string;
+    email: string;
+    active: boolean;
+  } | null;
+}
+
+interface StudyParticipant {
+  id: string;
+  sessionId: string;
+  expiresAt: string;
 }
 
 declare namespace App {
   interface Locals {
-    user?: User; // User data stored in the request context
+    user?: User;
+    participant?: StudyParticipant;
+    participantId?: string | null;
+    supabase?: import('@supabase/supabase-js').SupabaseClient;
   }
 }

@@ -1,0 +1,111 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { getClient } from '../lib/supabase';
+
+// Get all surveys for testing
+const supabase = getClient({ requiresAdmin: true });
+const { data: surveys } = await supabase
+  .from('surveys')
+  .select('id, title, description')
+  .order('created_at', { ascending: false })
+  .limit(10);
+---
+
+<Layout title="Test Survey Preview">
+  <main class="container mx-auto p-4">
+    <h1 class="text-2xl font-bold mb-6">Test Survey Preview</h1>
+    
+    <div class="bg-white shadow-md rounded-lg p-6 mb-8">
+      <h2 class="text-xl font-bold mb-4">Available Surveys</h2>
+      
+      {surveys && surveys.length > 0 ? (
+        <div class="space-y-4">
+          {surveys.map((survey) => (
+            <div class="border p-4 rounded-lg">
+              <h3 class="font-bold">{survey.title}</h3>
+              <p class="text-gray-600 mb-3">{survey.description}</p>
+              <div class="flex space-x-3">
+                <button
+                  class="preview-button bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+                  data-survey-id={survey.id}
+                >
+                  Preview Survey
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p>No surveys available for testing.</p>
+      )}
+    </div>
+    
+    <div class="bg-white shadow-md rounded-lg p-6">
+      <h2 class="text-xl font-bold mb-4">Test Results</h2>
+      <div id="result-container" class="border p-4 rounded-lg min-h-[100px]">
+        <p class="text-gray-500">Results will appear here...</p>
+      </div>
+    </div>
+  </main>
+</Layout>
+
+<script is:inline>
+  // Function to preview a survey
+  async function previewSurvey(surveyId) {
+    const resultContainer = document.getElementById('result-container');
+    if (!resultContainer) return;
+    
+    resultContainer.innerHTML = '<p class="text-blue-500">Loading preview...</p>';
+    
+    try {
+      // Call the preview API
+      const response = await fetch(`/api/surveys/${surveyId}/preview`);
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || data.message || 'Failed to generate preview');
+      }
+      
+      // Validate preview data
+      if (!data || typeof data !== 'object') {
+        throw new Error('Invalid preview data received');
+      }
+      
+      // Open preview in new window/tab
+      const previewUrl = `/surveys/${surveyId}?preview=true&context=${encodeURIComponent(JSON.stringify(data))}`;
+      window.open(previewUrl, '_blank');
+      
+      if (resultContainer) {
+        resultContainer.innerHTML = `
+          <div class="text-green-600 font-bold">Preview opened in new tab!</div>
+          <div class="mt-2">
+            <p class="text-sm font-bold">Preview URL:</p>
+            <a href="${previewUrl}" target="_blank" class="text-blue-600 break-all">${previewUrl}</a>
+          </div>
+        `;
+      }
+    } catch (err) {
+      console.error('Error previewing survey:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to generate survey preview';
+      
+      if (resultContainer) {
+        resultContainer.innerHTML = `
+          <div class="text-red-600 font-bold">Error:</div>
+          <div class="mt-2">${errorMessage}</div>
+        `;
+      }
+    }
+  }
+  
+  // Add event listeners to preview buttons
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.preview-button').forEach(button => {
+      button.addEventListener('click', () => {
+        const surveyId = button.getAttribute('data-survey-id');
+        if (surveyId) {
+          previewSurvey(surveyId);
+        }
+      });
+    });
+  });
+</script>

@@ -87,7 +87,8 @@ const { soundId, soundFile } = Astro.props;
 
     private async getCurrentSound(): Promise<Howl | null> {
       try {
-        if (this.soundFile === audioManager.getCurrentSoundId()) {
+        const currentSoundId = audioManager.getCurrentSoundId();
+        if (this.soundId === currentSoundId) {
           return await audioManager.getSound(this.soundFile, this.soundId);
         }
         return null;
@@ -131,7 +132,7 @@ const { soundId, soundFile } = Astro.props;
       if (!this.isDragging) return;
       this.isDragging = false;
       
-      if (!audioManager.isPlaying()) {
+      if (!audioManager.isPlaying(this.soundId)) {
         this.handle.style.opacity = '0';
       }
 
@@ -199,12 +200,19 @@ const { soundId, soundFile } = Astro.props;
   }
 
   // Initialize progress bars
+  const controllers: AudioProgressController[] = [];
+  
   document.querySelectorAll('.progress-bar[data-sound-id]').forEach(progressBar => {
     if (progressBar instanceof HTMLElement) {
       const soundId = progressBar.dataset.soundId;
       if (soundId) {
-        new AudioProgressController(progressBar);
+        controllers.push(new AudioProgressController(progressBar));
       }
     }
+  });
+
+  // Cleanup on page unload
+  window.addEventListener('unload', () => {
+    controllers.forEach(controller => controller.cleanup());
   });
 </script>

@@ -1,0 +1,277 @@
+---
+interface Props {
+    surveyId: string;
+    active: boolean;
+}
+
+const { surveyId, active } = Astro.props;
+const isPublished = active;
+
+// Get auth token from Astro.cookies at render time
+const token = Astro.cookies.get('sb-token')?.value;
+
+// If no token, redirect to login
+if (!token) {
+    return Astro.redirect('/login?redirect=' + encodeURIComponent(Astro.url.pathname));
+}
+---
+
+<div class="bg-white p-6 rounded-lg shadow" data-auth-token={token}>
+    <div class="flex items-center justify-between">
+        <div>
+            <h3 class="text-lg font-semibold">Survey Controls</h3>
+            <p class="text-sm text-gray-600 mt-1">
+                {isPublished ? 'Survey is currently published' : 'Survey is currently in draft'}
+            </p>
+        </div>
+        
+        <div class="flex items-center space-x-4">
+            <!-- Save Button -->
+            <button
+                type="button"
+                id="save-survey"
+                class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M7.707 10.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 1 00-1.414-1.414L11 11.586V6h-2v5.586l-1.293-1.293z" />
+                </svg>
+                Save Changes
+            </button>
+
+            <!-- Publish/Unpublish Button -->
+            <button
+                type="button"
+                id="toggle-publish"
+                class={`inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium ${
+                    isPublished
+                        ? 'text-gray-700 bg-gray-100 hover:bg-gray-200'
+                        : 'text-white bg-green-600 hover:bg-green-700'
+                } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500`}
+                data-survey-id={surveyId}
+                data-is-published={isPublished}
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                    {isPublished ? (
+                        <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                    ) : (
+                        <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                        <path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd" />
+                    )}
+                </svg>
+                {isPublished ? 'Unpublish Survey' : 'Publish Survey'}
+            </button>
+        </div>
+    </div>
+
+    <!-- Status Messages -->
+    <div id="status-message" class="mt-4 hidden">
+        <p class="text-sm font-medium"></p>
+    </div>
+</div>
+
+<script>
+    import { saveSurveyData, publishSurvey, unpublishSurvey } from '../../utils/surveyDataManager';
+
+    // Get survey ID and auth token from data attributes
+    const saveButton = document.getElementById('save-survey');
+    const publishButton = document.getElementById('toggle-publish');
+    const statusMessage = document.getElementById('status-message');
+    const statusText = statusMessage?.querySelector('p');
+    const container = document.querySelector('[data-auth-token]') as HTMLElement;
+    const surveyId = publishButton?.dataset.surveyId;
+    const token = container?.dataset.authToken;
+
+    function showStatus(message: string, isError = false) {
+        if (statusMessage && statusText) {
+            statusText.textContent = message;
+            statusText.className = `text-sm font-medium ${isError ? 'text-red-600' : 'text-green-600'}`;
+            statusMessage.classList.remove('hidden');
+            setTimeout(() => {
+                statusMessage.classList.add('hidden');
+            }, 5000);
+        }
+    }
+
+    function redirectToLogin() {
+        const currentPath = encodeURIComponent(window.location.pathname);
+        window.location.href = `/login?redirect=${currentPath}`;
+    }
+
+    // Handle save
+    saveButton?.addEventListener('click', async () => {
+        try {
+            // Verify token exists
+            if (!token) {
+                redirectToLogin();
+                return;
+            }
+
+            // Get current form data and ensure surveyId is included
+            const form = document.querySelector('form');
+            if (!form) {
+                throw new Error('Form not found');
+            }
+
+            // Get sound mappings
+            const mappingContainer = document.getElementById('mapping-container');
+            const mappings = Array.from(mappingContainer?.querySelectorAll('.mapping-row') || [])
+                .map(row => {
+                    const soundSelect = row.querySelector('.sound-select') as HTMLSelectElement;
+                    const functionSelect = row.querySelector('.function-select, .function-input') as HTMLSelectElement | HTMLInputElement;
+                    const order = parseInt(row.getAttribute('data-order') || '0', 10);
+                    
+                    return {
+                        sound_id: soundSelect?.value,
+                        intended_function: functionSelect?.value,
+                        order_index: order
+                    };
+                })
+                // .filter(mapping => mapping.sound_id && mapping.intended_function); // Commented out filter for testing
+
+            // Get form data and convert to object with proper typing
+            const formData = new FormData(form);
+            interface SurveyData {
+                id: string;
+                title?: string;
+                description?: string;
+                client_id?: string;
+                sound_profile_id?: string;
+                video_url?: string;
+                functions?: string[];
+                active?: boolean;
+                approved?: boolean;
+                visible_to_client?: boolean;
+                survey_sounds: {
+                    sound_id: string;
+                    intended_function: string;
+                    order_index: number;
+                }[];
+            }
+
+            if (!surveyId) {
+                throw new Error('Survey ID is required');
+            }
+
+            const formEntries = Object.fromEntries(formData);
+            const surveyData: SurveyData = {
+                id: surveyId,
+                title: formEntries.title as string,
+                description: formEntries.description as string,
+                client_id: formEntries.client_id as string,
+                sound_profile_id: formEntries.sound_profile_id as string,
+                video_url: formEntries.video_url as string,
+                functions: formEntries.functions ? JSON.parse(formEntries.functions as string) : undefined,
+                active: formEntries.active === 'true',
+                approved: formEntries.approved === 'true',
+                visible_to_client: formEntries.visible_to_client === 'true',
+                survey_sounds: [...mappings] // Explicitly treat as array
+            };
+
+            // Show saving status
+            showStatus('Saving survey...', false);
+
+            // Log the data being sent
+            console.log('Saving survey with data:', surveyData);
+
+            // Save survey data with token and baseUrl
+            const baseUrl = window.location.origin;
+            await saveSurveyData(surveyData, baseUrl, token);
+            
+            // Show success message with details
+            const mappingsCount = surveyData.survey_sounds?.length || 0;
+            const hasVideo = !!surveyData.video_url;
+            const successMessage = `Survey saved successfully. ${
+                mappingsCount ? `${mappingsCount} sound mappings saved. ` : ''
+            }${hasVideo ? 'Video URL saved.' : ''}`;
+            
+            showStatus(successMessage);
+
+            // Dispatch save event
+            window.dispatchEvent(new CustomEvent('survey-saved', {
+                detail: {
+                    surveyData,
+                    mappingsCount,
+                    hasVideo
+                }
+            }));
+        } catch (error) {
+            console.error('Save error:', error);
+            if (error instanceof Error && error.message.includes('auth')) {
+                redirectToLogin();
+            } else {
+                showStatus('Failed to save survey. Please try again.', true);
+            }
+        }
+    });
+
+    // Handle publish/unpublish
+    publishButton?.addEventListener('click', async () => {
+        const surveyId = publishButton.dataset.surveyId;
+        const isPublished = publishButton.dataset.isPublished === 'true';
+
+        if (!surveyId) return;
+
+        try {
+            // Verify token exists
+            if (!token) {
+                redirectToLogin();
+                return;
+            }
+
+            const baseUrl = window.location.origin;
+            
+            if (isPublished) {
+                // Log the unpublish attempt
+                console.log('Attempting to unpublish survey:', surveyId);
+                await unpublishSurvey(surveyId, baseUrl, token);
+                showStatus('Survey unpublished successfully');
+            } else {
+                // Log the publish attempt
+                console.log('Attempting to publish survey:', surveyId);
+                await publishSurvey(surveyId, baseUrl, token);
+                showStatus('Survey published successfully');
+            }
+
+            // Refresh the page to update the UI
+            window.location.reload();
+        } catch (error) {
+            console.error('Publish/unpublish error:', error);
+            if (error instanceof Error && error.message.includes('auth')) {
+                redirectToLogin();
+            } else {
+                showStatus(`Failed to ${isPublished ? 'unpublish' : 'publish'} survey. Please try again.`, true);
+            }
+        }
+    });
+
+    // Define custom event type
+    interface VideoUploadEvent extends CustomEvent {
+        detail: {
+            url: string;
+        };
+    }
+
+    // Listen for video upload completion
+    window.addEventListener('video-uploaded', ((event: VideoUploadEvent) => {
+        const videoUrl = event.detail.url;
+        if (videoUrl) {
+            // Get the form reference
+            const form = document.querySelector('form');
+            if (!form) {
+                console.error('Form not found');
+                return;
+            }
+
+            // Add hidden input for video URL if it doesn't exist
+            let videoInput = form.querySelector('input[name="video_url"]') as HTMLInputElement | null;
+            if (!videoInput) {
+                videoInput = document.createElement('input') as HTMLInputElement;
+                videoInput.type = 'hidden';
+                videoInput.name = 'video_url';
+                form.appendChild(videoInput);
+            }
+            videoInput.value = videoUrl;
+            showStatus('Video uploaded successfully. Remember to save your changes.');
+        }
+    }) as EventListener);
+</script>

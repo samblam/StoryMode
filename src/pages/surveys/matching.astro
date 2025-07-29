@@ -1,0 +1,223 @@
+---
+import SurveyLayout from '../../components/SurveyLayout.astro';
+import SoundGrid from '../../components/SoundGrid.astro';
+import FunctionGrid from '../../components/FunctionGrid.astro';
+import { supabase } from '../../lib/supabase';
+import type { User } from '../../types/auth';
+
+const surveyId = Astro.url.searchParams.get('id');
+const user = Astro.locals.user as User | undefined;
+
+// Redirect if not logged in
+if (!user) {
+    return Astro.redirect('/login');
+}
+
+// Redirect if no survey ID
+if (!surveyId) {
+    return new Response(JSON.stringify({ error: 'Survey ID is required' }), {
+        status: 400,
+    });
+}
+
+// Get survey data
+const { data: survey, error } = await supabase
+    .from('surveys')
+    .select(`
+        *,
+        client:clients (
+            id,
+            name
+        ),
+        survey_sounds (
+            id,
+            sound_id,
+            intended_function,
+            order_index,
+            sounds (
+                id,
+                name,
+                url
+            )
+        )
+    `)
+    .eq('id', surveyId)
+    .single();
+
+if (error) {
+    return new Response(JSON.stringify({ error: error.message }), {
+        status: 500,
+    });
+}
+
+if (!survey) {
+    return new Response(JSON.stringify({ error: 'Survey not found' }), {
+        status: 404,
+    });
+}
+
+const title = `Matching Test - ${survey.client.name}`;
+
+const sounds = survey.survey_sounds.map((item: any) => ({
+    id: item.sound_id,
+    url: item.sounds.url,
+    name: item.sounds.name,
+}));
+
+const functions = survey.survey_sounds.map((item: any) => ({
+    id: item.sound_id,
+    description: item.intended_function,
+}));
+---
+
+<SurveyLayout 
+    title={title}
+    description="Match each sound to its intended function."
+    currentStep={4}
+    totalSteps={4}
+>
+    <div class="max-w-4xl mx-auto px-4 py-8">
+        <SoundGrid sounds={sounds} />
+        <FunctionGrid functions={functions} />
+        <div class="flex justify-between items-center mt-8">
+            <button 
+                type="button"
+                id="resetButton"
+                class="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+                Reset
+            </button>
+            <button 
+                type="button"
+                id="submitButton"
+                class="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled
+            >
+                Submit
+            </button>
+        </div>
+    </div>
+</SurveyLayout>
+
+<script>
+    // State management
+    interface Match {
+        soundId: string;
+        functionId: string;
+    }
+
+    let matches: Match[] = [];
+    const submitButton = document.getElementById('submitButton') as HTMLButtonElement;
+    const resetButton = document.getElementById('resetButton') as HTMLButtonElement;
+    const currentSurveyId =  new URLSearchParams(window.location.search).get('id');
+
+    function updateSubmitButton() {
+        if (submitButton) {
+            submitButton.disabled = matches.length !== document.querySelectorAll('.function-box').length;
+        }
+    }
+
+    function addMatch(soundId: string, functionId: string) {
+        // Remove any existing matches for this function
+        matches = matches.filter(match => match.functionId !== functionId);
+        matches.push({ soundId, functionId });
+        updateSubmitButton();
+        updateVisualFeedback();
+    }
+
+    function updateVisualFeedback() {
+        // Reset all visual states
+        document.querySelectorAll('.sound-button').forEach(button => {
+            (button as HTMLDivElement).classList.remove('bg-green-100');
+        });
+        document.querySelectorAll('.function-box').forEach(box => {
+            (box as HTMLDivElement).classList.remove('bg-green-100');
+        });
+
+        // Apply matched states
+        matches.forEach(match => {
+            const soundButton = document.querySelector(`[data-sound-id="${match.soundId}"]`);
+            const functionBox = document.querySelector(`[data-function-id="${match.functionId}"]`);
+            
+            if (soundButton) {
+                soundButton.classList.add('bg-green-100');
+            }
+            if (functionBox) {
+                functionBox.classList.add('bg-green-100');
+            }
+        });
+    }
+
+    // Drag and drop logic
+    const functionBoxes = document.querySelectorAll('.function-box');
+    const soundButtons = document.querySelectorAll('.sound-button');
+
+    soundButtons.forEach(button => {
+        button.setAttribute('draggable', 'true');
+
+        button.addEventListener('dragstart', (event) => {
+            const targetElement = event.target as HTMLDivElement;
+            (event as DragEvent).dataTransfer?.setData('text/plain', targetElement.dataset.soundId || '');
+        });
+    });
+
+    functionBoxes.forEach(box => {
+        box.addEventListener('dragover', (event) => {
+            event.preventDefault();
+        });
+
+        box.addEventListener('drop', (event) => {
+            event.preventDefault();
+            const soundId = (event as DragEvent).dataTransfer?.getData('text/plain');
+            const targetElement = event.target as HTMLDivElement;
+            const functionBox = targetElement.closest('.function-box') as HTMLDivElement;
+            const functionId = functionBox?.dataset.functionId;
+
+            if (soundId && functionId) {
+                addMatch(soundId, functionId);
+            }
+        });
+    });
+
+    // Reset and Submit handlers
+    resetButton.addEventListener('click', () => {
+        matches = [];
+        updateVisualFeedback();
+        updateSubmitButton();
+    });
+
+    submitButton.addEventListener('click', async () => {
+        if (matches.length === document.querySelectorAll('.function-box').length) {
+            try {
+                const response = await fetch(`/api/surveys/${currentSurveyId}/responses`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ matches }),
+                });
+
+                if (response.ok) {
+                    window.location.href = `/surveys/${currentSurveyId}/results`;
+                } else {
+                    console.error('Failed to submit matches');
+                }
+            } catch (error) {
+                console.error('Error submitting matches:', error);
+            }
+        }
+    });
+
+    // Initialize
+    updateSubmitButton();
+</script>
+
+<style>
+    .sound-button, .function-box {
+        transition: background-color 0.3s ease;
+    }
+
+    .bg-green-100 {
+        background-color: rgb(220, 252, 231);
+    }
+</style>

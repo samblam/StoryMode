@@ -1,0 +1,276 @@
+---
+import Layout from '../../../../layouts/Layout.astro';
+import SurveyDetails from '../../../../components/admin/SurveyDetails.astro';
+import SurveyFunctions from '../../../../components/admin/SurveyFunctions.astro';
+import SoundManager from '../../../../components/admin/SoundManager.astro';
+import VideoUploader from '../../../../components/admin/VideoUploader.astro';
+import SaveControls from '../../../../components/admin/SaveControls.astro';
+import ParticipantManager from '../../../../components/admin/ParticipantManager.astro';
+import SurveyPreview from '../../../../components/admin/SurveyPreview.astro';
+import { getSurveyById, type SurveyWithRelations } from '../../../../utils/surveyDataManager';
+import { checkAdminAccess } from '../../../../utils/accessControl';
+import { getCurrentUser } from '../../../../utils/authUtils';
+import { getAllClients } from '../../../../utils/clientUtils';
+import { getSoundProfiles } from '../../../../utils/profileUtils';
+import type { Database } from '../../../../types/database';
+
+// Initialize error state
+let error: string | null = null;
+let survey: SurveyWithRelations | null = null;
+let clients: Database['public']['Tables']['clients']['Row'][] = [];
+let soundProfiles: Database['public']['Tables']['sound_profiles']['Row'][] = [];
+let surveyId: string | null = null;
+
+try {
+    // Validate environment variables
+    if (!import.meta.env.PUBLIC_SUPABASE_URL || !import.meta.env.PUBLIC_SUPABASE_ANON_KEY) {
+        throw new Error('Missing required Supabase configuration. Please check your environment variables.');
+    }
+
+    // Get survey ID from URL params
+    const { id } = Astro.params;
+    if (!id) {
+        return Astro.redirect('/admin/surveys');
+    }
+    
+    // Store survey ID for component use
+    surveyId = id;
+
+    // Log route entry
+    console.log("[EDIT_ROUTE][ENTRY]", {
+        timestamp: new Date().toISOString(),
+        user: Astro.locals.user,
+        surveyId: id
+    });
+
+    // Check admin access and get user data
+    const user = await getCurrentUser(Astro.cookies);
+    
+    if (!user) {
+        console.log("[EDIT_ROUTE][AUTH_CHECK]", {
+            timestamp: new Date().toISOString(),
+            status: "failed",
+            reason: "no_user",
+            redirect: `/login?error=no_user&redirect=${encodeURIComponent(Astro.url.pathname)}`
+        });
+        Astro.cookies.delete('sb-token', { path: '/' });
+        return Astro.redirect(`/login?error=no_user&redirect=${encodeURIComponent(Astro.url.pathname)}`);
+    }
+    
+    if (user.role !== 'admin') {
+        console.log("[EDIT_ROUTE][AUTH_CHECK]", {
+            timestamp: new Date().toISOString(),
+            status: "failed",
+            reason: "not_admin",
+            userRole: user.role,
+            redirect: '/login?error=not_admin'
+        });
+        Astro.cookies.delete('sb-token', { path: '/' });
+        return Astro.redirect('/login?error=not_admin');
+    }
+
+    const accessGranted = await checkAdminAccess(Astro);
+    if (!accessGranted) {
+        console.log("[EDIT_ROUTE][AUTH_CHECK]", {
+            timestamp: new Date().toISOString(),
+            status: "failed",
+            reason: "access_denied",
+            redirect: `/login?error=access_denied&redirect=${encodeURIComponent(Astro.url.pathname)}`
+        });
+        Astro.cookies.delete('sb-token', { path: '/' });
+        return Astro.redirect(`/login?error=access_denied&redirect=${encodeURIComponent(Astro.url.pathname)}`);
+    }
+
+    console.log("[EDIT_ROUTE][AUTH_CHECK]", {
+        timestamp: new Date().toISOString(),
+        status: "success",
+        userId: user.id,
+        userRole: user.role
+    });
+
+    // Fetch survey and client data
+    const token = Astro.cookies.get('sb-token')?.value;
+    if (!token) {
+        console.log("[EDIT_ROUTE][TOKEN_CHECK]", {
+            timestamp: new Date().toISOString(),
+            status: "failed",
+            reason: "no_token",
+            redirect: '/login?error=no_token'
+        });
+        return Astro.redirect('/login?error=no_token');
+    }
+
+    // Fetch survey data
+    survey = await getSurveyById(id, Astro.url.origin, token);
+    if (!survey) {
+        console.log("[EDIT_ROUTE][SURVEY_FETCH]", {
+            timestamp: new Date().toISOString(),
+            status: "failed",
+            reason: "survey_not_found",
+            surveyId: id,
+            redirect: '/admin/surveys?error=survey_not_found'
+        });
+        return Astro.redirect('/admin/surveys?error=survey_not_found');
+    }
+
+    console.log("[EDIT_ROUTE][SURVEY_FETCH]", {
+        timestamp: new Date().toISOString(),
+        status: "success",
+        surveyId: id,
+        surveyTitle: survey.title
+    });
+
+    // Fetch client data
+    const clientsResponse = await getAllClients(token);
+    if (!clientsResponse.error) {
+        // Map client data to match Database type exactly
+        clients = clientsResponse.data.map(client => ({
+            id: client.id,
+            created_at: client.created_at || new Date().toISOString(),
+            name: client.name,
+            company: client.company === undefined ? null : client.company,
+            email: client.email,
+            active: client.active
+        }));
+    } else {
+        throw new Error(clientsResponse.error);
+    }
+
+    // Fetch sound profiles
+    console.log('survey.client_id:', survey.client_id);
+    const profilesResponse = await getSoundProfiles(token, survey.client_id);
+    if (!profilesResponse.error) {
+        soundProfiles = profilesResponse.data;
+    } else {
+        throw new Error(profilesResponse.error);
+    }
+
+} catch (e) {
+    console.error('Error in survey edit page:', e);
+    error = e instanceof Error ? e.message : 'An unexpected error occurred';
+}
+
+// Get title safely
+const pageTitle = error ? 'Error' : `Edit Survey - ${survey?.title || ''}`;
+---
+
+<Layout title={pageTitle}>
+    <div class="min-h-screen bg-gray-100 py-6">
+        {error ? (
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-lg shadow-md" role="alert">
+                    <h2 class="text-lg font-semibold mb-2">Error Loading Survey</h2>
+                    <p>{error}</p>
+                    <div class="mt-4">
+                        <a 
+                            href="/admin/surveys" 
+                            class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                        >
+                            Return to Surveys
+                        </a>
+                    </div>
+                </div>
+            </div>
+        ) : (
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <!-- Header -->
+                <div class="mb-6">
+                    <div class="flex items-center justify-between">
+                        <h1 class="text-2xl font-bold text-gray-900">Edit Survey</h1>
+                        
+                        <div class="flex space-x-4">
+                            {survey && surveyId && (
+                                <SurveyPreview surveyId={surveyId} />
+                            )}
+                            <a
+                                href="/admin/surveys"
+                                class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                            >
+                                <svg
+                                    class="-ml-1 mr-2 h-5 w-5 text-gray-500"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    viewBox="0 0 20 20"
+                                    fill="currentColor"
+                                >
+                                    <path
+                                        fill-rule="evenodd"
+                                        d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z"
+                                        clip-rule="evenodd"
+                                    />
+                                </svg>
+                                Back to Surveys
+                            </a>
+                        </div>
+                    </div>
+                    <nav class="mt-3" aria-label="Breadcrumb">
+                        <ol class="flex items-center space-x-2 text-sm text-gray-500">
+                            <li>
+                                <a href="/admin/surveys" class="hover:text-gray-700">Surveys</a>
+                            </li>
+                            <li>
+                                <svg
+                                    class="h-5 w-5 text-gray-400"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    viewBox="0 0 20 20"
+                                    fill="currentColor"
+                                >
+                                    <path
+                                        fill-rule="evenodd"
+                                        d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
+                                        clip-rule="evenodd"
+                                    />
+                                </svg>
+                            </li>
+                            <li>
+                                <span class="font-medium text-gray-900">Edit</span>
+                            </li>
+                        </ol>
+                    </nav>
+                </div>
+
+                <!-- Main Content -->
+                <div class="space-y-6 pb-20">
+                    {survey && surveyId && (
+                        <>
+                            <SurveyDetails 
+                                survey={survey} 
+                                clients={clients}
+                                soundProfiles={soundProfiles}
+                            />
+                            <SurveyFunctions surveyId={surveyId} />
+                            <SoundManager surveyId={surveyId} />
+                            <VideoUploader surveyId={surveyId} currentVideoUrl={survey.video_url || ''} />
+                            <ParticipantManager surveyId={surveyId} />
+                            <SaveControls surveyId={surveyId} active={survey.active} />
+                        </>
+                    )}
+                </div>
+            </div>
+        )}
+    </div>
+</Layout>
+
+<script>
+    interface SurveyUpdateDetail {
+        refresh?: boolean;
+    }
+
+    // Handle form submission
+    document.addEventListener('DOMContentLoaded', () => {
+        // Listen for custom events from components
+        document.addEventListener('surveyUpdated', ((event: CustomEvent<SurveyUpdateDetail>) => {
+            if (event.detail?.refresh) {
+                window.location.reload();
+            }
+        }) as EventListener);
+
+        // Handle navigation warnings
+        window.addEventListener('beforeunload', (event) => {
+            const hasUnsavedChanges = document.querySelector('[data-unsaved-changes="true"]');
+            if (hasUnsavedChanges) {
+                event.preventDefault();
+                event.returnValue = '';
+            }
+        });
+    });
+</script>

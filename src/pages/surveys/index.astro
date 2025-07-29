@@ -1,0 +1,87 @@
+---
+import SurveyLayout from '../../components/SurveyLayout.astro';
+import { supabase } from '../../lib/supabase';
+import type { User } from '../../types/auth';
+
+const surveyId = Astro.url.searchParams.get('id');
+const user = Astro.locals.user as User | undefined;
+
+// Redirect if not logged in
+if (!user) {
+    return Astro.redirect('/login');
+}
+
+// Redirect if no survey ID
+if (!surveyId) {
+    return new Response(JSON.stringify({ error: 'Survey ID is required' }), {
+        status: 400,
+    });
+}
+
+// Get survey data
+const { data: survey, error } = await supabase
+    .from('surveys')
+    .select(`
+        *,
+        client:clients (
+            id,
+            name,
+            company,
+            logo_url
+        )
+    `)
+    .eq('id', surveyId)
+    .single();
+
+if (error) {
+    return new Response(JSON.stringify({ error: error.message }), {
+        status: 500,
+    });
+}
+
+if (!survey) {
+    return new Response(JSON.stringify({ error: 'Survey not found' }), {
+        status: 404,
+    });
+}
+
+const title = `StoryMode X ${survey.client.name}`;
+---
+
+<SurveyLayout 
+    title={title}
+    description={survey.description}
+    currentStep={1} 
+    totalSteps={4}
+>
+    <div class="max-w-4xl mx-auto px-4 py-8">
+        <div class="text-center mb-8">
+            <div class="mb-8 p-6 bg-white rounded-lg shadow-md">
+                {survey.client.logo_url && (
+                    <img 
+                        src={survey.client.logo_url} 
+                        alt={`${survey.client.name} logo`} 
+                        class="mx-auto mb-4 max-h-24"
+                    />
+                )}
+                <p class="text-lg mb-4">{survey.client.company}</p>
+                <p class="text-gray-600">{survey.description}</p>
+            </div>
+
+            <div class="mt-8">
+                <a 
+                    href={`/surveys/${surveyId}/video`}
+                    class="inline-block bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                    Start Survey
+                </a>
+            </div>
+        </div>
+    </div>
+</SurveyLayout>
+
+<style>
+  .shadow-md {
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  }
+</style>

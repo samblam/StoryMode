@@ -1,8 +1,91 @@
 import type { APIRoute } from 'astro';
-import { supabaseAdmin } from '../../../lib/supabase';
+import { getClient } from '../../../lib/supabase';
+import { rateLimitMiddleware } from '../../../utils/rateLimit';
 
-export const POST: APIRoute = async ({ request, locals, cookies }) => {
+export const GET: APIRoute = async ({ request, locals }) => {
+  const headers = {
+    'Content-Type': 'application/json'
+  };
+
   try {
+    // Apply rate limiting middleware
+    const rateLimitResponse = await rateLimitMiddleware('PROFILE_READ')(request);
+    if (rateLimitResponse instanceof Response) {
+      return rateLimitResponse;
+    }
+    Object.assign(headers, rateLimitResponse.headers);
+
+    const url = new URL(request.url);
+    const clientId = url.searchParams.get('client_id');
+    const { user } = locals;
+
+    if (!user) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { 
+          status: 401,
+          headers
+        }
+      );
+    }
+
+    const supabase = getClient({ requiresAdmin: true });
+
+    // Build query
+    let query = supabase
+      .from('sound_profiles')
+      .select('*');
+
+    // Filter by client_id if provided
+    if (clientId) {
+      query = query.eq('client_id', clientId);
+    }
+
+    // If user is a client, only show their profiles
+    if (user.role === 'client') {
+      query = query.eq('client_id', user.clientId);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      throw error;
+    }
+
+    return new Response(
+      JSON.stringify(data),
+      { 
+        status: 200,
+        headers
+      }
+    );
+  } catch (error) {
+    console.error('Profile fetch error:', error);
+    return new Response(
+      JSON.stringify({
+        error: error instanceof Error ? error.message : 'Failed to fetch profiles'
+      }),
+      { 
+        status: 500,
+        headers
+      }
+    );
+  }
+};
+
+export const POST: APIRoute = async ({ request, locals }) => {
+  const headers = {
+    'Content-Type': 'application/json'
+  };
+
+  try {
+    // Apply rate limiting middleware
+    const rateLimitResponse = await rateLimitMiddleware('PROFILE_CREATE')(request);
+    if (rateLimitResponse instanceof Response) {
+      return rateLimitResponse;
+    }
+    Object.assign(headers, rateLimitResponse.headers);
+
     const data = await request.json();
     const { user } = locals;
 
@@ -17,7 +100,10 @@ export const POST: APIRoute = async ({ request, locals, cookies }) => {
       console.log('Unauthorized: No user in locals');
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401 }
+        { 
+          status: 401,
+          headers
+        }
       );
     }
 
@@ -25,7 +111,10 @@ export const POST: APIRoute = async ({ request, locals, cookies }) => {
       console.log('Validation failed:', { data });
       return new Response(
         JSON.stringify({ error: 'Title and description are required' }),
-        { status: 400 }
+        { 
+          status: 400,
+          headers
+        }
       );
     }
 
@@ -57,7 +146,8 @@ export const POST: APIRoute = async ({ request, locals, cookies }) => {
 
     console.log('Sending to Supabase:', profileData);
 
-    const { data: newProfile, error } = await supabaseAdmin
+    const supabase = getClient({ requiresAdmin: true });
+    const { data: newProfile, error } = await supabase
       .from('sound_profiles')
       .insert(profileData)
       .select()
@@ -70,16 +160,11 @@ export const POST: APIRoute = async ({ request, locals, cookies }) => {
 
     console.log('Profile created successfully:', newProfile);
 
-    // Get the current session token from cookies
-    const token = cookies.get('sb-token');
-    
     return new Response(
-      JSON.stringify(newProfile), 
-      { 
+      JSON.stringify(newProfile),
+      {
         status: 201,
-        headers: {
-          'Set-Cookie': `sb-token=${token?.value}; Path=/; HttpOnly; Secure; SameSite=Lax` 
-        }
+        headers
       }
     );
   } catch (error) {
@@ -89,33 +174,54 @@ export const POST: APIRoute = async ({ request, locals, cookies }) => {
         error: error instanceof Error ? error.message : 'Failed to create profile',
         details: error instanceof Error ? error.stack : undefined
       }),
-      { status: 500 }
+      { 
+        status: 500,
+        headers
+      }
     );
   }
 };
 
+export const PUT: APIRoute = async ({ request, locals }) => {
+  const headers = {
+    'Content-Type': 'application/json'
+  };
 
-export const PUT: APIRoute = async ({ request, locals, cookies }) => {
   try {
+    // Apply rate limiting middleware
+    const rateLimitResponse = await rateLimitMiddleware('PROFILE_UPDATE')(request);
+    if (rateLimitResponse instanceof Response) {
+      return rateLimitResponse;
+    }
+    Object.assign(headers, rateLimitResponse.headers);
+
     const data = await request.json();
     const { user } = locals;
 
     if (!user) {
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401 }
+        { 
+          status: 401,
+          headers
+        }
       );
     }
 
     if (!data.id || !data.title || !data.description) {
       return new Response(
         JSON.stringify({ error: 'ID, title, and description are required' }),
-        { status: 400 }
+        { 
+          status: 400,
+          headers
+        }
       );
     }
 
+    const supabase = getClient({ requiresAdmin: true });
+
     // Verify user has permission to edit this profile
-    const { data: existingProfile, error: fetchError } = await supabaseAdmin
+    const { data: existingProfile, error: fetchError } = await supabase
       .from('sound_profiles')
       .select('*')
       .eq('id', data.id)
@@ -124,7 +230,10 @@ export const PUT: APIRoute = async ({ request, locals, cookies }) => {
     if (fetchError || !existingProfile) {
       return new Response(
         JSON.stringify({ error: 'Profile not found' }),
-        { status: 404 }
+        {
+          status: 404,
+          headers
+        }
       );
     }
 
@@ -132,12 +241,22 @@ export const PUT: APIRoute = async ({ request, locals, cookies }) => {
     if (user.role === 'client' && existingProfile.client_id !== user.clientId) {
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
-        { status: 403 }
+        {
+          status: 403,
+          headers
+        }
       );
     }
 
-    // Prepare update data
-    const updateData: any = {
+    // Prepare update data with proper typing
+    interface UpdateData {
+      title: string;
+      description: string;
+      slug: string;
+      client_id?: string | null;
+    }
+
+    const updateData: UpdateData = {
       title: data.title,
       description: data.description,
       slug: data.title.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
@@ -148,7 +267,7 @@ export const PUT: APIRoute = async ({ request, locals, cookies }) => {
       updateData.client_id = data.clientId || null;
     }
 
-    const { data: updatedProfile, error } = await supabaseAdmin
+    const { data: updatedProfile, error } = await supabase
       .from('sound_profiles')
       .update(updateData)
       .eq('id', data.id)
@@ -158,17 +277,11 @@ export const PUT: APIRoute = async ({ request, locals, cookies }) => {
     if (error) {
       throw error;
     }
-
-    // Get the current session token from cookies
-    const token = cookies.get('sb-token');
-    
     return new Response(
-      JSON.stringify(updatedProfile), 
-      { 
+      JSON.stringify(updatedProfile),
+      {
         status: 200,
-        headers: {
-          'Set-Cookie': `sb-token=${token?.value}; Path=/; HttpOnly; Secure; SameSite=Lax`
-        }
+        headers
       }
     );
   } catch (error) {
@@ -177,7 +290,10 @@ export const PUT: APIRoute = async ({ request, locals, cookies }) => {
       JSON.stringify({
         error: error instanceof Error ? error.message : 'Failed to update profile',
       }),
-      { status: 500 }
+      { 
+        status: 500,
+        headers
+      }
     );
   }
 };

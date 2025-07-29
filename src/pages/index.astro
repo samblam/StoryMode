@@ -28,7 +28,7 @@ import Layout from '../layouts/Layout.astro';
         </div>
         
         <div class="flex items-center justify-center">
-          <img src="/logo.svg" alt="Story Mode Logo" class="w-48 h-48">
+          <img src="/favicon.svg" alt="Story Mode Logo" class="w-48 h-48">
         </div>
       </div>
 
@@ -51,40 +51,49 @@ import Layout from '../layouts/Layout.astro';
 </Layout>
 
 <script>
-  const button = document.getElementById('test-db');
-  const status = document.getElementById('db-status');
+  function initializeDBTest() {
+    const button = document.getElementById('test-db') as HTMLButtonElement;
+    const status = document.getElementById('db-status');
 
-  button?.addEventListener('click', async () => {
-    if (!status) return;
-    
-    try {
-      button.disabled = true;
-      status.textContent = 'Testing connection...';
-      status.classList.remove('hidden', 'text-red-600', 'text-green-600');
-      status.classList.add('text-gray-600');
-
-      const response = await fetch('/api/test-connection');
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const result = await response.json();
-
-      if (result.success) {
-        status.textContent = 'Connection successful! Database is working.';
-        status.classList.remove('text-gray-600');
-        status.classList.add('text-green-600');
-      } else {
-        throw new Error(result.error || 'Connection failed');
-      }
-    } catch (error) {
-      console.error('Connection error:', error);
-      status.textContent = `Connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
-      status.classList.remove('text-gray-600');
-      status.classList.add('text-red-600');
-    } finally {
-      button.disabled = false;
-      status.classList.remove('hidden');
+    if (!button || !status) {
+      console.error('Required elements not found');
+      return;
     }
-  });
+
+    button.addEventListener('click', async () => {
+      try {
+        button.disabled = true;
+        button.classList.add('opacity-50', 'cursor-not-allowed');
+        status.textContent = 'Testing connection...';
+        status.classList.remove('hidden', 'text-red-600', 'text-green-600');
+        status.classList.add('text-gray-600');
+
+        const response = await fetch('/api/test-connection');
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const result = await response.json();
+
+        if (result.success) {
+          status.textContent = 'Connection successful! Database is working.';
+          status.classList.remove('text-gray-600');
+          status.classList.add('text-green-600');
+        } else {
+          throw new Error(result.error || 'Connection failed');
+        }
+      } catch (error) {
+        console.error('Connection error:', error);
+        status.textContent = `Connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
+        status.classList.remove('text-gray-600');
+        status.classList.add('text-red-600');
+      } finally {
+        button.disabled = false;
+        status.classList.remove('hidden');
+      }
+    });
+  }
+
+  // Initialize the DB test functionality
+  initializeDBTest();
 </script>

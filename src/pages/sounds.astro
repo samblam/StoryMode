@@ -4,7 +4,10 @@ import ProfileCard from '../components/ProfileCard.astro';
 import SoundProfile from '../components/SoundProfile.astro';
 import type { User } from '../types/auth';
 import { getAccessibleSoundProfiles, organizeProfilesByClient } from '../utils/accessControl';
-import { supabaseAdmin } from '../lib/supabase';
+import { getClient } from '../lib/supabase';
+
+// Get admin client
+const adminClient = getClient({ requiresAdmin: true });
 
 // Authentication check
 interface LocalUser {
@@ -40,7 +43,7 @@ interface Client {
 // Fetch all active clients for admin
 let clients: Client[] = [];
 if (isAdmin) {
-  const { data: clientsData } = await supabaseAdmin
+  const { data: clientsData } = await adminClient
     .from('clients')
     .select('id, name, company')
     .eq('active', true)
@@ -53,11 +56,9 @@ const compatibleUser: User = {
   id: user.id,
   email: user.email,
   role: user.role,
-  clientId: user.client?.id || null,
   client: user.client ? {
     id: user.client.id,
     name: user.client.name,
-    company: user.client.company || null,
     email: user.email,
     active: true
   } : null,

@@ -1,12 +1,21 @@
 import { Howl } from 'howler';
 
+interface LoadingState {
+  status: 'idle' | 'loading' | 'loaded' | 'error';
+  progress: number;
+  error?: string;
+}
+
 class AudioManager {
   private static instance: AudioManager;
   private sounds: Map<string, { howl: Howl; lastUsed: number }> = new Map();
   private volume: number = 1.0;
-  private currentSoundFile: string | null = null;
+  private currentSoundId: string | null = null;
   private refreshTimeouts: Map<string, ReturnType<typeof setTimeout>> = new Map();
   private loadingPromises: Map<string, Promise<Howl>> = new Map();
+  private soundButtonStates: Map<string, boolean> = new Map();
+  private loadingStates: Map<string, LoadingState> = new Map();
+  private debug = false;
 
   private constructor() {
     console.log('AudioManager - constructor');
@@ -17,6 +26,24 @@ class AudioManager {
       AudioManager.instance = new AudioManager();
     }
     return AudioManager.instance;
+  }
+
+  private updateLoadingState(soundId: string, state: Partial<LoadingState>) {
+    const current = this.loadingStates.get(soundId) || {
+      status: 'idle',
+      progress: 0
+    };
+    const newState = { ...current, ...state };
+    this.loadingStates.set(soundId, newState);
+    
+    // Emit loading state change event
+    document.dispatchEvent(new CustomEvent('audioLoadingStateChange', {
+      detail: { soundId, state: newState }
+    }));
+
+    if (this.debug) {
+      console.log(`AudioManager - Loading state update for ${soundId}:`, newState);
+    }
   }
 
   private async refreshUrl(soundId: string): Promise<string | null> {
@@ -36,37 +63,81 @@ class AudioManager {
     }
   }
 
-  private async loadSound(soundFile: string, soundId: string): Promise<Howl> {
-    console.log('AudioManager - loadSound - soundFile:', soundFile);
+  private async loadSound(soundFile: string, soundId: string, retryCount = 0): Promise<Howl> {
+    // Update loading state to loading with 0 progress
+    this.updateLoadingState(soundId, { status: 'loading', progress: 0 });
+    
+    if (this.debug) {
+      console.log('AudioManager - loadSound - soundFile:', soundFile);
+    }
+    
+    // Pre-fetch and validate the URL
+    if (retryCount === 0) {
+      try {
+        this.updateLoadingState(soundId, { progress: 10 });
+        const freshUrl = await this.refreshUrl(soundId);
+        if (freshUrl) {
+          soundFile = freshUrl;
+          this.updateLoadingState(soundId, { progress: 20 });
+        }
+      } catch (error) {
+        if (this.debug) {
+          console.error('Pre-fetch URL failed:', error);
+        }
+      }
+    }
+
     return new Promise((resolve, reject) => {
+      let loadStartTime = Date.now();
+      const progressInterval = setInterval(() => {
+        // Simulate progress based on time elapsed (max 5 seconds)
+        const elapsed = Date.now() - loadStartTime;
+        const progress = Math.min(90, 20 + (elapsed / 5000) * 70);
+        this.updateLoadingState(soundId, { progress });
+      }, 100);
+
       const sound = new Howl({
         src: [soundFile],
         html5: true,
-        preload: true,
+        preload: 'metadata',
         volume: this.volume,
         format: ['mp3'],
         onload: () => {
-          console.log('AudioManager - loadSound - onload - soundFile:', soundFile);
+          clearInterval(progressInterval);
+          if (this.debug) {
+            console.log('AudioManager - loadSound - onload - soundFile:', soundFile);
+          }
+          this.updateLoadingState(soundId, { status: 'loaded', progress: 100 });
           resolve(sound);
         },
         onloaderror: async (_id, error) => {
-          console.error('AudioManager - loadSound - onloaderror - soundFile:', soundFile, 'error:', error);
-          // Try to refresh URL on load error
-          const freshUrl = await this.refreshUrl(soundId);
-          if (freshUrl) {
-            sound.unload();
-            const newSound = new Howl({
-              src: [freshUrl],
-              html5: true,
-              preload: true,
-              volume: this.volume,
-              format: ['mp3'],
-              onload: () => resolve(newSound),
-              onloaderror: (_id, error) => reject(error)
-            });
-          } else {
-            reject(error);
+          clearInterval(progressInterval);
+          if (this.debug) {
+            console.error('AudioManager - loadSound - onloaderror - soundFile:', soundFile, 'error:', error);
           }
+          
+          // If this is the first attempt, try refreshing URL
+          if (retryCount === 0) {
+            try {
+              this.updateLoadingState(soundId, { progress: 50 });
+              const freshUrl = await this.refreshUrl(soundId);
+              if (freshUrl) {
+                sound.unload();
+                // Retry with fresh URL
+                return resolve(this.loadSound(freshUrl, soundId, retryCount + 1));
+              }
+            } catch (refreshError) {
+              console.error('URL refresh failed:', refreshError);
+            }
+          }
+          
+          // If we've already retried or refresh failed, update state and reject
+          this.updateLoadingState(soundId, { 
+            status: 'error', 
+            progress: 0,
+            error: `Failed to load sound: ${error}`
+          });
+          reject(new Error(`Failed to load sound: ${error}`));
         }
       });
     });
@@ -106,33 +177,62 @@ class AudioManager {
     return loadingPromise;
   }
 
-  // Fixed play method with correct button state management
   async play(soundFile: string, soundId: string): Promise<void> {
     try {
       // Stop current sound if different
-      if (this.currentSoundFile && this.currentSoundFile !== soundFile) {
+      if (this.currentSoundId && this.currentSoundId !== soundId) {
         await this.pause();
       }
-  
+   
       const sound = await this.getSound(soundFile, soundId);
       
       if (sound.playing()) {
         sound.pause();
-        this.currentSoundFile = null;
-        this.updatePlayButton(soundFile, false);
-        console.log('AudioManager - play - sound paused - soundFile:', soundFile);
+        this.currentSoundId = null;
+        this.updatePlayButton(soundId, false);
+        if (this.debug) {
+          console.log('AudioManager - play - sound paused - soundFile:', soundFile);
+        }
         return;
       }
   
-      sound.play();
-      this.currentSoundFile = soundFile;
-      this.updatePlayButton(soundFile, true);
-      console.log('AudioManager - play - sound playing - soundFile:', soundFile);
+      // Play with proper event handling and timeout
+      await new Promise<void>((resolve, reject) => {
+        const playHandler = () => resolve();
+        const errorHandler = () => reject(new Error('Play failed'));
+        
+        // Set up event listeners
+        sound.once('play', playHandler);
+        sound.once('playerror', errorHandler);
+        
+        // Start playback
+        sound.play();
+        
+        // Set timeout for playback start
+        const timeout = setTimeout(() => {
+          sound.off('play', playHandler);
+          sound.off('playerror', errorHandler);
+          reject(new Error('Playback timeout'));
+        }, 2000);
+        
+        // Cleanup on success
+        sound.once('end', () => {
+          clearTimeout(timeout);
+          sound.off('play', playHandler);
+          sound.off('playerror', errorHandler);
+        });
+      });
+      
+      this.currentSoundId = soundId;
+      this.updatePlayButton(soundId, true);
+      if (this.debug) {
+        console.log('AudioManager - play - sound playing - soundFile:', soundFile);
+      }
       
       // Handle sound ending
       sound.once('end', () => {
-        this.currentSoundFile = null;
-        this.updatePlayButton(soundFile, false);
+        this.currentSoundId = null;
+        this.updatePlayButton(soundId, false);
         console.log('AudioManager - play - sound ended - soundFile:', soundFile);
         
         document.dispatchEvent(new CustomEvent('audioend', {
@@ -142,46 +242,63 @@ class AudioManager {
           }
         }));
       });
-  
+   
     } catch (error) {
       console.error('AudioManager - play - Error playing sound:', error);
-      this.currentSoundFile = null;
-      this.updatePlayButton(soundFile, false);
+      this.currentSoundId = null;
+      this.updatePlayButton(soundId, false);
+      // Display error to user
+      alert(`Error playing sound: ${(error as Error).message}`);
       throw error;
     }
   }
 
-  private updatePlayButton(soundFile: string, isPlaying: boolean) {
-    const button = document.querySelector(`[data-sound="${soundFile}"]`) as HTMLButtonElement;
+  private updatePlayButton(soundId: string, isPlaying: boolean) {
+    // Find the container with data-sound-id
+    const container = document.querySelector(`[data-sound-id="${soundId}"]`);
+    if (!container) return;
+    
+    // Find the play button within the container
+    const button = container.querySelector('.play-button') as HTMLButtonElement;
     if (button) {
-      button.textContent = isPlaying ? 'Pause' : 'Play';
-      button.classList.remove(isPlaying ? 'bg-green-400' : 'bg-yellow-400');
-      button.classList.add(isPlaying ? 'bg-yellow-400' : 'bg-green-400');
+      button.textContent = isPlaying ? 'Pause' : 'Play Sound';
+      
+      // Remove both possible classes first
+      button.classList.remove('bg-blue-600', 'bg-yellow-400');
+      
+      // Add the appropriate class based on state
+      button.classList.add(isPlaying ? 'bg-yellow-400' : 'bg-blue-600');
+      
+      this.soundButtonStates.set(soundId, isPlaying);
     }
   }
 
   async pause(): Promise<void> {
-    console.log('AudioManager - pause - currentSoundFile:', this.currentSoundFile);
-    if (this.currentSoundFile) {
-      const soundData = this.sounds.get(this.currentSoundFile);
+    console.log('AudioManager - pause - currentSoundId:', this.currentSoundId);
+    if (this.currentSoundId) {
+      const soundData = this.sounds.get(this.currentSoundId);
       if (soundData?.howl?.playing()) {
         soundData.howl.pause();
-        this.updatePlayButton(this.currentSoundFile, false);
+        this.updatePlayButton(this.currentSoundId, false);
       }
-      this.currentSoundFile = null;
+      this.currentSoundId = null;
     }
   }
 
-  isPlaying(): boolean {
-    if (!this.currentSoundFile) return false;
-    const soundData = this.sounds.get(this.currentSoundFile);
-    const playing = soundData?.howl?.playing() || false;
-    console.log('AudioManager - isPlaying - currentSoundFile:', this.currentSoundFile, 'playing:', playing);
-    return playing;
+  isPlaying(soundId: string): boolean {
+    if (!soundId) return false;
+    return this.soundButtonStates.get(soundId) || false;
   }
 
   getCurrentSoundId(): string | null {
-    return this.currentSoundFile;
+    return this.currentSoundId;
+  }
+
+  getLoadingState(soundId: string): LoadingState {
+    return this.loadingStates.get(soundId) || {
+      status: 'idle',
+      progress: 0
+    };
   }
 
   setVolume(volume: number): void {
@@ -205,7 +322,8 @@ class AudioManager {
     this.sounds.forEach(({ howl }) => howl.unload());
     this.sounds.clear();
     this.loadingPromises.clear();
-    this.currentSoundFile = null;
+    this.loadingStates.clear();
+    this.currentSoundId = null;
     console.log('AudioManager - cleanup');
   }
 }

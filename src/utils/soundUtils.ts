@@ -141,7 +141,7 @@ export async function handleSoundDownload(button: HTMLElement): Promise<void> {
 
   try {
     button.setAttribute('data-downloading', 'true');
-    button.disabled = true;
+    (button as any).disabled = true;
     const originalText = button.textContent || '';
 
     for (let i = 0; i < sounds.length; i++) {
@@ -182,7 +182,7 @@ export async function handleSoundDownload(button: HTMLElement): Promise<void> {
     alert('Failed to download some sounds. Please try again.');
   } finally {
     button.removeAttribute('data-downloading');
-    button.disabled = false;
+    (button as any).disabled = false;
     downloadQueue.clear();
   }
 }

@@ -1,0 +1,622 @@
+---
+import { supabase } from '../../lib/supabase';
+
+interface Props {
+    surveyId: string;
+    initialMappings?: { // Removing this line
+        soundId: string;
+        intended_function: string;
+        order: number;
+    }[]; // Removing this line
+}
+
+const { surveyId } = Astro.props; // Modified this line
+
+import type { Database } from '../../types/database';
+type Sound = Database['public']['Tables']['sounds']['Row'];
+type SurveySound = Database['public']['Tables']['survey_sounds']['Row'];
+
+// Initialize empty arrays for sounds and functions
+let sounds: Sound[] = [];
+let functions: { id: string; text: string; }[] = []; // Correct type definition
+let existingMappings: SurveySound[] = [];
+
+try {
+    // First fetch the survey to get its sound profile ID
+    const { data: profileData, error: profileError } = await supabase
+        .from('surveys')
+        .select('sound_profile_id')
+        .eq('id', surveyId)
+        .single<{ sound_profile_id: string }>();
+
+    if (profileError) {
+        console.error('Error fetching survey:', profileError);
+        throw profileError;
+    }
+
+    if (!profileData?.sound_profile_id) {
+        console.error('Survey has no sound profile assigned');
+        throw new Error('Survey has no sound profile assigned');
+    }
+
+    // Fetch sounds for this specific profile
+    const { data: soundsData, error: soundsError } = await supabase
+        .from('sounds')
+        .select('id, name, description, file_path, storage_path, created_at, profile_id')
+        .eq('profile_id', profileData.sound_profile_id)
+        .order('name');
+
+    if (soundsError) {
+        console.error('Error fetching sounds:', soundsError);
+        throw soundsError;
+    }
+
+    sounds = soundsData || [];
+
+    // Fetch survey functions
+    const { data: functionData, error: functionError } = await supabase
+        .from('surveys')
+        .select('functions')
+        .eq('id', surveyId)
+        .single<{ functions: { id: string; text: string; }[] }>();
+
+    if (functionError) {
+        console.error('Error fetching functions:', functionError);
+        throw functionError;
+    }
+
+    functions = functionData?.functions || [];
+
+
+    console.log('Fetched sounds:', sounds);
+    console.log('Fetched functions:', functions);
+
+    // Fetch existing sound mappings
+    const { data: mappingsData, error: mappingsError } = await supabase
+        .from('survey_sounds')
+        .select('*')
+        .eq('survey_id', surveyId);
+
+    if (mappingsError) {
+        console.error('Error fetching sound mappings:', mappingsError);
+    } else {
+        existingMappings = mappingsData || [];
+        console.log('Fetched existing mappings:', existingMappings);
+    }
+
+
+} catch (error) {
+    console.error('Error in data fetching:', error);
+}
+
+---
+
+<div class="space-y-6">
+    <div class="bg-white p-6 rounded-lg shadow">
+        <h3 class="text-lg font-semibold mb-4">Sound Selection & Mapping</h3>
+
+        <!-- Sound-Function Mapping Interface -->
+        <div
+            id="mapping-container"
+            class="space-y-4"
+            data-survey-id={surveyId}
+            data-sounds={JSON.stringify(sounds)}
+            data-functions={JSON.stringify(functions)}
+        >
+            {sounds.length === 0 && functions.length === 0 && (
+                <p class="text-gray-500 italic">No sounds or functions available. Please add some before creating mappings.</p>
+            )}
+            {existingMappings.map((mapping) => (
+                <div
+                    class="mapping-row bg-gray-50 p-4 rounded-md flex items-center space-x-4"
+                    data-mapping-id={`${mapping.sound_id}-${mapping.intended_function}`}
+                    data-order={mapping.order_index}
+                >
+                    <!-- Drag Handle -->
+                    <div class="cursor-move">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M3 7a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 6a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd" />
+                        </svg>
+                    </div>
+
+                    <!-- Sound Selection -->
+                    <div class="flex-1">
+                        <select
+                            class="sound-select w-full rounded-md border-gray-300"
+                            data-current-sound={mapping.sound_id}
+                        >
+                            <option value="">Select Sound</option>
+                            {(sounds || []).map(sound => (
+                                <option
+                                    value={sound.id}
+                                    selected={sound.id === mapping.sound_id}
+                                    data-sound-url={sound.file_path || ''}
+                                    data-storage-path={sound.storage_path || ''}
+                                >
+                                    {sound.name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <!-- Function Selection -->
+                    <div class="flex-1">
+                        {functions.length > 0 ? (
+                            <select
+                                class="function-select w-full rounded-md border-gray-300"
+                                data-current-function={mapping.intended_function}
+                            >
+                                <option value="">Select Function</option>
+                                {functions?.map(func => (
+                                    <option
+                                        value={func.id}
+                                        selected={func.id === mapping.intended_function}
+                                    >
+                                        {func.text}
+                                    </option>
+                                ))}
+                            </select>
+                        ) : (
+                            <input
+                                type="text"
+                                class="function-input w-full rounded-md border-gray-300"
+                                placeholder="Enter sound function"
+                                value={mapping.intended_function || ''}
+                            />
+                        )}
+                    </div>
+
+                    <!-- Preview Button -->
+                    <div class="relative">
+                        <button
+                            type="button"
+                            class="preview-sound p-2 text-blue-600 hover:text-blue-800 relative"
+                            data-sound-url={(sounds || []).find(s => s.id === mapping.sound_id)?.file_path}
+                            data-storage-path={(sounds || []).find(s => s.id === mapping.sound_id)?.storage_path}
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
+                            </svg>
+                            <span class="sr-only">Play sound</span>
+                        </button>
+                        <div class="error-message hidden absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-red-500 rounded whitespace-nowrap">
+                            Failed to play audio
+                        </div>
+                    </div>
+
+                    <!-- Remove Button -->
+                    <button
+                        type="button"
+                        class="remove-mapping text-red-600 hover:text-red-800"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                        </svg>
+                    </button>
+                </div>
+            ))}
+        </div>
+
+        <!-- Add Mapping Button -->
+        <button
+            type="button"
+            id="add-mapping"
+            class={`mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md ${
+                sounds.length === 0 || functions.length === 0
+                ? 'text-gray-400 bg-gray-100 cursor-not-allowed'
+                : 'text-blue-700 bg-blue-100 hover:bg-blue-200'
+            }`}
+            disabled={sounds.length === 0}
+            title={sounds.length === 0 ? 'Please add sounds first' : 'Add new sound mapping'}
+        >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" />
+            </svg>
+            Add Sound Mapping
+        </button>
+    </div>
+</div>
+
+<script>
+    import type { Database } from '../../types/database';
+    import { getSignedUrl } from '../../utils/storageUtils';
+
+    interface AudioState {
+        element: HTMLAudioElement | null;
+        loading: boolean;
+        error: string | null;
+    }
+
+    let audioState: AudioState = {
+        element: null,
+        loading: false,
+        error: null
+    };
+
+    declare global {
+        interface Window {
+            supabase: typeof import('../../lib/supabase').supabase;
+            Sortable: any;
+        }
+    }
+
+    // Initialize Supabase client - singleton pattern
+    let supabaseInstance: typeof import('../../lib/supabase').supabase | null = null;
+    const initSupabase = async () => {
+        if (!supabaseInstance) {
+            const { createClient } = await import('@supabase/supabase-js');
+            const url = import.meta.env.PUBLIC_SUPABASE_URL;
+            const key = import.meta.env.PUBLIC_SUPABASE_ANON_KEY;
+            if (!url || !key) {
+                throw new Error('Missing Supabase environment variables');
+            }
+            supabaseInstance = createClient<Database>(url, key);
+        }
+        return supabaseInstance;
+    };
+
+    // Initialize Sortable when DOM is ready
+    function initializeSortable() {
+        const mappingContainer = document.getElementById('mapping-container');
+        if (!mappingContainer) return;
+
+        if (typeof window.Sortable === 'undefined') {
+            console.error('Sortable.js not loaded');
+            return;
+        }
+
+        try {
+            new window.Sortable(mappingContainer, {
+                animation: 150,
+                handle: '.cursor-move',
+                onEnd: updateMappingOrder
+            });
+        } catch (error) {
+            console.error('Error initializing Sortable:', error);
+        }
+    }
+
+    // Initialize when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initializeSortable);
+    } else {
+        initializeSortable();
+    }
+
+    // Listen for function changes
+    document.addEventListener('surveyFunctionsChanged', async () => {
+        const mappingContainer = document.getElementById('mapping-container');
+        if (!mappingContainer?.dataset.surveyId) {
+            console.error('Survey ID not found');
+            return;
+        }
+
+        try {
+            const supabase = await initSupabase();
+
+            // Fetch updated functions from survey record
+            const { data, error: functionsError } = await supabase
+                .from('surveys')
+                .select('functions')
+                .eq('id', mappingContainer.dataset.surveyId)
+                .single<{ functions: { id: string; text: string; }[] }>(); // Correct type
+
+            if (functionsError) throw functionsError;
+
+            // Use fetched functions directly (should be array of objects)
+            const functions = data?.functions || [];
+
+            // Update container's dataset
+            mappingContainer.dataset.functions = JSON.stringify(functions);
+
+            // Update function dropdowns in existing rows
+            const functionSelects = mappingContainer.querySelectorAll<HTMLSelectElement>('.function-select');
+            const functionOptionsHTML = functions.map(func => `<option value="${func.id}">${func.text}</option>`).join('');
+            functionSelects.forEach(select => {
+                const currentValue = select.value || select.dataset.currentFunction; // Preserve selection if possible
+                select.innerHTML = `<option value="">Select Function</option>${functionOptionsHTML}`;
+                if (currentValue && functions.some(f => f.id === currentValue)) {
+                    select.value = currentValue; // Restore selection if the function still exists
+                } else {
+                     select.value = ""; // Reset if previous selection is gone
+                }
+                select.dataset.currentFunction = select.value; // Update data attribute
+            });
+
+
+            // Enable/disable add button based on functions availability
+            const addButton = document.getElementById('add-mapping');
+            if (addButton instanceof HTMLButtonElement) {
+                const hasSound = JSON.parse(mappingContainer.dataset.sounds || '[]').length > 0;
+                const hasFunctions = functions.length > 0;
+
+                addButton.disabled = !hasSound || !hasFunctions;
+                addButton.classList.toggle('text-gray-400', !hasSound || !hasFunctions);
+                addButton.classList.toggle('bg-gray-100', !hasSound || !hasFunctions);
+                addButton.classList.toggle('cursor-not-allowed', !hasSound || !hasFunctions);
+                addButton.classList.toggle('text-blue-700', hasSound && hasFunctions);
+                addButton.classList.toggle('bg-blue-100', hasSound && hasFunctions);
+                addButton.title = !hasSound
+                    ? 'Please add sounds first'
+                    : !hasFunctions
+                        ? 'Please add functions first'
+                        : 'Add new sound mapping';
+            }
+        } catch (error) {
+            console.error('Error updating functions:', error);
+        }
+    });
+
+    // Initialize preview buttons
+    document.querySelectorAll('.preview-sound').forEach(button => {
+        attachPreviewListener(button as HTMLButtonElement);
+    });
+
+    // Handle adding new mapping
+    const addButton = document.getElementById('add-mapping');
+    if (addButton instanceof HTMLButtonElement) {
+        addButton.addEventListener('click', () => {
+            console.log('Add Sound Mapping button clicked');
+            const container = document.getElementById('mapping-container');
+            if (!container) return;
+
+            type Sound = Database['public']['Tables']['sounds']['Row'];
+            const sounds = JSON.parse(container.dataset.sounds || '[]') as Sound[];
+            const functions = JSON.parse(container.dataset.functions || '[]') as { id: string; description: string; }[];
+
+            if (sounds.length === 0 || functions.length === 0) {
+                console.warn('Cannot create mapping: No sounds or functions available');
+                return;
+            }
+
+            console.log('Available sounds:', sounds.length);
+            console.log('Available functions:', functions.length);
+
+            const newOrder = container.children.length;
+            const mappingRow = createMappingRow(newOrder);
+            if (mappingRow) {
+                console.log('New mapping row created:', mappingRow);
+                container.appendChild(mappingRow);
+            }
+        });
+    }
+
+    // Handle removing mapping
+    document.addEventListener('click', (e) => {
+        if ((e.target as HTMLElement).closest('.remove-mapping')) {
+            const row = (e.target as HTMLElement).closest('.mapping-row');
+            row?.remove();
+            updateMappingOrder();
+        }
+    });
+
+    // Update mapping order after drag-and-drop
+    function updateMappingOrder(): void {
+        const container = document.getElementById('mapping-container');
+        if (!container) return;
+
+        const rows = container.querySelectorAll<HTMLElement>('.mapping-row');
+        rows.forEach((row, index) => {
+            row.dataset.order = index.toString();
+
+            // Update any visual indicators of order if needed
+            const orderIndicator = row.querySelector('.order-indicator');
+            if (orderIndicator instanceof HTMLElement) {
+                orderIndicator.textContent = (index + 1).toString();
+            }
+        });
+
+        // Dispatch event to notify of order changes
+        container.dispatchEvent(new CustomEvent('mappingOrderChanged', {
+            detail: {
+                newOrder: Array.from(rows).map(row => ({
+                    id: row.dataset.mappingId,
+                    order: parseInt(row.dataset.order || '0', 10)
+                }))
+            }
+        }));
+    }
+
+    // Attach preview button listener
+    function attachPreviewListener(button: HTMLButtonElement) {
+        // Remove existing listeners to prevent duplicates
+        const newButton = button.cloneNode(true) as HTMLButtonElement;
+        button.parentNode?.replaceChild(newButton, button);
+
+        newButton.addEventListener('click', async () => {
+            const storagePath = newButton.dataset.storagePath;
+
+            if (!storagePath) {
+                console.warn('No storage path available for preview');
+                return;
+            }
+
+            try {
+                // Stop current audio if playing
+                if (audioState.element) {
+                    audioState.element.pause();
+                    audioState.element.currentTime = 0;
+                }
+
+                // If clicking the same sound that's playing, just stop
+                if (audioState.element?.src && audioState.element.src === newButton.dataset.soundUrl) {
+                    audioState = { element: null, loading: false, error: null };
+                    return;
+                }
+
+                // Update loading state
+                audioState = { ...audioState, loading: true, error: null };
+                button.classList.add('animate-pulse');
+
+                // Get signed URL with bucket parameter
+                const signedUrl = await getSignedUrl(storagePath, 'sounds');
+
+                const audio = new Audio(signedUrl);
+
+                // Set up error handling before attempting to play
+                audio.onerror = () => {
+                    console.error('Audio playback error');
+                    audioState = { element: null, loading: false, error: 'Failed to play audio' };
+                    button.classList.remove('animate-pulse');
+
+                    // Show error message
+                    const errorMessage = button.closest('.relative')?.querySelector('.error-message');
+                    if (errorMessage instanceof HTMLElement) {
+                        errorMessage.classList.remove('hidden');
+                        setTimeout(() => {
+                            errorMessage.classList.add('hidden');
+                        }, 3000);
+                    }
+                };
+
+                audio.onended = () => {
+                    audioState = { element: null, loading: false, error: null };
+                    button.classList.remove('animate-pulse');
+                };
+
+                await audio.play();
+                audioState = { element: audio, loading: false, error: null };
+                button.classList.remove('animate-pulse');
+            } catch (error) {
+                console.error('Error playing audio:', error);
+                audioState = {
+                    element: null,
+                    loading: false,
+                    error: error instanceof Error ? error.message : 'Failed to play audio'
+                };
+                button.classList.remove('animate-pulse');
+            }
+        });
+    }
+
+    // Create new mapping row
+    function createMappingRow(order: number): HTMLElement | null {
+        console.log('Creating mapping row with order:', order);
+        const template = document.createElement('template');
+        const container = document.getElementById('mapping-container');
+        if (!container) return null;
+
+        type Sound = Database['public']['Tables']['sounds']['Row'];
+        const sounds = JSON.parse(container.dataset.sounds || '[]') as Sound[];
+        const functions = JSON.parse(container.dataset.functions || '[]') as { id: string; text: string; }[]; // Correct type
+
+        const soundOptions = sounds
+            .map(sound => `<option value="${sound.id}" data-sound-url="${sound.file_path || ''}" data-storage-path="${sound.storage_path || ''}">${sound.name}</option>`)
+            .join('');
+
+        const functionOptions = functions
+            .map(func => `<option value="${func.id}">${func.text}</option>`) // Use text property
+            .join('');
+
+        template.innerHTML = `
+            <div
+                class="mapping-row bg-gray-50 p-4 rounded-md flex items-center space-x-4"
+                data-order="${order}"
+            >
+                <div class="cursor-move">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M3 7a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 6a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+                <div class="flex-1">
+                    <select class="sound-select w-full rounded-md border-gray-300">
+                        <option value="">Select Sound</option>
+                        ${soundOptions}
+                    </select>
+                </div>
+                <div class="flex-1">
+                    ${functions.length > 0 ? `
+                        <select class="function-select w-full rounded-md border-gray-300">
+                            <option value="">Select Function</option>
+                            ${functionOptions}
+                        </select>
+                    ` : `
+                        <input
+                            type="text"
+                            class="function-input w-full rounded-md border-gray-300"
+                            placeholder="Enter sound function"
+                        />
+                    `}
+                </div>
+                <div class="relative">
+                    <button
+                        type="button"
+                        class="preview-sound p-2 text-blue-600 hover:text-blue-800"
+                        data-sound-url=""
+                        data-storage-path=""
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
+                        </svg>
+                        <span class="sr-only">Play sound</span>
+                    </button>
+                    <div class="error-message hidden absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-red-500 rounded whitespace-nowrap">
+                        Failed to play audio
+                    </div>
+                </div>
+                <button
+                    type="button"
+                    class="remove-mapping text-red-600 hover:text-red-800"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+            </div>
+        `;
+        const newRow = template.content.firstElementChild as HTMLElement;
+        const previewButton = newRow.querySelector('.preview-sound') as HTMLButtonElement;
+        if (previewButton) {
+            attachPreviewListener(previewButton);
+        }
+        return newRow;
+    }
+
+    // Handle sound selection change
+    document.addEventListener('change', (e: Event) => {
+        const target = e.target;
+        if (!(target instanceof HTMLSelectElement)) return;
+        if (!target.classList.contains('sound-select')) return;
+
+        const row = target.closest('.mapping-row');
+        if (!row) return;
+
+        const previewButton = row.querySelector('.preview-sound');
+        if (!(previewButton instanceof HTMLButtonElement)) return;
+
+        const selectedOption = target.selectedOptions[0];
+        if (!selectedOption) return;
+
+        const soundUrl = selectedOption.getAttribute('data-sound-url');
+        const storagePath = selectedOption.getAttribute('data-storage-path');
+
+        previewButton.dataset.soundUrl = soundUrl || '';
+        previewButton.dataset.storagePath = storagePath || '';
+
+        // Reattach preview listener with new URL
+        attachPreviewListener(previewButton);
+    });
+
+    // Handle cleanup
+    function cleanup(): void {
+        if (audioState.element) {
+            try {
+                audioState.element.pause();
+                audioState.element.src = '';
+                audioState.element.load();
+            } catch (error) {
+                console.error('Error cleaning up audio:', error);
+            }
+            audioState = { element: null, loading: false, error: null };
+        }
+    }
+
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', cleanup);
+
+    // Cleanup on component unmount
+    document.addEventListener('astro:unmount', cleanup);
+
+    // Cleanup on navigation
+    document.addEventListener('astro:page-load', cleanup);
+</script>

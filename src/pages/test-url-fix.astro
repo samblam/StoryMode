@@ -1,0 +1,81 @@
+---
+import Layout from '../layouts/Layout.astro';
+
+// No authentication required for this test page
+---
+
+<Layout title="URL Parameter Fix Testing">
+    <main class="container mx-auto px-4 py-8">
+        <h1 class="text-3xl font-bold mb-6">URL Parameter Fix Testing</h1>
+        
+        <div class="mb-8 p-4 bg-blue-100 border border-blue-400 rounded">
+            <p class="text-blue-800">
+                Welcome to the URL parameter fix testing page. This page provides access to different tools for testing the URL parameter fix.
+            </p>
+            <p class="text-blue-800 mt-2">
+                <strong>No authentication required</strong> - These test pages and endpoints are publicly accessible for easy testing.
+            </p>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="p-6 bg-white shadow-md rounded-lg">
+                <h2 class="text-xl font-bold mb-4">Direct URL Test</h2>
+                <p class="mb-4">This endpoint directly tests the URL generation without any authentication or database operations.</p>
+                <div class="flex space-x-4">
+                    <a 
+                        href="/api/direct-url-test" 
+                        class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+                        target="_blank"
+                    >
+                        Run Direct Test →
+                    </a>
+                </div>
+            </div>
+            
+            <div class="p-6 bg-white shadow-md rounded-lg">
+                <h2 class="text-xl font-bold mb-4">Individual URL Generation</h2>
+                <p class="mb-4">This page tests creating a participant and generating a URL for them.</p>
+                <div class="flex space-x-4">
+                    <a 
+                        href="/test-survey-url" 
+                        class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                    >
+                        Go to URL Generator →
+                    </a>
+                </div>
+            </div>
+            
+            <div class="p-6 bg-white shadow-md rounded-lg">
+                <h2 class="text-xl font-bold mb-4">Full Publishing Workflow</h2>
+                <p class="mb-4">This page tests the complete survey publishing workflow and sends an email with the survey URL.</p>
+                <div class="flex space-x-4">
+                    <a 
+                        href="/test-publish-workflow" 
+                        class="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 transition-colors"
+                    >
+                        Go to Publish Workflow →
+                    </a>
+                </div>
+            </div>
+            
+            <div class="p-6 bg-white shadow-md rounded-lg">
+                <h2 class="text-xl font-bold mb-4">Documentation</h2>
+                <p class="mb-4">Information about the URL parameter fix and the testing process.</p>
+                <div class="overflow-y-auto max-h-40 p-4 bg-gray-100 rounded mb-4">
+                    <h3 class="font-bold">Before Fix:</h3>
+                    <code class="text-sm">?participant=ABC123</code>
+                    
+                    <h3 class="font-bold mt-2">After Fix:</h3>
+                    <code class="text-sm">?participant_id=ABC123&token=xyz987</code>
+                    
+                    <h3 class="font-bold mt-2">Issues Fixed:</h3>
+                    <ul class="list-disc list-inside text-sm">
+                        <li>URL parameter mismatch</li>
+                        <li>Participant authentication failure</li>
+                        <li>Response saving failure</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </main>
+</Layout>

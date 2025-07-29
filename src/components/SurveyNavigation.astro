@@ -1,0 +1,16 @@
+---
+interface Props {
+    showNavigation?: boolean;
+}
+
+const {
+    showNavigation = false
+} = Astro.props;
+---
+
+{showNavigation &&
+    <div class="mt-4">
+        <!-- No navigation buttons in single-page survey mode -->
+        <!-- The form now has a submit button for final submission -->
+    </div>
+}

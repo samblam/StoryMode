@@ -1,0 +1,308 @@
+---
+import { supabase } from '../../lib/supabase';
+
+interface FunctionObject {
+    id: string;
+    text: string;
+}
+
+interface Props {
+    surveyId: string;
+}
+
+const { surveyId } = Astro.props;
+
+// Fetch survey functions
+const { data: survey, error } = await supabase
+    .from('surveys')
+    .select('functions')
+    .eq('id', surveyId)
+    .single();
+
+// Ensure functions is an array of objects, converting if necessary
+let functions: FunctionObject[] = [];
+if (Array.isArray(survey?.functions)) {
+    functions = survey.functions.map((func: any) => {
+        if (typeof func === 'string') {
+            // Attempt to handle legacy string format (assign a temporary ID if needed, though ideally these should be migrated)
+            console.warn(`Found legacy string function "${func}". Consider migrating to object format.`);
+            // For now, we might skip showing delete button or handle differently
+            return { id: `legacy-${Math.random().toString(36).substring(7)}`, text: func }; 
+        } else if (typeof func === 'object' && func !== null && func.id && func.text) {
+            return func as FunctionObject;
+        }
+        console.warn('Found invalid function format:', func);
+        return null; // Filter out invalid formats
+    }).filter((f): f is FunctionObject => f !== null);
+}
+
+
+if (error) {
+    console.error('Error fetching survey functions:', error);
+}
+---
+
+<div class="bg-white p-6 rounded-lg shadow mb-6">
+    <h3 class="text-lg font-semibold mb-4">Survey Functions (Answer Options)</h3>
+    
+    <!-- Function List -->
+    <div id="function-list" class="space-y-2 mb-4">
+        {functions.map((func: FunctionObject) => (
+            <div class="flex items-center justify-between bg-gray-50 p-2 rounded" data-function-id={func.id}>
+                <span>{func.text}</span>
+                <button
+                    type="button"
+                    class="delete-function text-red-600 hover:text-red-800"
+                    data-id={func.id}
+                    data-text={func.text}
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+            </div>
+        ))}
+        {functions.length === 0 && (
+            <p class="text-gray-500">No functions added yet.</p>
+        )}
+    </div>
+
+    <!-- Add Function Form -->
+    <form id="add-function-form" class="flex gap-2">
+        <input
+            type="text"
+            id="new-function"
+            name="new-function"
+            class="flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+            placeholder="Enter new function text"
+            required
+        />
+        <button
+            type="submit"
+            class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+        >
+            Add Function
+        </button>
+    </form>
+</div>
+
+<script>
+    import { createClient } from '@supabase/supabase-js';
+    import type { SupabaseClient } from '@supabase/supabase-js';
+    import type { Database } from '../../types/database';
+
+    // Add TypeScript declaration for window.supabase
+    declare global {
+        interface Window {
+            supabase: SupabaseClient<Database>;
+        }
+    }
+
+    // Initialize Supabase client in browser (singleton pattern)
+    let supabaseInstance: SupabaseClient<Database> | null = null;
+
+    const getSupabase = () => {
+        if (supabaseInstance) return supabaseInstance;
+
+        const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
+        const supabaseAnonKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY;
+
+        if (!supabaseUrl || !supabaseAnonKey) {
+            throw new Error('Missing Supabase configuration');
+        }
+
+        supabaseInstance = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+            auth: {
+                persistSession: true,
+                autoRefreshToken: true,
+                detectSessionInUrl: true
+            }
+        });
+
+        return supabaseInstance;
+    };
+
+    // Initialize once and store in window
+    window.supabase = getSupabase();
+</script>
+
+<script define:vars={{ surveyId }}>
+
+    // Function to dispatch custom event when functions change
+    const notifyFunctionsChanged = () => {
+        const event = new CustomEvent('surveyFunctionsChanged', {
+            detail: {
+                surveyId
+            },
+            bubbles: true
+        });
+        document.dispatchEvent(event);
+    };
+
+    // Function to render a single function item
+    const renderFunctionItem = (func) => {
+        const div = document.createElement('div');
+        div.className = 'flex items-center justify-between bg-gray-50 p-2 rounded';
+        div.setAttribute('data-function-id', func.id);
+        div.innerHTML = `
+            <span>${func.text}</span>
+            <button
+                type="button"
+                class="delete-function text-red-600 hover:text-red-800"
+                data-id="${func.id}"
+                data-text="${func.text}"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+                </svg>
+            </button>
+        `;
+        return div;
+    };
+
+    // Handle form submission
+    document.getElementById('add-function-form')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const form = /** @type {HTMLFormElement} */ (e.target);
+        const input = /** @type {HTMLInputElement} */ (form.querySelector('#new-function'));
+        const functionText = input.value.trim();
+
+        if (!functionText) return;
+
+        try {
+            const supabase = window.supabase;
+            if (!supabase) throw new Error('Supabase client not initialized');
+
+            console.log('Adding function:', functionText);
+
+            // Get current functions
+            const { data: survey, error: fetchError } = await supabase
+                .from('surveys')
+                .select('functions')
+                .eq('id', surveyId)
+                .single();
+            
+            if (fetchError) throw fetchError;
+
+            // Ensure functions is an array of objects
+            let currentFunctions = [];
+            if (Array.isArray(survey?.functions)) {
+                currentFunctions = survey.functions.map(func => 
+                    (typeof func === 'object' && func !== null && func.id && func.text) ? func : null
+                ).filter(f => f !== null);
+            }
+
+            console.log('Current functions (objects):', currentFunctions);
+            
+            // Check if function text already exists
+            if (currentFunctions.some(f => f.text === functionText)) {
+                 console.log('Function text already exists');
+                 alert('A function with this text already exists.');
+                 return;
+            }
+
+            // Create new function object with UUID
+            const newFunction = {
+                id: crypto.randomUUID(), // Generate UUID
+                text: functionText
+            };
+
+            const newFunctionsArray = [...currentFunctions, newFunction];
+            console.log('New functions array:', newFunctionsArray);
+
+            // Update database
+            const { error: updateError } = await supabase
+                .from('surveys')
+                .update({
+                    functions: newFunctionsArray
+                })
+                .eq('id', surveyId);
+
+            if (updateError) throw updateError;
+
+            console.log('Update successful');
+
+            // Clear input and update UI
+            input.value = '';
+            const functionList = document.getElementById('function-list');
+            if (functionList) {
+                 // Remove "No functions" message if present
+                 const noFunctionsMsg = functionList.querySelector('.text-gray-500');
+                 if (noFunctionsMsg) noFunctionsMsg.remove();
+                 
+                 functionList.appendChild(renderFunctionItem(newFunction));
+            }
+            notifyFunctionsChanged(); // Notify other components if needed
+
+        } catch (error) {
+            console.error('Error adding function:', error);
+            alert(`Failed to add function: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`);
+        }
+    });
+
+    // Handle function deletion using event delegation
+    document.getElementById('function-list')?.addEventListener('click', async (e) => {
+        const button = /** @type {HTMLElement} */ (e.target).closest('.delete-function');
+        if (!button) return;
+
+        const functionId = button.getAttribute('data-id');
+        const functionText = button.getAttribute('data-text'); // Get text for confirmation
+        if (!functionId) return;
+
+        if (!confirm(`Are you sure you want to delete the function "${functionText || 'this function'}"?`)) return;
+
+        try {
+            const supabase = window.supabase;
+            if (!supabase) throw new Error('Supabase client not initialized');
+
+            // Get current functions
+            const { data: survey, error: fetchError } = await supabase
+                .from('surveys')
+                .select('functions')
+                .eq('id', surveyId)
+                .single();
+
+            if (fetchError) throw fetchError;
+
+            let currentFunctions = [];
+            if (Array.isArray(survey?.functions)) {
+                currentFunctions = survey.functions.map(func => 
+                    (typeof func === 'object' && func !== null && func.id && func.text) ? func : null
+                ).filter(f => f !== null);
+            }
+
+            // Filter out the function by ID
+            const updatedFunctions = currentFunctions.filter(f => f.id !== functionId);
+
+            // Update database
+            const { error: updateError } = await supabase
+                .from('surveys')
+                .update({
+                    functions: updatedFunctions
+                })
+                .eq('id', surveyId);
+
+            if (updateError) throw updateError;
+
+            // Remove function from UI
+            const functionElement = button.closest('[data-function-id]');
+            if (functionElement) {
+                functionElement.remove();
+            }
+            
+            // Add "No functions" message if list is empty
+            const functionList = document.getElementById('function-list');
+            if (functionList && updatedFunctions.length === 0) {
+                 const p = document.createElement('p');
+                 p.className = 'text-gray-500';
+                 p.textContent = 'No functions added yet.';
+                 functionList.appendChild(p);
+            }
+
+            notifyFunctionsChanged(); // Notify other components if needed
+        } catch (error) {
+            console.error('Error deleting function:', error);
+            alert(`Failed to delete function: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`);
+        }
+    });
+</script>

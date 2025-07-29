@@ -1,13 +1,21 @@
 import type { APIRoute } from 'astro';
 import { supabase } from '../../lib/supabase';
+import { rateLimitMiddleware } from '../../utils/rateLimit';
 
-export const GET: APIRoute = async () => {
+export const GET: APIRoute = async ({ request }) => {
   const headers = {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
   };
 
   try {
+    // Apply rate limiting middleware
+    const rateLimitResponse = await rateLimitMiddleware('CONTACT')(request);
+    if (rateLimitResponse instanceof Response) {
+      return rateLimitResponse;
+    }
+    Object.assign(headers, rateLimitResponse.headers);
+
     // Step 1: Test basic connection
     console.log('Testing basic connection...');
     const { error: connectionError } = await supabase

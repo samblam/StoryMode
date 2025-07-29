@@ -22,6 +22,7 @@ const isAdmin = user?.role === 'admin';
     <title>{title}</title>
     <meta name="description" content="Story Mode is a cutting edge audio branding and UX sound design studio in Montreal, Canada." />
     <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
   </head>
   <body>
     <header class="fixed w-full top-0 z-50 bg-green-400 text-white">
@@ -36,13 +37,19 @@ const isAdmin = user?.role === 'admin';
           {user ? (
             <>
               <a href="/sounds" class="hover:underline">Sounds</a>
-              {isAdmin && <a href="/create-user" class="hover:underline">Create User</a>}
-              <button 
-                id="logout-button" 
+              {user.role === 'client' && <a href="/surveys/client-results" class="hover:underline">My Survey Results</a>}
+              {isAdmin && (
+                <>
+                  <a href="/admin/surveys" class="hover:underline">Survey Management</a>
+                  <a href="/create-user" class="hover:underline">Create User</a>
+                </>
+              )}
+              <button
+                id="logout-button"
                 class="hover:underline text-white bg-transparent border-none cursor-pointer font-inherit"
                 type="button"
               >
-                Logout ({user.email})
+                <span id="logout-text">Logout ({user.email})</span>
               </button>
             </>
           ) : (
@@ -63,31 +70,102 @@ const isAdmin = user?.role === 'admin';
     </footer>
 
     <script>
+      // Initialize Sortable.js
+      const initSortable = () => {
+        // Check if Sortable is loaded
+        if (typeof window.Sortable === 'undefined') {
+          console.error('Sortable.js not loaded. Retrying in 100ms...');
+          // Retry initialization after a short delay
+          setTimeout(initSortable, 100);
+          return;
+        }
+
+        // Set up global error handler for Sortable
+        window.addEventListener('error', (event) => {
+          if (event.error?.toString().includes('Sortable')) {
+            console.error('Sortable.js error:', event.error);
+          }
+        });
+
+        console.log('Sortable.js initialized successfully');
+      };
+
+      // Initialize Sortable after DOM content is loaded
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initSortable);
+      } else {
+        initSortable();
+      }
+
+      // Logout functionality
       let isLoggingOut = false;
   
       document.getElementById('logout-button')?.addEventListener('click', async () => {
+        // Prevent multiple logout attempts
         if (isLoggingOut) return;
+        
+        const button = document.getElementById('logout-button') as HTMLButtonElement;
+        const textSpan = document.getElementById('logout-text');
+        const originalText = textSpan?.textContent || '';
         
         try {
           isLoggingOut = true;
+          
+          // Update button state
+          if (button && textSpan) {
+            button.disabled = true;
+            textSpan.textContent = 'Logging out...';
+          }
+
           const response = await fetch('/api/auth/logout', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json'
             },
-            credentials: 'include'
-          });
+            credentials: 'include',
+            body: JSON.stringify({}), // Add empty body
+          } as RequestInit);
 
-          if (response.ok) {
-            window.location.href = '/login';
-          } else {
-            console.error('Logout failed');
+          let data;
+          try {
+            data = await response.json();
+          } catch (parseError) {
+            console.error('Response parse error:', parseError);
+            throw new Error('Invalid server response');
           }
+
+          if (!response.ok) {
+            throw new Error(data?.message || data?.error || `Logout failed: ${response.status}`);
+          }
+
+          // Clear local storage
+          localStorage.removeItem('supabase.auth.token');
+          localStorage.removeItem('supabase.auth.refreshToken');
+          localStorage.removeItem('sb-access-token');
+          localStorage.removeItem('sb-refresh-token');
+
+          // Redirect to login page
+          window.location.href = '/login';
         } catch (error) {
           console.error('Logout error:', error);
+          
+          // Reset button state
+          if (button && textSpan) {
+            button.disabled = false;
+            textSpan.textContent = originalText;
+          }
+
+          // Show error to user
+          alert(error instanceof Error ? error.message : 'Logout failed. Please try again.');
         } finally {
           isLoggingOut = false;
         }
+      });
+
+      // Cleanup on page unload
+      window.addEventListener('unload', () => {
+        // Remove error event listener
+        window.removeEventListener('error', () => {});
       });
     </script>
   </body>

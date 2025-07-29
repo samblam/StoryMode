@@ -1,0 +1,196 @@
+---
+import type { Database } from '../../types/database';
+
+interface Props {
+    survey: {
+        id: string;
+        title: string;
+        description: string | null;
+        client_id: string;
+        created_at: string;
+        active: boolean;
+        video_url: string | null;
+        approved: boolean;
+        visible_to_client: boolean;
+        sound_profile_id: string;
+        clients?: {
+            id: string;
+            name: string;
+            email: string;
+        } | null;
+    };
+    clients: Database['public']['Tables']['clients']['Row'][];
+    soundProfiles: Database['public']['Tables']['sound_profiles']['Row'][];
+}
+
+const { survey, clients, soundProfiles } = Astro.props;
+console.log('SurveyDetails props:', { survey, clients, soundProfiles });
+
+// Filter sound profiles based on selected client
+const availableProfiles = soundProfiles.filter(profile =>
+    profile.is_template || profile.client_id === survey.client_id
+);
+
+// @ts-ignore
+// Create JSON string for sound profiles
+const soundProfilesJSON = JSON.stringify(soundProfiles).replace(/\//g, '\\/');
+---
+
+<div class="bg-white p-6 rounded-lg shadow">
+    <h3 class="text-lg font-semibold mb-4">Survey Details</h3>
+    
+    <form id="survey-details-form" class="space-y-6">
+        <!-- Hidden Survey ID -->
+        <input type="hidden" name="id" value={survey.id} />
+
+        <!-- Title -->
+        <div>
+            <label for="title" class="block text-sm font-medium text-gray-700">
+                Survey Title
+            </label>
+            <input
+                type="text"
+                name="title"
+                id="title"
+                required
+                value={survey.title}
+                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                placeholder="Enter survey title"
+            />
+        </div>
+
+        <!-- Description -->
+        <div>
+            <label for="description" class="block text-sm font-medium text-gray-700">
+                Description
+            </label>
+            <textarea
+                name="description"
+                id="description"
+                rows="3"
+                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                placeholder="Enter survey description"
+            >{survey.description}</textarea>
+        </div>
+
+        <!-- Client Selection -->
+        <div>
+            <label for="client_id" class="block text-sm font-medium text-gray-700">
+                Associated Client
+            </label>
+            <select
+                name="client_id"
+                id="client_id"
+                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            >
+                <option value="">No Client</option>
+                {clients.map(client => (
+                    <option
+                        value={client.id}
+                        selected={client.id === (survey.clients?.id || survey.client_id)}
+                    >
+                        {client.name}
+                    </option>
+                ))}
+            </select>
+        </div>
+
+        <!-- Sound Profile Selection -->
+        <div>
+            <label for="sound_profile_id" class="block text-sm font-medium text-gray-700">
+                Sound Profile
+            </label>
+            <select
+                name="sound_profile_id"
+                id="sound_profile_id"
+                required
+                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            >
+                <option value="">Select a Sound Profile</option>
+                {availableProfiles.map(profile => (
+                    <option
+                        value={profile.id}
+                        selected={profile.id === survey.sound_profile_id}
+                    >
+                        {profile.title} {profile.is_template ? '(Template)' : ''}
+                    </option>
+                ))}
+            </select>
+        </div>
+
+        <!-- Status Indicator -->
+        <div class="flex items-center space-x-2">
+            <span class="text-sm font-medium text-gray-700">Status:</span>
+            <span
+                class={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                    survey.approved
+                        ? 'bg-blue-100 text-blue-800'
+                        : survey.active
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-yellow-100 text-yellow-800'
+                }`}
+            >
+                {survey.approved ? 'Approved' : survey.active ? 'Active' : 'Draft'}
+            </span>
+        </div>
+
+        <!-- Created Info -->
+        <div class="text-sm text-gray-500">
+            <p>Created: {new Date(survey.created_at).toLocaleDateString()}</p>
+        </div>
+    </form>
+</div>
+
+<script>
+    // Listen for form changes
+    const form = document.getElementById('survey-details-form') as HTMLFormElement;
+    const clientSelect = document.getElementById('client_id') as HTMLSelectElement;
+    const profileSelect = document.getElementById('sound_profile_id') as HTMLSelectElement;
+    let hasUnsavedChanges = false;
+
+    // Get initial sound profiles data
+    console.log('JSON string:', document.getElementById('sound-profiles-data')?.textContent);
+    const soundProfiles = JSON.parse(document.getElementById('sound-profiles-data')?.textContent || '[]');
+
+    // Handle client selection change
+    clientSelect?.addEventListener('change', () => {
+        const selectedClientId = clientSelect.value;
+        
+        // Filter profiles based on selected client
+        const availableProfiles = soundProfiles.filter((profile: any) =>
+            profile.is_template || profile.client_id === selectedClientId
+        );
+
+        // Update profile select options
+        profileSelect.innerHTML = '<option value="">Select a Sound Profile</option>';
+        availableProfiles.forEach((profile: any) => {
+            const option = document.createElement('option');
+            option.value = profile.id;
+            option.textContent = `${profile.title}${profile.is_template ? ' (Template)' : ''}`;
+            profileSelect.appendChild(option);
+        });
+
+        hasUnsavedChanges = true;
+    });
+
+    form?.addEventListener('input', () => {
+        hasUnsavedChanges = true;
+    });
+
+    // Listen for save event
+    window.addEventListener('survey-saved', () => {
+        hasUnsavedChanges = false;
+    });
+
+    // Warn about unsaved changes when leaving
+    window.addEventListener('beforeunload', (e) => {
+        if (hasUnsavedChanges) {
+            e.preventDefault();
+            e.returnValue = '';
+        }
+    });
+</script>
+
+<!-- Hidden data for client-side use -->
+<script id="sound-profiles-data" type="application/json" set:html={soundProfilesJSON}>
+</script>
