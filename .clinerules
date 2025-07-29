@@ -3,6 +3,15 @@
 ## Data Handling
 - Always use question IDs when saving survey responses to the `survey_matches` table.
 
+## Git and Branch Management (Updated January 2025)
+- **Merge Conflict Resolution**: When merging feature branches, always take the feature branch version for:
+  - package.json (contains updated dependencies and scripts)
+  - astro.config.mjs (contains enhanced configuration)
+  - package-lock.json (use `git checkout --theirs` for generated files)
+- **Build Artifacts**: Remove .astro/* files from merge conflicts using `git rm -f` as they're ignored build artifacts
+- **Branch Naming**: Use descriptive names like "data-visualization" for focused development work
+- **Merge Strategy**: Always merge feature branches INTO main, never main into feature branches
+
 ## Security Requirements (Updated January 2025)
 - **Development Context Aware**: Verbose logging is acceptable during active development but must be sanitized for production
 - **Environment-Aware Security**: Implement different security levels for development vs production environments
@@ -18,6 +27,11 @@
 - Add security validation to all file upload endpoints before production
 - Include security headers and CSRF protection in API responses for production
 - **Development Logging**: Console logging for debugging is acceptable during development but must be environment-aware
+
+## Memory Bank Management
+- Update activeContext.md after major git operations and development milestones
+- Update progress.md to reflect current development phase and repository status
+- Maintain .clinerules with learned patterns from each development session
 
 ## Security Audit Insights (January 2025)
 - **Active Development Recognition**: Security audit must account for development vs production context
