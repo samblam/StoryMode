@@ -46,3 +46,23 @@
 - Implement GDPR compliance for EU participants
 - Maintain confidentiality agreements for client intellectual property
 - **Development Priority**: Functionality completion takes precedence, with security implementation planned for pre-production phase
+
+## Analytics Debugging Patterns (January 2025)
+- **Data Quality First**: Always investigate data quality issues before assuming UI/rendering problems
+- **Survey Matching Logic**: Use case-insensitive partial text matching for survey responses, not exact string matching
+- **Database Migration Strategy**: Create preview and execution tools for data quality fixes, never modify data without backup
+- **Chart Debugging Approach**: Verify data processing → check Chart.js integration → validate canvas rendering → test user interactions
+- **Astro Variable Scope**: Use `define:vars` for passing server-side variables to client-side JavaScript in Astro components
+- **TypeScript Schema Issues**: Always validate database field existence before referencing in code (e.g., `updated_at` field)
+- **Success Rate Calculations**: Calculate actual match percentages, not binary response success rates for meaningful analytics
+- **Timeline Chart Sorting**: Use timestamp-based sorting, not alphabetical sorting for chronological data display
+- **Error Pattern Analysis**: Distinguish between data quality issues and actual user behavior patterns in error categorization
+- **Memory Bank Updates**: Document completed debugging sessions with specific technical solutions and patterns learned
+
+## Data Migration Best Practices (January 2025)
+- **Always Preview First**: Create migration preview functionality before executing data changes
+- **Logging is Critical**: Add comprehensive logging to understand data transformation during migration
+- **Validation Logic**: Implement the same improved logic in both migration tools and live submission processing
+- **Database Schema Awareness**: Check column existence before referencing in migration scripts
+- **Success Metrics**: Track and report migration success rates and affected record counts
+- **Rollback Planning**: Ensure migration tools can identify and potentially reverse changes if needed

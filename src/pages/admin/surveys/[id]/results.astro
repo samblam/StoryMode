@@ -98,6 +98,45 @@ const behaviorMetrics = trackParticipantBehavior(surveyResponses);
       <StaticExporter
         surveyId={id}
       />
+      
+      <!-- Data Migration Controls -->
+      <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
+        <div class="flex">
+          <div class="flex-shrink-0">
+            <svg class="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+            </svg>
+          </div>
+          <div class="ml-3">
+            <h3 class="text-sm font-medium text-yellow-800">Data Quality Notice</h3>
+            <div class="mt-2 text-sm text-yellow-700">
+              <p>Some survey responses may have incorrect match data due to previous matching logic. Use the migration tool to fix existing data.</p>
+            </div>
+            <div class="mt-4">
+              <div class="flex space-x-2">
+                <button
+                  id="preview-migration"
+                  class="bg-yellow-600 hover:bg-yellow-700 text-white text-sm px-3 py-1 rounded"
+                >
+                  Preview Changes
+                </button>
+                <button
+                  id="run-migration"
+                  class="bg-red-600 hover:bg-red-700 text-white text-sm px-3 py-1 rounded"
+                >
+                  Fix Data
+                </button>
+                <button
+                  id="inspect-data"
+                  class="bg-blue-600 hover:bg-blue-700 text-white text-sm px-3 py-1 rounded"
+                >
+                  Inspect Database
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <AnalyticsDashboard
@@ -189,26 +228,56 @@ const behaviorMetrics = trackParticipantBehavior(surveyResponses);
             </tr>
           </thead>
           <tbody class="bg-white divide-y divide-gray-200">
-            {responses?.map((response: SurveyResponse) => (
-              <tr>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {new Date(response.created_at).toLocaleDateString()}
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap">
-                  <span class={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                    response.status === 'completed' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-                  }`}>
-                    {response.status}
-                  </span>
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {response.success_rate ? `${(response.success_rate * 100).toFixed(1)}%` : 'N/A'}
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {response.time_taken ? `${Math.round(response.time_taken / 1000)}s` : 'N/A'}
-                </td>
-              </tr>
-            ))}
+            {responses?.map((response: SurveyResponse) => {
+              // Calculate success rate from sound mapping data
+              let successRate = 'N/A';
+              let timeTaken = 'N/A';
+              
+              if (response.sound_mapping_responses) {
+                const mappingData = response.sound_mapping_responses as any;
+                if (mappingData?.sound_mapping) {
+                  const mappings = Object.values(mappingData.sound_mapping) as any[];
+                  if (mappings.length > 0) {
+                    const successfulMappings = mappings.filter(m => m.matched === true).length;
+                    const rate = (successfulMappings / mappings.length) * 100;
+                    successRate = `${rate.toFixed(1)}%`;
+                  }
+                }
+              }
+              
+              // Calculate time taken (use a reasonable estimate since we don't have exact timing data)
+              // For now, we'll use a default estimate based on the number of questions
+              if (response.sound_mapping_responses) {
+                const mappingData = response.sound_mapping_responses as any;
+                if (mappingData?.sound_mapping) {
+                  const mappings = Object.values(mappingData.sound_mapping) as any[];
+                  // Estimate ~30 seconds per question
+                  const estimatedTime = mappings.length * 30;
+                  timeTaken = `~${estimatedTime}s`;
+                }
+              }
+              
+              return (
+                <tr>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {new Date(response.created_at).toLocaleDateString()}
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap">
+                    <span class={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                      response.completed ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {response.completed ? 'completed' : 'incomplete'}
+                    </span>
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {successRate}
+                  </td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {timeTaken}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -216,7 +285,7 @@ const behaviorMetrics = trackParticipantBehavior(surveyResponses);
   </div>
 </Layout>
 
-<script type="module" define:vars={{ graphData }}>
+<script type="module" define:vars={{ graphData, id }}>
   import { Chart, registerables } from 'https://cdn.skypack.dev/chart.js';
   Chart.register(...registerables);
 
@@ -281,6 +350,153 @@ const behaviorMetrics = trackParticipantBehavior(surveyResponses);
         data: errorPatternData,
         options: chartConfig
       });
+    }
+  });
+
+  // Migration functionality
+  const surveyId = id; // Use the server-side id passed via define:vars
+  
+  document.getElementById('preview-migration')?.addEventListener('click', async () => {
+    const button = document.getElementById('preview-migration');
+    const originalText = button.textContent;
+    
+    try {
+      button.textContent = 'Previewing...';
+      button.disabled = true;
+      
+      const response = await fetch('/api/admin/migrate-survey-data', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'preview',
+          surveyId: surveyId
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        const { totalResponses, matchesUpdated, details } = result.result;
+        const correctMatches = details.filter(d => d.updated && d.newMatched).length;
+        const incorrectMatches = details.filter(d => d.updated && !d.newMatched).length;
+        
+        alert(`Preview Results:\n\nTotal Responses: ${totalResponses}\nMatches to Update: ${matchesUpdated}\n\nWould be corrected to TRUE: ${correctMatches}\nWould be corrected to FALSE: ${incorrectMatches}\n\nNo changes made to database.`);
+      } else {
+        alert(`Preview failed: ${result.error}`);
+      }
+    } catch (error) {
+      alert(`Preview error: ${error.message}`);
+    } finally {
+      button.textContent = originalText;
+      button.disabled = false;
+    }
+  });
+
+  document.getElementById('run-migration')?.addEventListener('click', async () => {
+    if (!confirm('This will update the database to fix incorrect match data. Are you sure?')) {
+      return;
+    }
+    
+    const button = document.getElementById('run-migration');
+    const originalText = button.textContent;
+    
+    try {
+      button.textContent = 'Fixing...';
+      button.disabled = true;
+      
+      const response = await fetch('/api/admin/migrate-survey-data', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'migrate',
+          surveyId: surveyId
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        const { totalResponses, matchesUpdated, errors } = result.result;
+        
+        if (errors.length > 0) {
+          alert(`Migration completed with errors:\n\nTotal Responses: ${totalResponses}\nMatches Updated: ${matchesUpdated}\nErrors: ${errors.length}\n\nPlease check the console for details.`);
+          console.error('Migration errors:', errors);
+        } else {
+          alert(`Migration successful!\n\nTotal Responses: ${totalResponses}\nMatches Updated: ${matchesUpdated}\n\nPage will reload to show updated data.`);
+          window.location.reload();
+        }
+      } else {
+        alert(`Migration failed: ${result.error}`);
+      }
+    } catch (error) {
+      alert(`Migration error: ${error.message}`);
+    } finally {
+      button.textContent = originalText;
+      button.disabled = false;
+    }
+  });
+
+  // Inspect database functionality
+  document.getElementById('inspect-data')?.addEventListener('click', async () => {
+    const button = document.getElementById('inspect-data');
+    const originalText = button.textContent;
+    
+    try {
+      button.textContent = 'Inspecting...';
+      button.disabled = true;
+      
+      const response = await fetch('/api/admin/inspect-survey-data', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          surveyId: surveyId
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        const { analysis } = result;
+        let message = `Database Inspection Results:\n\n`;
+        message += `Total Responses: ${analysis.totalResponses}\n`;
+        message += `Responses with Sound Mapping: ${analysis.responsesWithSoundMapping}\n\n`;
+        
+        if (analysis.sampleResponse) {
+          message += `Sample Response ID: ${analysis.sampleResponse.id}\n`;
+          message += `Sample Status: ${analysis.sampleResponse.status}\n`;
+          message += `Sample Created: ${new Date(analysis.sampleResponse.created_at).toLocaleString()}\n\n`;
+        }
+        
+        if (analysis.soundMappingStructure) {
+          message += `Sound Mapping Structure Found:\n`;
+          const mappingKeys = Object.keys(analysis.soundMappingStructure);
+          message += `Number of sound mappings: ${mappingKeys.length}\n`;
+          
+          // Show first mapping as example
+          if (mappingKeys.length > 0) {
+            const firstMapping = analysis.soundMappingStructure[mappingKeys[0]];
+            message += `\nExample mapping:\n`;
+            message += `- Intended: ${firstMapping.intended}\n`;
+            message += `- Matched: ${firstMapping.matched}\n`;
+            message += `- Sound Name: ${firstMapping.sound_name}\n`;
+          }
+        }
+        
+        alert(message);
+      } else {
+        alert(`Inspection failed: ${result.error}`);
+      }
+    } catch (error) {
+      alert(`Inspection error: ${error.message}`);
+    } finally {
+      button.textContent = originalText;
+      button.disabled = false;
     }
   });
 </script>

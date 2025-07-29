@@ -296,6 +296,55 @@ const sortedSounds = survey?.survey_sounds?.sort((a: any, b: any) => a.order_ind
     // Import the AudioManager
     import { audioManager } from '/src/utils/audioManager.js';
 
+    // Improved function matching logic to handle partial matches
+    function checkFunctionMatch(actualText, intendedText) {
+        if (!actualText || !intendedText) return false;
+        
+        // Exact match (case-insensitive)
+        if (actualText.toLowerCase() === intendedText.toLowerCase()) {
+            return true;
+        }
+        
+        // Check if intended function is contained in actual text (case-insensitive)
+        // This handles cases like "Match" vs "Match Sound of Matching..."
+        const actualLower = actualText.toLowerCase();
+        const intendedLower = intendedText.toLowerCase();
+        
+        // Check if intended text is at the start of actual text
+        if (actualLower.startsWith(intendedLower)) {
+            return true;
+        }
+        
+        // Check if intended text is contained as a whole word in actual text
+        const wordBoundaryRegex = new RegExp(`\\b${intendedLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`);
+        if (wordBoundaryRegex.test(actualLower)) {
+            return true;
+        }
+        
+        // Check for common variations and synonyms
+        const synonymMap = {
+            'match': ['matching', 'matched'],
+            'message': ['messaging', 'msg'],
+            'activity': ['action', 'active'],
+            'notification': ['notify', 'alert'],
+            'error': ['warning', 'problem'],
+            'success': ['complete', 'done'],
+            'click': ['tap', 'select'],
+            'hover': ['mouseover', 'focus']
+        };
+        
+        const intendedBase = intendedLower.replace(/[^a-z]/g, '');
+        if (synonymMap[intendedBase]) {
+            for (const synonym of synonymMap[intendedBase]) {
+                if (actualLower.includes(synonym)) {
+                    return true;
+                }
+            }
+        }
+        
+        return false;
+    }
+
     // Initialize audio player
     document.querySelectorAll('.play-button').forEach((button) => {
         button.addEventListener('click', async () => {
@@ -361,11 +410,14 @@ const sortedSounds = survey?.survey_sounds?.sort((a: any, b: any) => a.order_ind
 
                             // Record sound mapping using TEXT for both actual and intended, AND add sound_name
                             if (actualFunctionText && intendedFunctionText) {
+                                // Improved matching logic to handle partial matches
+                                const isMatched = checkFunctionMatch(actualFunctionText, intendedFunctionText);
+                                
                                 soundMappingResponses[soundId] = { // Keep soundId as key
                                     sound_name: soundName, // Add sound name field
                                     actual: actualFunctionText, // Use TEXT
                                     intended: intendedFunctionText, // Use TEXT
-                                    matched: actualFunctionText === intendedFunctionText // Compare TEXT
+                                    matched: isMatched // Use improved matching logic
                                 };
                             }
                         } else {
