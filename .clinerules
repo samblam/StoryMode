@@ -1,3 +1,34 @@
 # .clinerules
 
+## Data Handling
 - Always use question IDs when saving survey responses to the `survey_matches` table.
+
+## Security Requirements (Updated January 2025)
+- **Development Context Aware**: Verbose logging is acceptable during active development but must be sanitized for production
+- **Environment-Aware Security**: Implement different security levels for development vs production environments
+- Use secure token generation with minimum 256-bit entropy for participant access tokens in production
+- Implement input validation using Zod schemas for all API endpoints before production deployment
+- Add audit logging for all data export operations in production
+- Enforce anonymization controls for participant data exports
+- Implement resource limits and timeouts for PDF generation operations
+
+## Development Patterns
+- Use `getClient({ requiresAdmin: true })` for admin operations, never import `supabaseAdmin` directly
+- Implement proper Chart.js cleanup to prevent memory leaks in analytics components
+- Add security validation to all file upload endpoints before production
+- Include security headers and CSRF protection in API responses for production
+- **Development Logging**: Console logging for debugging is acceptable during development but must be environment-aware
+
+## Security Audit Insights (January 2025)
+- **Active Development Recognition**: Security audit must account for development vs production context
+- **Supabase ORM Safety**: Using Supabase ORM provides inherent SQL injection protection through parameterized queries
+- **Session Management**: 1-week session duration appropriate for development, 4-hour limit for production
+- **Rate Limiting**: In-memory rate limiting acceptable for development, Redis-based required for production
+- **File Upload Security**: Current MIME type validation adequate for development, content validation needed for production
+
+## UX Sound Application Context
+- This is a UX research platform for sound design, not a SOC 2 compliant application
+- Focus security on protecting client sound libraries and participant survey data
+- Implement GDPR compliance for EU participants
+- Maintain confidentiality agreements for client intellectual property
+- **Development Priority**: Functionality completion takes precedence, with security implementation planned for pre-production phase
