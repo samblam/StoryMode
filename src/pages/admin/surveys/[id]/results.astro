@@ -52,17 +52,10 @@ if (surveyError || !survey) {
 //   return Astro.redirect('/admin/surveys', 302);
 // }
 
-// Fetch survey responses with sound matches
+// Fetch survey responses
 const { data: responsesResult } = await supabaseAdmin
   .from('survey_responses')
-  .select(`
-    *,
-    survey_matches (
-      id,
-      sound_id,
-      matched_function
-    )
-  `)
+  .select('*')
   .eq('survey_id', id)
   .order('created_at', { ascending: false });
 
@@ -71,9 +64,21 @@ const responses = responsesResult;
 // Process survey data
 const surveyResponses = responses || [];
 
+// Debug: Log the actual structure of sound_mapping_responses
+if (surveyResponses.length > 0 && surveyResponses[0].sound_mapping_responses) {
+  console.log('Sample sound_mapping_responses structure:', JSON.stringify(surveyResponses[0].sound_mapping_responses, null, 2));
+}
+
+// Debug: Log survey data for analytics processing
+console.log('Survey data for analytics:', {
+  totalResponses: surveyResponses.length,
+  completedResponses: surveyResponses.filter(r => r.completed).length,
+  responsesWithMapping: surveyResponses.filter(r => r.sound_mapping_responses).length
+});
+
 // Calculate display metrics
 const totalResponses = surveyResponses.length;
-const completedResponses = surveyResponses.filter((r: SurveyResponse) => r.status === 'completed').length;
+const completedResponses = surveyResponses.filter((r: SurveyResponse) => r.completed === true).length;
 const completionRate = totalResponses ? (completedResponses / totalResponses * 100).toFixed(1) : 0;
 
 // Prepare data for visualization
@@ -212,7 +217,7 @@ const behaviorMetrics = trackParticipantBehavior(surveyResponses);
 </Layout>
 
 <script type="module" define:vars={{ graphData }}>
-  import { Chart, registerables } from 'chart.js';
+  import { Chart, registerables } from 'https://cdn.skypack.dev/chart.js';
   Chart.register(...registerables);
 
   // Use the server-side processed graphData

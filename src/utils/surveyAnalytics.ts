@@ -77,11 +77,74 @@ export function getCachedAnalytics(surveyId: string): any | null {
 }
 
 export function calculateSuccessMetrics(responses: SurveyResponse[]) {
-  const successfulResponses = responses.filter(response => response.is_success === true || response.is_success === undefined);
-  const successRate = responses.length > 0 ? successfulResponses.length / responses.length : 0;
-  const completionTimes = responses.map(response => response.time_taken || 0);
-  const averageCompletionTime = completionTimes.length > 0 ? 
-    completionTimes.reduce((a, b) => a + b, 0) / completionTimes.length : 0;
+  console.log('calculateSuccessMetrics - Processing responses:', responses.length);
+  
+  if (!responses || responses.length === 0) {
+    return { successRate: 0, averageCompletionTime: 0 };
+  }
+
+  let totalMatches = 0;
+  let totalAttempts = 0;
+  let totalCompletionTime = 0;
+  let completedResponses = 0;
+
+  responses.forEach((response, index) => {
+    console.log(`calculateSuccessMetrics - Processing response ${index}:`, {
+      id: response.id,
+      completed: response.completed,
+      hasMapping: !!(response.sound_mapping_responses as any)?.sound_mapping
+    });
+
+    if (response.completed && response.sound_mapping_responses) {
+      completedResponses++;
+      
+      // Calculate completion time from created_at (placeholder since we don't have actual timing data)
+      if (response.created_at) {
+        totalCompletionTime += 30000; // Placeholder: assume 30 seconds average
+      }
+
+      const mappingData = response.sound_mapping_responses as any;
+      if (mappingData?.sound_mapping) {
+        Object.entries(mappingData.sound_mapping).forEach(([soundId, mapping]: [string, any]) => {
+          console.log(`calculateSuccessMetrics - Sound mapping ${soundId}:`, {
+            intended: mapping.intended,
+            actual: mapping.actual?.substring(0, 50) + '...',
+            matched: mapping.matched,
+            sound_name: mapping.sound_name
+          });
+          
+          // Check if this should actually be a match based on content
+          const actualMatch = mapping.actual && mapping.intended &&
+            mapping.actual.toLowerCase().includes(mapping.intended.toLowerCase());
+          
+          if (actualMatch !== mapping.matched) {
+            console.log(`calculateSuccessMetrics - MISMATCH DETECTED for ${soundId}:`, {
+              storedMatch: mapping.matched,
+              contentBasedMatch: actualMatch,
+              intended: mapping.intended,
+              actual: mapping.actual?.substring(0, 100)
+            });
+          }
+          
+          totalAttempts++;
+          if (mapping.matched === true) {
+            totalMatches++;
+          }
+        });
+      }
+    }
+  });
+
+  const successRate = totalAttempts > 0 ? totalMatches / totalAttempts : 0;
+  const averageCompletionTime = completedResponses > 0 ? totalCompletionTime / completedResponses : 0;
+
+  console.log('calculateSuccessMetrics - Results:', {
+    successRate,
+    averageCompletionTime,
+    totalMatches,
+    totalAttempts,
+    completedResponses
+  });
 
   return {
     successRate,
@@ -90,22 +153,40 @@ export function calculateSuccessMetrics(responses: SurveyResponse[]) {
 }
 
 export function performSoundPerformanceAnalysis(responses: SurveyResponse[]) {
+  console.log('performSoundPerformanceAnalysis - Processing responses:', responses.length);
+  
   const soundCounts = new Map<string, number>();
   
-  responses.forEach(response => {
-    if (response.chosen_sound) {
-      const count = soundCounts.get(response.chosen_sound) || 0;
-      soundCounts.set(response.chosen_sound, count + 1);
+  responses.forEach((response, index) => {
+    console.log(`performSoundPerformanceAnalysis - Processing response ${index}:`, response.id);
+    
+    if (response.sound_mapping_responses) {
+      const mappingData = response.sound_mapping_responses as any;
+      if (mappingData?.sound_mapping) {
+        Object.entries(mappingData.sound_mapping).forEach(([soundId, mapping]: [string, any]) => {
+          const soundName = mapping.sound_name || soundId;
+          const count = soundCounts.get(soundName) || 0;
+          soundCounts.set(soundName, count + 1);
+          console.log(`performSoundPerformanceAnalysis - Counted sound: ${soundName} (${count + 1})`);
+        });
+      }
     }
   });
 
   let majorityChoice: string | null = null;
   let maxCount = 0;
-  soundCounts.forEach((count, soundId) => {
+  soundCounts.forEach((count, soundName) => {
     if (count > maxCount) {
-      majorityChoice = soundId;
+      majorityChoice = soundName;
       maxCount = count;
     }
+  });
+
+  console.log('performSoundPerformanceAnalysis - Results:', {
+    majorityChoice,
+    majorityChoiceCount: maxCount,
+    totalResponses: responses.length,
+    soundCounts: Object.fromEntries(soundCounts)
   });
 
   return {
@@ -116,12 +197,33 @@ export function performSoundPerformanceAnalysis(responses: SurveyResponse[]) {
 }
 
 export function trackParticipantBehavior(responses: SurveyResponse[]) {
-  const completionTimes = responses.map(response => response.time_taken || 0);
-  const averageTimePerQuestion = completionTimes.length > 0 ? 
-    completionTimes.reduce((a, b) => a + b, 0) / completionTimes.length : 0;
+  console.log('trackParticipantBehavior - Processing responses:', responses.length);
   
-  const incompleteResponses = responses.filter(r => r.is_complete === false).length;
-  const dropOffRate = responses.length > 0 ? incompleteResponses / responses.length : 0;
+  // Since we don't have actual timing data, use placeholder calculations
+  const completedResponses = responses.filter(r => r.completed === true);
+  const incompleteResponses = responses.filter(r => r.completed !== true);
+  
+  // Placeholder: assume average time per question based on number of sound mappings
+  let totalQuestions = 0;
+  completedResponses.forEach(response => {
+    if (response.sound_mapping_responses) {
+      const mappingData = response.sound_mapping_responses as any;
+      if (mappingData?.sound_mapping) {
+        totalQuestions += Object.keys(mappingData.sound_mapping).length;
+      }
+    }
+  });
+  
+  const averageTimePerQuestion = totalQuestions > 0 ? (30000 * completedResponses.length) / totalQuestions : 0; // 30s total / questions
+  const dropOffRate = responses.length > 0 ? incompleteResponses.length / responses.length : 0;
+  
+  console.log('trackParticipantBehavior - Results:', {
+    averageTimePerQuestion,
+    dropOffRate,
+    completedResponses: completedResponses.length,
+    incompleteResponses: incompleteResponses.length,
+    totalQuestions
+  });
   
   return {
     averageTimePerQuestion,
@@ -130,10 +232,34 @@ export function trackParticipantBehavior(responses: SurveyResponse[]) {
 }
 
 export function aggregateResults(responses: SurveyResponse[]) {
+  console.log('aggregateResults - Processing responses:', responses.length);
+  
   const totalResponses = responses.length;
-  const scores = responses.map(r => r.score || 0);
-  const averageScore = scores.length > 0 ? 
-    scores.reduce((a, b) => a + b, 0) / scores.length : 0;
+  let totalMatches = 0;
+  let totalAttempts = 0;
+  
+  responses.forEach(response => {
+    if (response.sound_mapping_responses) {
+      const mappingData = response.sound_mapping_responses as any;
+      if (mappingData?.sound_mapping) {
+        Object.entries(mappingData.sound_mapping).forEach(([soundId, mapping]: [string, any]) => {
+          totalAttempts++;
+          if (mapping.matched === true) {
+            totalMatches++;
+          }
+        });
+      }
+    }
+  });
+  
+  const averageScore = totalAttempts > 0 ? (totalMatches / totalAttempts) * 100 : 0;
+  
+  console.log('aggregateResults - Results:', {
+    totalResponses,
+    averageScore,
+    totalMatches,
+    totalAttempts
+  });
   
   return {
     totalResponses,
@@ -251,11 +377,9 @@ export function scoreResponseQuality(responses: SurveyResponse[]) {
 export function verifyCompletion(responses: SurveyResponse[]) {
   return responses.every(response => {
     return (
-      response.is_complete === true &&
-      response.chosen_sound !== undefined &&
-      response.expected_sound !== undefined &&
-      response.time_taken !== null &&
-      response.time_taken > 0
+      response.completed === true &&
+      response.sound_mapping_responses !== undefined &&
+      response.sound_mapping_responses !== null
     );
   });
 }

@@ -1,0 +1,276 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="Analytics Test Suite">
+  <main class="container mx-auto px-4 py-8">
+    <div class="max-w-4xl mx-auto">
+      <h1 class="text-3xl font-bold mb-8">Analytics Test Suite</h1>
+      
+      <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+        <h2 class="text-xl font-semibold mb-4">Test Controls</h2>
+        <div class="flex gap-4 mb-4">
+          <button id="runTests" class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700">
+            Run All Tests
+          </button>
+          <button id="clearResults" class="bg-gray-600 text-white px-6 py-2 rounded hover:bg-gray-700">
+            Clear Results
+          </button>
+          <button id="exportResults" class="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700" disabled>
+            Export Results
+          </button>
+        </div>
+        
+        <div id="testProgress" class="hidden">
+          <div class="bg-gray-200 rounded-full h-2 mb-2">
+            <div id="progressBar" class="bg-blue-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+          </div>
+          <p id="progressText" class="text-sm text-gray-600">Initializing tests...</p>
+        </div>
+      </div>
+
+      <div id="testResults" class="space-y-6">
+        <!-- Test results will be populated here -->
+      </div>
+
+      <!-- Test Containers (hidden) -->
+      <div id="testContainers" style="display: none;">
+        <canvas id="correlation-test-chart"></canvas>
+        <canvas id="error-test-chart"></canvas>
+        <canvas id="success-test-chart"></canvas>
+      </div>
+    </div>
+  </main>
+</Layout>
+
+<style>
+  .test-suite {
+    @apply bg-white rounded-lg shadow p-6 mb-4;
+  }
+  
+  .test-suite.passed {
+    @apply border-l-4 border-green-500;
+  }
+  
+  .test-suite.failed {
+    @apply border-l-4 border-red-500;
+  }
+  
+  .test-result {
+    @apply flex items-center justify-between py-2 px-3 rounded;
+  }
+  
+  .test-result.passed {
+    @apply bg-green-50 text-green-800;
+  }
+  
+  .test-result.failed {
+    @apply bg-red-50 text-red-800;
+  }
+  
+  .test-result.warning {
+    @apply bg-yellow-50 text-yellow-800;
+  }
+  
+  .metric-card {
+    @apply bg-gray-50 rounded p-3 text-center;
+  }
+  
+  .metric-value {
+    @apply text-2xl font-bold text-gray-900;
+  }
+  
+  .metric-label {
+    @apply text-sm text-gray-600;
+  }
+</style>
+
+<script>
+  import { runAnalyticsTests } from '../utils/analyticsTestSuite';
+
+  let testResults: any = null;
+
+  // DOM elements
+  const runTestsBtn = document.getElementById('runTests') as HTMLButtonElement;
+  const clearResultsBtn = document.getElementById('clearResults') as HTMLButtonElement;
+  const exportResultsBtn = document.getElementById('exportResults') as HTMLButtonElement;
+  const testProgress = document.getElementById('testProgress') as HTMLDivElement;
+  const progressBar = document.getElementById('progressBar') as HTMLDivElement;
+  const progressText = document.getElementById('progressText') as HTMLParagraphElement;
+  const testResultsContainer = document.getElementById('testResults') as HTMLDivElement;
+
+  // Event listeners
+  runTestsBtn.addEventListener('click', runTests);
+  clearResultsBtn.addEventListener('click', clearResults);
+  exportResultsBtn.addEventListener('click', exportResults);
+
+  async function runTests() {
+    try {
+      // Disable button and show progress
+      runTestsBtn.disabled = true;
+      runTestsBtn.textContent = 'Running Tests...';
+      testProgress.classList.remove('hidden');
+      clearResults();
+
+      // Simulate progress updates
+      let progress = 0;
+      const progressInterval = setInterval(() => {
+        progress += Math.random() * 15;
+        if (progress > 95) progress = 95;
+        updateProgress(progress, 'Running analytics tests...');
+      }, 500);
+
+      // Run the actual tests
+      testResults = await runAnalyticsTests();
+
+      // Complete progress
+      clearInterval(progressInterval);
+      updateProgress(100, 'Tests completed!');
+
+      // Display results
+      displayResults(testResults);
+
+      // Enable export button
+      exportResultsBtn.disabled = false;
+
+    } catch (error) {
+      console.error('Test execution failed:', error);
+      displayError('Failed to run tests: ' + (error instanceof Error ? error.message : String(error)));
+    } finally {
+      // Re-enable button
+      runTestsBtn.disabled = false;
+      runTestsBtn.textContent = 'Run All Tests';
+      
+      // Hide progress after a delay
+      setTimeout(() => {
+        testProgress.classList.add('hidden');
+      }, 2000);
+    }
+  }
+
+  function updateProgress(percent: number, message: string) {
+    progressBar.style.width = `${Math.min(100, Math.max(0, percent))}%`;
+    progressText.textContent = message;
+  }
+
+  function displayResults(results: any) {
+    if (!results) return;
+
+    const { success, summary, suites, recommendations } = results;
+
+    // Create summary card
+    const summaryHtml = `
+      <div class="test-suite ${success ? 'passed' : 'failed'}">
+        <h2 class="text-xl font-semibold mb-4 flex items-center">
+          <span class="mr-2">${success ? '✅' : '❌'}</span>
+          Test Summary
+        </h2>
+        
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+          <div class="metric-card">
+            <div class="metric-value">${summary.totalTests}</div>
+            <div class="metric-label">Total Tests</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-value text-green-600">${summary.passedTests}</div>
+            <div class="metric-label">Passed</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-value text-red-600">${summary.failedTests}</div>
+            <div class="metric-label">Failed</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-value">${summary.totalDuration}ms</div>
+            <div class="metric-label">Duration</div>
+          </div>
+        </div>
+
+        ${recommendations.length > 0 ? `
+          <div class="bg-blue-50 border border-blue-200 rounded p-4">
+            <h3 class="font-semibold text-blue-800 mb-2">Recommendations</h3>
+            <ul class="list-disc list-inside text-blue-700 space-y-1">
+              ${recommendations.map((rec: string) => `<li>${rec}</li>`).join('')}
+            </ul>
+          </div>
+        ` : ''}
+      </div>
+    `;
+
+    // Create suite results
+    const suitesHtml = suites.map((suite: any) => `
+      <div class="test-suite ${suite.failedTests === 0 ? 'passed' : 'failed'}">
+        <h3 class="text-lg font-semibold mb-3 flex items-center justify-between">
+          <span class="flex items-center">
+            <span class="mr-2">${suite.failedTests === 0 ? '✅' : '❌'}</span>
+            ${suite.suiteName}
+          </span>
+          <span class="text-sm font-normal text-gray-600">
+            ${suite.passedTests}/${suite.totalTests} passed (${suite.totalDuration}ms)
+          </span>
+        </h3>
+        
+        <div class="space-y-2">
+          ${suite.results.map((test: any) => `
+            <div class="test-result ${test.success ? 'passed' : 'failed'}">
+              <div class="flex items-center">
+                <span class="mr-2">${test.success ? '✅' : '❌'}</span>
+                <span class="font-medium">${test.testName}</span>
+                ${test.warnings ? `<span class="ml-2 text-yellow-600">⚠️</span>` : ''}
+              </div>
+              <div class="text-sm">
+                ${test.duration}ms
+                ${test.error ? `<br><span class="text-red-600">${test.error}</span>` : ''}
+                ${test.warnings ? `<br><span class="text-yellow-600">${test.warnings.join(', ')}</span>` : ''}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `).join('');
+
+    testResultsContainer.innerHTML = summaryHtml + suitesHtml;
+  }
+
+  function displayError(message: string) {
+    testResultsContainer.innerHTML = `
+      <div class="test-suite failed">
+        <h2 class="text-xl font-semibold mb-4 flex items-center">
+          <span class="mr-2">❌</span>
+          Test Execution Error
+        </h2>
+        <div class="bg-red-50 border border-red-200 rounded p-4">
+          <p class="text-red-800">${message}</p>
+        </div>
+      </div>
+    `;
+  }
+
+  function clearResults() {
+    testResultsContainer.innerHTML = '';
+    testResults = null;
+    exportResultsBtn.disabled = true;
+  }
+
+  function exportResults() {
+    if (!testResults) return;
+
+    const dataStr = JSON.stringify(testResults, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `analytics-test-results-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  // Auto-run tests on page load if requested
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('autorun') === 'true') {
+    setTimeout(runTests, 1000);
+  }
+</script>
+</Layout>

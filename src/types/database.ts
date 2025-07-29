@@ -15,27 +15,24 @@ export interface Database {
           created_at: string;
           survey_id: string;
           participant_id: string;
-          status: 'started' | 'completed' | 'abandoned';
-          success_rate: number | null;
-          time_taken: number | null;
+          completed: boolean | null;
+          sound_mapping_responses: Json | null;
         };
         Insert: {
           id?: string;
           created_at?: string;
           survey_id: string;
           participant_id: string;
-          status?: 'started' | 'completed' | 'abandoned';
-          success_rate?: number | null;
-          time_taken?: number | null;
+          completed?: boolean | null;
+          sound_mapping_responses?: Json | null;
         };
         Update: {
           id?: string;
           created_at?: string;
           survey_id?: string;
           participant_id?: string;
-          status?: 'started' | 'completed' | 'abandoned';
-          success_rate?: number | null;
-          time_taken?: number | null;
+          completed?: boolean | null;
+          sound_mapping_responses?: Json | null;
         };
       };
       sound_matches: {
@@ -297,6 +294,10 @@ export type BaseSurveyResponse = Database['public']['Tables']['survey_responses'
 // Extended survey response type for analytics
 export interface SurveyResponse extends BaseSurveyResponse {
   sound_matches?: SoundMatch[];
+  // Legacy properties for backward compatibility
+  status?: 'started' | 'completed' | 'abandoned';
+  success_rate?: number | null;
+  time_taken?: number | null;
   // Derived properties for analytics
   is_success?: boolean;
   is_complete?: boolean;

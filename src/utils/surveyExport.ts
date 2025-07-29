@@ -1,5 +1,7 @@
 import { getClient } from '../lib/supabase';
 import type { Survey } from '../types/database';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 /**
  * Options for exporting survey data
@@ -247,6 +249,458 @@ export function convertToJSON(data: any[]): string {
 }
 
 /**
+ * Helper function to generate hash code for strings (for anonymization)
+ */
+function hashCode(str: string): number {
+  let hash = 0;
+  if (str.length === 0) return hash;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  return Math.abs(hash);
+}
+
+/**
+ * Processes individual response data for streaming export
+ * @param responses Array of response data
+ * @param options Export options
+ * @returns Processed response data
+ */
+function processResponseData(responses: any[], options: Partial<ExportOptions> = {}): any[] {
+  const mergedOptions = { ...DEFAULT_EXPORT_OPTIONS, ...options };
+  
+  return responses.map(response => {
+    const result: Record<string, any> = {
+      response_id: response.id,
+      survey_id: response.survey_id,
+      participant_id: response.participant_id,
+      status: response.status,
+      success_rate: response.success_rate,
+      time_taken: response.time_taken,
+      created_at: response.created_at
+    };
+    
+    // Add participant info if requested and available
+    if (mergedOptions.includeParticipantInfo && response.participants) {
+      if (mergedOptions.anonymize) {
+        result.participant_identifier = hashCode(response.participants.email || '').toString().slice(0, 8);
+      } else {
+        result.participant_email = response.participants.email;
+        result.participant_name = response.participants.name;
+        result.participant_identifier = response.participants.participant_identifier;
+      }
+    }
+    
+    // Add sound matches if available
+    if (response.sound_matches && response.sound_matches.length > 0) {
+      result.total_matches = response.sound_matches.length;
+      result.correct_matches = response.sound_matches.filter((m: any) => m.is_correct).length;
+      result.accuracy = result.correct_matches / result.total_matches;
+      
+      // Add individual match details if not anonymizing
+      if (!mergedOptions.anonymize) {
+        response.sound_matches.forEach((match: any, index: number) => {
+          result[`match_${index + 1}_sound_id`] = match.sound_id;
+          result[`match_${index + 1}_function_id`] = match.function_id;
+          result[`match_${index + 1}_correct`] = match.is_correct;
+        });
+      }
+    }
+    
+    // Filter out excluded fields
+    if (mergedOptions.excludeFields && mergedOptions.excludeFields.length > 0) {
+      mergedOptions.excludeFields.forEach(field => {
+        delete result[field];
+      });
+    }
+    
+    return result;
+  });
+}
+
+/**
+ * Converts data to PDF format with charts and tables
+ * @param data The processed data to convert
+ * @param rawData The raw survey data for summary
+ * @param options Export options
+ * @returns PDF buffer as Uint8Array
+ */
+export async function convertToPDF(data: any[], rawData: any, options: Partial<ExportOptions> = {}): Promise<string> {
+  const doc = new jsPDF();
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  let yPosition = 20;
+
+  // Helper function to check if we need a new page
+  const checkPageBreak = (requiredHeight: number) => {
+    if (yPosition + requiredHeight > pageHeight - 20) {
+      doc.addPage();
+      yPosition = 20;
+    }
+  };
+
+  // Helper function to add text with word wrapping
+  const addWrappedText = (text: string, x: number, y: number, maxWidth: number, fontSize: number = 12) => {
+    doc.setFontSize(fontSize);
+    const lines = doc.splitTextToSize(text, maxWidth);
+    doc.text(lines, x, y);
+    return lines.length * (fontSize * 0.35); // Approximate line height
+  };
+
+  try {
+    // Title
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Survey Analytics Report', pageWidth / 2, yPosition, { align: 'center' });
+    yPosition += 15;
+
+    // Survey Information
+    if (rawData.survey) {
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Survey Information', 20, yPosition);
+      yPosition += 10;
+
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'normal');
+      
+      const surveyInfo = [
+        ['Survey Title', rawData.survey.title || 'Untitled Survey'],
+        ['Survey ID', rawData.survey.id || 'N/A'],
+        ['Status', rawData.survey.status || 'Unknown'],
+        ['Generated', new Date().toLocaleString()]
+      ];
+
+      surveyInfo.forEach(([label, value]) => {
+        checkPageBreak(8);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${label}:`, 20, yPosition);
+        doc.setFont('helvetica', 'normal');
+        doc.text(value, 80, yPosition);
+        yPosition += 8;
+      });
+
+      yPosition += 10;
+    }
+
+    // Summary Statistics
+    if (data && data.length > 0) {
+      checkPageBreak(60);
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Summary Statistics', 20, yPosition);
+      yPosition += 15;
+
+      // Calculate summary stats
+      const totalResponses = data.length;
+      const completedResponses = data.filter(r => r.status === 'completed').length;
+      const averageSuccessRate = data.reduce((acc, r) => acc + (r.success_rate || 0), 0) / totalResponses;
+      const averageTimeSpent = data.reduce((acc, r) => acc + (r.time_taken || 0), 0) / totalResponses;
+
+      const summaryData = [
+        ['Total Responses', totalResponses.toString()],
+        ['Completed Responses', completedResponses.toString()],
+        ['Completion Rate', `${Math.round((completedResponses / totalResponses) * 100)}%`],
+        ['Average Success Rate', `${Math.round(averageSuccessRate * 100)}%`],
+        ['Average Time Spent', `${Math.round(averageTimeSpent / 1000)} seconds`]
+      ];
+
+      autoTable(doc, {
+        head: [['Metric', 'Value']],
+        body: summaryData,
+        startY: yPosition,
+        theme: 'grid',
+        headStyles: { fillColor: [66, 133, 244] },
+        margin: { left: 20, right: 20 }
+      });
+
+      yPosition = (doc as any).lastAutoTable.finalY + 20;
+    }
+
+    // Response Data Table
+    if (data && data.length > 0) {
+      checkPageBreak(100);
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Response Data', 20, yPosition);
+      yPosition += 15;
+
+      // Prepare table data
+      const tableHeaders = Object.keys(data[0]).filter(key => {
+        if (options.excludeFields?.includes(key)) return false;
+        if (!options.includeParticipantInfo && ['participant_id', 'email', 'name'].includes(key)) return false;
+        if (!options.includeTimestamps && ['created_at', 'updated_at'].includes(key)) return false;
+        return true;
+      });
+
+      const tableData = data.slice(0, 50).map(row => { // Limit to first 50 rows for PDF
+        return tableHeaders.map(header => {
+          let value = row[header];
+          
+          // Handle anonymization
+          if (options.anonymize) {
+            if (['email', 'name'].includes(header)) {
+              value = '[REDACTED]';
+            } else if (header === 'participant_id') {
+              value = `P${hashCode(value?.toString() || '').toString().slice(0, 4)}`;
+            }
+          }
+          
+          // Format values for display
+          if (value === null || value === undefined) return '';
+          if (typeof value === 'object') return JSON.stringify(value).slice(0, 50) + '...';
+          if (typeof value === 'string' && value.length > 30) return value.slice(0, 30) + '...';
+          if (typeof value === 'number') return value.toFixed(2);
+          return value.toString();
+        });
+      });
+
+      // Add note if data was truncated
+      if (data.length > 50) {
+        checkPageBreak(15);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'italic');
+        doc.text(`Note: Showing first 50 of ${data.length} responses. Download CSV/JSON for complete data.`, 20, yPosition);
+        yPosition += 10;
+      }
+
+      autoTable(doc, {
+        head: [tableHeaders],
+        body: tableData,
+        startY: yPosition,
+        theme: 'striped',
+        headStyles: { fillColor: [66, 133, 244] },
+        margin: { left: 20, right: 20 },
+        styles: { fontSize: 8, cellPadding: 2 },
+        columnStyles: tableHeaders.reduce((acc, header, index) => {
+          acc[index] = { cellWidth: 'auto' };
+          return acc;
+        }, {} as any)
+      });
+
+      yPosition = (doc as any).lastAutoTable.finalY + 20;
+    }
+
+    // Footer with generation info
+    const totalPages = doc.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.text(
+        `Generated by StoryMode Analytics - Page ${i} of ${totalPages}`,
+        pageWidth / 2,
+        pageHeight - 10,
+        { align: 'center' }
+      );
+    }
+
+    return doc.output('datauristring');
+
+  } catch (error) {
+    console.error('PDF generation error:', error);
+    
+    // Fallback: Create a simple error PDF
+    const errorDoc = new jsPDF();
+    errorDoc.setFontSize(16);
+    errorDoc.text('PDF Generation Error', 20, 30);
+    errorDoc.setFontSize(12);
+    errorDoc.text('An error occurred while generating the PDF report.', 20, 50);
+    errorDoc.text('Please try exporting as CSV or JSON format.', 20, 70);
+    errorDoc.text(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`, 20, 90);
+    
+    return errorDoc.output('datauristring');
+  }
+}
+
+/**
+ * Streaming export for large datasets
+ * @param surveyId The survey ID
+ * @param options Export options
+ * @param onProgress Progress callback function
+ * @returns AsyncGenerator that yields data chunks
+ */
+export async function* streamExportSurveyData(
+  surveyId: string,
+  options: Partial<ExportOptions> = {},
+  onProgress?: (processed: number, total: number) => void
+): AsyncGenerator<string, void, unknown> {
+  const mergedOptions = { ...DEFAULT_EXPORT_OPTIONS, ...options };
+  const supabase = getClient({ requiresAdmin: true });
+  
+  // Get total count first
+  const { count: totalCount, error: countError } = await supabase
+    .from('survey_responses')
+    .select('*', { count: 'exact', head: true })
+    .eq('survey_id', surveyId)
+    .in('status', mergedOptions.filterByStatus || ['completed']);
+
+  if (countError) {
+    throw new Error(`Failed to get response count: ${countError.message}`);
+  }
+
+  const total = totalCount || 0;
+  const chunkSize = 1000; // Process 1000 records at a time
+  let processed = 0;
+
+  // Yield header for CSV format
+  if (mergedOptions.format === 'csv') {
+    // Get first record to determine headers
+    const { data: sampleData, error: sampleError } = await supabase
+      .from('survey_responses')
+      .select(`
+        *,
+        participants!inner(email, name, participant_identifier)
+      `)
+      .eq('survey_id', surveyId)
+      .in('status', mergedOptions.filterByStatus || ['completed'])
+      .limit(1);
+
+    if (!sampleError && sampleData && sampleData.length > 0) {
+      const processedSample = processResponseData([sampleData[0]], mergedOptions);
+      if (processedSample.length > 0) {
+        const headers = Object.keys(processedSample[0]);
+        const filteredHeaders = headers.filter(h => !mergedOptions.excludeFields?.includes(h));
+        yield filteredHeaders.join(',') + '\n';
+      }
+    }
+  }
+
+  // Yield opening bracket for JSON format
+  if (mergedOptions.format === 'json') {
+    yield '[\n';
+  }
+
+  // Process data in chunks
+  for (let offset = 0; offset < total; offset += chunkSize) {
+    const { data: responses, error } = await supabase
+      .from('survey_responses')
+      .select(`
+        *,
+        participants!inner(email, name, participant_identifier)
+      `)
+      .eq('survey_id', surveyId)
+      .in('status', mergedOptions.filterByStatus || ['completed'])
+      .order(mergedOptions.sortBy || 'created_at', {
+        ascending: mergedOptions.sortDirection === 'asc'
+      })
+      .range(offset, offset + chunkSize - 1);
+
+    if (error) {
+      throw new Error(`Failed to fetch responses: ${error.message}`);
+    }
+
+    if (!responses || responses.length === 0) {
+      break;
+    }
+
+    // Process the chunk
+    const processedChunk = processResponseData(responses, mergedOptions);
+    
+    // Yield processed data based on format
+    switch (mergedOptions.format) {
+      case 'csv':
+        for (const row of processedChunk) {
+          const values = Object.values(row).map(value => {
+            if (value === null || value === undefined) return '';
+            if (typeof value === 'object') return `"${JSON.stringify(value).replace(/"/g, '""')}"`;
+            if (typeof value === 'string') return `"${value.replace(/"/g, '""')}"`;
+            return value;
+          });
+          yield values.join(',') + '\n';
+        }
+        break;
+
+      case 'json':
+        for (let i = 0; i < processedChunk.length; i++) {
+          const isLast = offset + i === total - 1;
+          const comma = isLast ? '' : ',';
+          yield `  ${JSON.stringify(processedChunk[i])}${comma}\n`;
+        }
+        break;
+
+      default:
+        // For other formats, yield as JSON
+        yield JSON.stringify(processedChunk) + '\n';
+        break;
+    }
+
+    processed += responses.length;
+    onProgress?.(processed, total);
+
+    // Small delay to prevent overwhelming the database
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+
+  // Yield closing bracket for JSON format
+  if (mergedOptions.format === 'json') {
+    yield ']\n';
+  }
+}
+
+/**
+ * Enhanced export function that automatically uses streaming for large datasets
+ * @param surveyId The survey ID
+ * @param options Export options
+ * @returns Export result with data, content type, and filename
+ */
+export async function exportSurveyDataEnhanced(
+  surveyId: string,
+  options: Partial<ExportOptions> = {}
+): Promise<{ data: string; contentType: string; filename: string; isStreaming?: boolean }> {
+  const mergedOptions = { ...DEFAULT_EXPORT_OPTIONS, ...options };
+  const supabase = getClient({ requiresAdmin: true });
+  
+  // Check dataset size
+  const { count: totalCount } = await supabase
+    .from('survey_responses')
+    .select('*', { count: 'exact', head: true })
+    .eq('survey_id', surveyId)
+    .in('status', mergedOptions.filterByStatus || ['completed']);
+
+  const total = totalCount || 0;
+  const STREAMING_THRESHOLD = 5000;
+
+  // Use streaming for large datasets
+  if (total > STREAMING_THRESHOLD && mergedOptions.format !== 'pdf') {
+    let data = '';
+    let processed = 0;
+    
+    for await (const chunk of streamExportSurveyData(surveyId, options, (p, t) => {
+      processed = p;
+      console.log(`Export progress: ${p}/${t} (${Math.round((p/t)*100)}%)`);
+    })) {
+      data += chunk;
+    }
+
+    const timestamp = new Date().toISOString().split('T')[0];
+    const surveySlug = surveyId.slice(0, 8);
+    
+    let contentType: string;
+    let filename: string;
+    
+    switch (mergedOptions.format) {
+      case 'json':
+        contentType = 'application/json';
+        filename = `survey-${surveySlug}-${timestamp}.json`;
+        break;
+      case 'csv':
+      default:
+        contentType = 'text/csv';
+        filename = `survey-${surveySlug}-${timestamp}.csv`;
+        break;
+    }
+
+    return { data, contentType, filename, isStreaming: true };
+  }
+
+  // Use regular export for smaller datasets
+  return exportSurveyData(surveyId, options);
+}
+
+/**
  * Generates a summary of survey responses
  * @param data The survey data
  * @returns Summary object
@@ -375,15 +829,9 @@ export async function exportSurveyData(
       break;
       
     case 'pdf':
-      // PDF generation would typically be handled by a library like pdfkit
-      // For now, we'll return JSON with a note
-      data = JSON.stringify({
-        note: 'PDF generation requires server-side libraries. This is a placeholder.',
-        summary: generateSurveySummary(rawData),
-        data: processedData
-      }, null, 2);
-      contentType = 'application/json';
-      filename = `survey-${surveySlug}-${timestamp}.json`;
+      data = await convertToPDF(processedData, rawData, mergedOptions);
+      contentType = 'application/pdf';
+      filename = `survey-${surveySlug}-${timestamp}.pdf`;
       break;
       
     case 'csv':
