@@ -6,28 +6,54 @@ import type { Database } from '../../../types/database';
 import { rateLimitMiddleware } from '../../../utils/rateLimit';
 
 export const POST: APIRoute = async ({ request, cookies }) => {
+  console.log('[LOGIN API] ==================== STARTING LOGIN REQUEST ====================');
+  console.log('[LOGIN API] Request method:', request.method);
+  console.log('[LOGIN API] Request URL:', request.url);
+  console.log('[LOGIN API] Content-Type header:', request.headers.get('content-type'));
+  console.log('[LOGIN API] All headers:', Object.fromEntries(request.headers.entries()));
+  
   const headers = {
     'Content-Type': 'application/json'
   };
 
   try {
     // Apply rate limiting middleware
+    console.log('[LOGIN API] Applying rate limiting middleware...');
     const rateLimitResponse = await rateLimitMiddleware('LOGIN')(request);
     if (rateLimitResponse instanceof Response) {
+      console.log('[LOGIN API] Rate limit response returned, blocking request');
       return rateLimitResponse;
     }
+    console.log('[LOGIN API] Rate limiting passed, adding headers:', rateLimitResponse.headers);
     Object.assign(headers, rateLimitResponse.headers);
 
-    const { email, password } = await request.json();
+    console.log('[LOGIN API] Attempting to parse request body...');
+    let requestBody;
+    try {
+      requestBody = await request.json();
+      console.log('[LOGIN API] Request body parsed successfully');
+    } catch (jsonError) {
+      console.error('[LOGIN API] Failed to parse JSON:', jsonError);
+      const text = await request.text();
+      console.log('[LOGIN API] Raw request body:', text);
+      throw new Error(`Invalid JSON in request body: ${jsonError instanceof Error ? jsonError.message : 'Unknown error'}`);
+    }
+    
+    const { email, password } = requestBody;
+    
+    console.log('[LOGIN API] Email present:', !!email, 'Password present:', !!password);
     
     // Normalize email and validate format
     const normalizedEmail = email.trim().toLowerCase();
+    console.log('[LOGIN API] Normalized email:', normalizedEmail);
+    
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
-      return new Response(JSON.stringify({ 
-        error: 'Please enter a valid email address' 
-      }), { 
+      console.log('[LOGIN API] Invalid email format, returning error');
+      return new Response(JSON.stringify({
+        error: 'Please enter a valid email address'
+      }), {
         status: 400,
-        headers 
+        headers
       });
     }
 
@@ -45,12 +71,14 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     );
 
     // Step 1: Initial Authentication
+    console.log('[LOGIN API] Attempting Supabase authentication...');
     const { data: authData, error: authError } = await supabaseAuth.auth.signInWithPassword({
       email: normalizedEmail,
       password,
     });
 
     if (authError) {
+      console.log('[LOGIN API] Authentication failed:', authError.message);
       return new Response(JSON.stringify({
         success: false,
         error: authError.message
@@ -59,6 +87,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
         headers
       });
     }
+    console.log('[LOGIN API] Authentication successful, user ID:', authData.user?.id);
 
     if (!authData.session) {
       return new Response(JSON.stringify({
@@ -117,6 +146,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     }
 
     // Return success response
+    console.log('[LOGIN API] Returning successful login response');
     return new Response(JSON.stringify({
       success: true,
       user: {
@@ -133,13 +163,19 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     });
 
   } catch (error) {
-    console.error('Login process error:', error);
+    console.error('[LOGIN API] ==================== LOGIN ERROR ====================');
+    console.error('[LOGIN API] Error type:', typeof error);
+    console.error('[LOGIN API] Error name:', error instanceof Error ? error.name : 'Unknown');
+    console.error('[LOGIN API] Error message:', error instanceof Error ? error.message : error);
+    console.error('[LOGIN API] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    console.error('[LOGIN API] Full error object:', error);
+    
     return new Response(JSON.stringify({
       success: false,
       error: 'Authentication failed'
-    }), { 
+    }), {
       status: 500,
-      headers 
+      headers
     });
   }
 };

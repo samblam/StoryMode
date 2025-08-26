@@ -16,32 +16,42 @@ declare module 'astro' {
 
 export const onRequest: MiddlewareHandler = async ({ request, locals, cookies }, next) => {
   try {
-    console.log('Middleware - Starting authentication check');
+    console.log('[MIDDLEWARE] ================= REQUEST START =================');
+    console.log('[MIDDLEWARE] URL:', request.url);
+    console.log('[MIDDLEWARE] Method:', request.method);
+    console.log('[MIDDLEWARE] Content-Type:', request.headers.get('content-type'));
     
     // Get token from cookie or Authorization header
     let token = cookies.get('sb-token')?.value;
+    console.log('[MIDDLEWARE] Token from cookie:', token ? 'PRESENT' : 'NOT_FOUND');
     
     // Check Authorization header if no cookie token
     if (!token) {
       const authHeader = request.headers.get('Authorization');
       if (authHeader?.startsWith('Bearer ')) {
         token = authHeader.substring(7);
-        console.log('Middleware - Found token in Authorization header');
+        console.log('[MIDDLEWARE] Found token in Authorization header');
       }
     }
 
     const participantToken = cookies.get('participant-token');
+    console.log('[MIDDLEWARE] Participant token:', participantToken?.value ? 'PRESENT' : 'NOT_FOUND');
 
     // For API routes, don't modify the request to avoid interfering with body parsing
     const isApiRoute = request.url.includes('/api/');
+    console.log('[MIDDLEWARE] Is API route:', isApiRoute);
+    console.log('[MIDDLEWARE] Should modify request (token && isApiRoute):', !!(token && isApiRoute));
+    
     let modifiedRequest = request;
 
     // Only modify request for non-API routes if we need to add auth headers
     if (token && isApiRoute) {
+      console.log('[MIDDLEWARE] MODIFYING API REQUEST - This might be the problem!');
       // For API routes, just add the auth header without creating a new request
       try {
         const headers = new Headers(request.headers);
         headers.set('Authorization', `Bearer ${token}`);
+        console.log('[MIDDLEWARE] Creating new request with auth header...');
         modifiedRequest = new Request(request.url, {
           method: request.method,
           headers: headers,
@@ -49,11 +59,15 @@ export const onRequest: MiddlewareHandler = async ({ request, locals, cookies },
           signal: request.signal,
           duplex: 'half'
         });
+        console.log('[MIDDLEWARE] Request modification SUCCESS');
       } catch (error) {
-        console.error('Middleware - Error modifying request headers:', error);
+        console.error('[MIDDLEWARE] Error modifying request headers:', error);
         // If request modification fails, use original request
         modifiedRequest = request;
+        console.log('[MIDDLEWARE] Using ORIGINAL request due to error');
       }
+    } else {
+      console.log('[MIDDLEWARE] Using ORIGINAL request without modification');
     }
 
     // Handle participant authentication
