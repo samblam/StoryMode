@@ -1,4 +1,3 @@
-// src/pages/api/auth/login.ts
 import type { APIRoute } from 'astro';
 import { createClient } from '@supabase/supabase-js';
 import { getClient } from '../../../lib/supabase';
