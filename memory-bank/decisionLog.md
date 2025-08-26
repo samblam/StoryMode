@@ -68,3 +68,15 @@ This file records architectural and implementation decisions made during the Sto
 **Implementation Details:** Environment-aware logging, GDPR compliance for EU participants, confidentiality for client intellectual property.
 
 2025-08-26 16:02:15 - Decision log established with key architectural and implementation decisions extracted from project history and .clinerules analysis.
+
+[2025-08-26 20:19:15] - **MIDDLEWARE FIX FOR API ROUTE INTERFERENCE**
+**Decision**: Modified middleware.ts to avoid request object modification for API routes
+**Rationale**: 
+- Original middleware created new Request objects with `duplex: 'half'` for all requests
+- This interfered with POST request body parsing for API endpoints
+- Caused login endpoint to return HTML error pages instead of JSON responses
+**Implementation**:
+- Added `isApiRoute` check to identify API requests
+- Only modify requests when adding authorization headers is necessary
+- Use original request object for API routes to preserve POST body integrity
+**Impact**: Resolves login JSON parsing errors and ensures API endpoints function correctly

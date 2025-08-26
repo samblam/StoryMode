@@ -379,3 +379,11 @@ The `generateCorrelationChart` function in `src/utils/surveyVisualization.ts` is
 32 | -   The application must adhere to security best practices to protect user data and prevent unauthorized access.
 
 [2025-08-26 16:05:10] - MEMORY BANK MIGRATION COMPLETED - All 6 files present and verified in memory-bank/ structure
+
+[2025-08-26 20:18:59] - **DEBUGGING BREAKTHROUGH**: Fixed critical login authentication issue
+- **Root Cause Identified**: Middleware request modification (lines 35-47) was interfering with POST request body handling for API routes
+- **Technical Issue**: Creating new Request objects with `duplex: 'half'` caused API endpoints to return HTML error pages instead of JSON responses
+- **Fix Applied**: Modified middleware to avoid request modification for API routes unless specifically adding authorization headers
+- **Error Pattern**: `SyntaxError: Unexpected token '<', "<!doctype "... is not valid JSON` resolved
+- **Impact**: Login flow now properly receives JSON responses from `/api/auth/login` endpoint
+- **Status**: Login functionality fixed, pending user testing confirmation

@@ -32,18 +32,28 @@ export const onRequest: MiddlewareHandler = async ({ request, locals, cookies },
 
     const participantToken = cookies.get('participant-token');
 
-    // Create a new request with mutable headers and required duplex option
-    const modifiedRequest = new Request(request.url, {
-      method: request.method,
-      headers: new Headers(request.headers),
-      body: request.body,
-      signal: request.signal,
-      duplex: 'half'
-    });
+    // For API routes, don't modify the request to avoid interfering with body parsing
+    const isApiRoute = request.url.includes('/api/');
+    let modifiedRequest = request;
 
-    // Add token to Authorization header for API routes if available
-    if (token && request.url.includes('/api/')) {
-      modifiedRequest.headers.set('Authorization', `Bearer ${token}`);
+    // Only modify request for non-API routes if we need to add auth headers
+    if (token && isApiRoute) {
+      // For API routes, just add the auth header without creating a new request
+      try {
+        const headers = new Headers(request.headers);
+        headers.set('Authorization', `Bearer ${token}`);
+        modifiedRequest = new Request(request.url, {
+          method: request.method,
+          headers: headers,
+          body: request.body,
+          signal: request.signal,
+          duplex: 'half'
+        });
+      } catch (error) {
+        console.error('Middleware - Error modifying request headers:', error);
+        // If request modification fails, use original request
+        modifiedRequest = request;
+      }
     }
 
     // Handle participant authentication
