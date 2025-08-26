@@ -39,14 +39,16 @@ export const onRequest: MiddlewareHandler = async ({ request, locals, cookies },
 
     // For API routes, don't modify the request to avoid interfering with body parsing
     const isApiRoute = request.url.includes('/api/');
+    const isAuthEndpoint = request.url.includes('/api/auth/');
     console.log('[MIDDLEWARE] Is API route:', isApiRoute);
-    console.log('[MIDDLEWARE] Should modify request (token && isApiRoute):', !!(token && isApiRoute));
+    console.log('[MIDDLEWARE] Is auth endpoint:', isAuthEndpoint);
+    console.log('[MIDDLEWARE] Should modify request (token && isApiRoute && !isAuthEndpoint):', !!(token && isApiRoute && !isAuthEndpoint));
     
     let modifiedRequest = request;
 
-    // Only modify request for non-API routes if we need to add auth headers
-    if (token && isApiRoute) {
-      console.log('[MIDDLEWARE] MODIFYING API REQUEST - This might be the problem!');
+    // Only modify API requests that need auth headers (skip auth endpoints like login/register)
+    if (token && isApiRoute && !isAuthEndpoint) {
+      console.log('[MIDDLEWARE] MODIFYING API REQUEST - Adding auth header');
       // For API routes, just add the auth header without creating a new request
       try {
         const headers = new Headers(request.headers);
