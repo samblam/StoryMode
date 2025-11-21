@@ -1,9 +1,32 @@
 import { defineConfig } from 'astro/config';
-import tailwind from '@astrojs/tailwind';
+import UnoCSS from '@unocss/astro';
 import vercel from '@astrojs/vercel/serverless';
 
 export default defineConfig({
-  integrations: [tailwind()],
+  integrations: [
+    UnoCSS({
+      presets: [
+        require('@unocss/preset-uno')({
+          theme: {
+            colors: {
+              brutal: {
+                pink: '#ff0080',
+                bg: '#ffe6f7',
+                text: '#1a1a1a',
+              }
+            },
+            fontFamily: {
+              'outfit': ['Outfit', 'sans-serif'],
+              'dm-serif': ['DM Serif Text', 'serif'],
+              'poppins': ['Poppins', 'sans-serif'],
+              'sanchez': ['Sanchez', 'serif'],
+              'righteous': ['Righteous', 'cursive'],
+            }
+          }
+        })
+      ]
+    })
+  ],
   output: 'server',
   adapter: vercel({
     analytics: true,

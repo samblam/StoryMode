@@ -1,54 +1,248 @@
 ---
-import Layout from '../layouts/Layout.astro';
+import BrutalLayout from '../layouts/BrutalLayout.astro';
+import WorkCard from '../components/WorkCard.astro';
+import BlogPost from '../components/BlogPost.astro';
+import ContactForm from '../components/ContactForm.astro';
+
+const works = [
+  {
+    title: "Sonic Brand Identity",
+    client: "TechCorp Inc.",
+    description: "Created a comprehensive audio branding package including logo sound, UI sounds, and ambient music.",
+    imageUrl: "/works/techcorp.jpg"
+  },
+  {
+    title: "Game Audio Design",
+    client: "GameStudio XYZ",
+    description: "Developed immersive sound effects and adaptive music system for their latest mobile game.",
+    imageUrl: "/works/gamestudio.jpg"
+  },
+  {
+    title: "Interactive Installation",
+    client: "Modern Art Museum",
+    description: "Sound design for an interactive art installation responding to visitor movements.",
+    imageUrl: "/works/museum.jpg"
+  }
+];
+
+const posts = [
+  {
+    title: "The Art of UI Sound Design",
+    date: "February 15, 2024",
+    excerpt: "How tiny sounds make a huge difference in user experience...",
+    slug: "ui-sound-design"
+  },
+  {
+    title: "Creating Sonic Identities",
+    date: "February 1, 2024",
+    excerpt: "What makes a brand sound as unique as it looks?",
+    slug: "sonic-identities"
+  },
+  {
+    title: "The Psychology of Sound",
+    date: "January 15, 2024",
+    excerpt: "Understanding how sound affects human behavior and emotion...",
+    slug: "sound-psychology"
+  }
+];
 ---
 
-<Layout title="Story Mode | UX Sound Design">
-  <main class="min-h-screen bg-white">
-    <div class="max-w-6xl mx-auto px-4 py-24">
-      <div class="mb-24">
-        <h1 class="text-6xl font-editorial mb-8">
-          Story Mode is a <em class="italic">(very)</em> fun<br>
-          UX sound design studio in<br>
-          Montreal, Quebec.<br><br>
-          We specialize in making interactive audio unforgettable.
-        </h1>
-      </div>
+<BrutalLayout title="Story Mode | UX Sound Design">
+  <main class="min-h-screen">
+    <!-- Hero Section -->
+    <section id="hero" class="py-24 bg-brutal-bg">
+      <div class="max-w-8xl mx-auto px-4">
+        <div class="grid-8 gap-8">
+          <div class="col-span-4">
+            <h1 class="text-6xl font-righteous mb-8 text-brutal-text">
+              Story Mode is a <em class="italic">(very)</em> fun<br>
+              UX sound design studio in<br>
+              Montreal, Quebec.<br><br>
+              We specialize in making interactive audio unforgettable.
+            </h1>
+          </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-12">
-        <div>
-          <h2 class="text-4xl font-editorial mb-8">We're extremely good at:</h2>
-          <ul class="text-2xl space-y-4">
-            <li>- audio logos</li>
-            <li>- UX sound design</li>
-            <li>- experiential audio</li>
-            <li>- original music composition</li>
-            <li>- sonic identity discovery</li>
-            <li>- singing in the shower</li>
-          </ul>
-        </div>
-        
-        <div class="flex items-center justify-center">
-          <img src="/favicon.svg" alt="Story Mode Logo" class="w-48 h-48">
-        </div>
-      </div>
+          <div class="col-span-2">
+            <div class="brutal-card p-6">
+              <h2 class="text-2xl font-dm-serif mb-4">We're extremely good at:</h2>
+              <ul class="text-lg space-y-2">
+                <li>• audio logos</li>
+                <li>• UX sound design</li>
+                <li>• experiential audio</li>
+                <li>• original music composition</li>
+                <li>• sonic identity discovery</li>
+                <li>• singing in the shower</li>
+              </ul>
+            </div>
+          </div>
 
-      <div class="mt-24 text-center">
-        <h2 class="text-4xl font-editorial mb-8">
-          don't be shy... <a href="/contact" class="underline hover:text-blue-600">say hi :)</a>
-        </h2>
-        
-        <button
-          id="test-db"
-          class="bg-green-400 text-white px-6 py-3 rounded-lg text-lg hover:bg-green-500 transition-colors"
-        >
-          Test DB Connection
-        </button>
-        
-        <p id="db-status" class="mt-4 text-lg hidden"></p>
+          <div class="col-span-2 flex items-center justify-center">
+            <div class="brutal-card p-6">
+              <img src="/favicon.svg" alt="Story Mode Logo" class="w-32 h-32">
+            </div>
+          </div>
+        </div>
+
+        <div class="text-center mt-16">
+          <a href="#contact" class="brutal-button inline-block">
+            don't be shy... say hi :)
+          </a>
+        </div>
       </div>
-    </div>
+    </section>
+
+    <!-- Services Section -->
+    <section id="services" class="py-24 bg-white">
+      <div class="max-w-8xl mx-auto px-4">
+        <h2 class="text-5xl font-righteous mb-16 text-center text-brutal-text">Our Services</h2>
+        <div class="grid-8 gap-8">
+          <div class="col-span-2">
+            <div class="brutal-card p-6">
+              <h3 class="text-2xl font-dm-serif mb-4">Audio Logos</h3>
+              <p class="text-lg">Memorable sonic identities that make brands unforgettable.</p>
+              <div class="mt-4">
+                <span class="brutal-pill">Branding</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-span-2">
+            <div class="brutal-card p-6">
+              <h3 class="text-2xl font-dm-serif mb-4">UX Sound Design</h3>
+              <p class="text-lg">Interactive audio that enhances user experience and engagement.</p>
+              <div class="mt-4">
+                <span class="brutal-pill">Interface</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-span-2">
+            <div class="brutal-card p-6">
+              <h3 class="text-2xl font-dm-serif mb-4">Experiential Audio</h3>
+              <p class="text-lg">Immersive soundscapes for installations and events.</p>
+              <div class="mt-4">
+                <span class="brutal-pill">Experiences</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-span-2">
+            <div class="brutal-card p-6">
+              <h3 class="text-2xl font-dm-serif mb-4">Original Music</h3>
+              <p class="text-lg">Custom compositions that tell your brand's story.</p>
+              <div class="mt-4">
+                <span class="brutal-pill">Composition</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- About Section -->
+    <section id="about" class="py-24 bg-brutal-bg">
+      <div class="max-w-8xl mx-auto px-4">
+        <div class="grid-8 gap-8">
+          <div class="col-span-4">
+            <h2 class="text-5xl font-righteous mb-8 text-brutal-text">About Us</h2>
+            <div class="brutal-card p-8">
+              <p class="text-2xl mb-6 font-poppins">
+                We're a bunch of audio nerds who absolutely love what we do. Our mission? Making the digital world sound as amazing as it looks.
+              </p>
+              <p class="text-xl mb-6 font-poppins">
+                Founded in Montreal, we've been crafting sonic experiences that make people smile, think, and feel something special.
+              </p>
+              <p class="text-xl font-poppins">
+                Whether it's a tiny notification sound or a full-blown audio identity, we pour our hearts (and ears) into every project.
+              </p>
+            </div>
+          </div>
+
+          <div class="col-span-4">
+            <h3 class="text-3xl font-dm-serif mb-6 text-brutal-text">Our Process</h3>
+            <div class="space-y-4">
+              <div class="brutal-card p-4">
+                <h4 class="text-xl font-bold mb-2">1. We listen (obviously)</h4>
+                <p class="text-lg">Understanding your vision and goals</p>
+              </div>
+              <div class="brutal-card p-4">
+                <h4 class="text-xl font-bold mb-2">2. We experiment (a lot)</h4>
+                <p class="text-lg">Testing sounds and concepts</p>
+              </div>
+              <div class="brutal-card p-4">
+                <h4 class="text-xl font-bold mb-2">3. We iterate (until it's perfect)</h4>
+                <p class="text-lg">Refining based on feedback</p>
+              </div>
+              <div class="brutal-card p-4">
+                <h4 class="text-xl font-bold mb-2">4. We deliver (on time)</h4>
+                <p class="text-lg">High-quality results you can rely on</p>
+              </div>
+              <div class="brutal-card p-4">
+                <h4 class="text-xl font-bold mb-2">5. We celebrate (with coffee)</h4>
+                <p class="text-lg">Success calls for celebration!</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Works Section -->
+    <section id="works" class="py-24 bg-white">
+      <div class="max-w-8xl mx-auto px-4">
+        <h2 class="text-5xl font-righteous mb-16 text-center text-brutal-text">Our Works</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {works.map(work => <WorkCard {...work} />)}
+        </div>
+      </div>
+    </section>
+
+    <!-- Blog Section -->
+    <section id="blog" class="py-24 bg-brutal-bg">
+      <div class="max-w-8xl mx-auto px-4">
+        <h2 class="text-5xl font-righteous mb-16 text-center text-brutal-text">Latest Thoughts</h2>
+        <div class="max-w-4xl mx-auto">
+          {posts.map(post => <BlogPost {...post} />)}
+        </div>
+      </div>
+    </section>
+
+    <!-- Contact Section -->
+    <section id="contact" class="py-24 bg-white">
+      <div class="max-w-8xl mx-auto px-4">
+        <h2 class="text-5xl font-righteous mb-16 text-center text-brutal-text">Let's Chat</h2>
+        <div class="grid-8 gap-8">
+          <div class="col-span-4">
+            <div class="brutal-card p-8">
+              <p class="text-2xl mb-6 font-poppins">
+                Got a project in mind? Want to make your product sound amazing? Or just want to say hi?
+              </p>
+              <p class="text-xl mb-8 font-poppins">
+                Drop us a line and we'll get back to you faster than you can say "sonic branding"!
+              </p>
+
+              <div class="space-y-4">
+                <p class="text-xl font-poppins">
+                  <strong>Email:</strong>
+                  <a href="mailto:info@storymode.ca" class="text-brutal-pink hover:underline ml-2">
+                    info@storymode.ca
+                  </a>
+                </p>
+                <p class="text-xl font-poppins">
+                  <strong>Location:</strong> Montreal, Quebec
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-span-4">
+            <ContactForm />
+          </div>
+        </div>
+      </div>
+    </section>
   </main>
-</Layout>
+</BrutalLayout>
 
 <script>
   function initializeDBTest() {

@@ -1,0 +1,51 @@
+/* UnoCSS configuration for brutal theme */
+@import '@unocss/reset/tailwind.css';
+
+/* Custom brutal theme variables */
+:root {
+  --brutal-pink: #ff0080;
+  --brutal-bg: #ffe6f7;
+  --brutal-text: #1a1a1a;
+}
+
+/* Brutal theme utilities */
+.brutal-card {
+  @apply bg-white border-4 border-brutal-text shadow-[8px_8px_0px_0px_#1a1a1a] transition-all duration-200 hover:shadow-[12px_12px_0px_0px_#1a1a1a] hover:-translate-x-1 hover:-translate-y-1;
+}
+
+.brutal-button {
+  @apply bg-brutal-pink text-white border-4 border-brutal-text font-bold py-3 px-6 shadow-[4px_4px_0px_0px_#1a1a1a] transition-all duration-200 hover:shadow-[8px_8px_0px_0px_#1a1a1a] hover:-translate-x-1 hover:-translate-y-1 active:shadow-[2px_2px_0px_0px_#1a1a1a] active:translate-x-0 active:translate-y-0;
+}
+
+.brutal-pill {
+  @apply bg-brutal-pink text-white px-3 py-1 text-sm font-bold border-2 border-brutal-text shadow-[2px_2px_0px_0px_#1a1a1a];
+}
+
+/* Grid system */
+.grid-8 {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.col-span-1 { grid-column: span 1 / span 1; }
+.col-span-2 { grid-column: span 2 / span 2; }
+.col-span-3 { grid-column: span 3 / span 3; }
+.col-span-4 { grid-column: span 4 / span 4; }
+.col-span-5 { grid-column: span 5 / span 5; }
+.col-span-6 { grid-column: span 6 / span 6; }
+.col-span-7 { grid-column: span 7 / span 7; }
+.col-span-8 { grid-column: span 8 / span 8; }
+
+/* Typography */
+.font-outfit { font-family: 'Outfit', sans-serif; }
+.font-dm-serif { font-family: 'DM Serif Text', serif; }
+.font-poppins { font-family: 'Poppins', sans-serif; }
+.font-sanchez { font-family: 'Sanchez', serif; }
+.font-righteous { font-family: 'Righteous', cursive; }
+
+/* Colors */
+.bg-brutal-pink { background-color: var(--brutal-pink); }
+.bg-brutal-bg { background-color: var(--brutal-bg); }
+.text-brutal-text { color: var(--brutal-text); }
+.border-brutal-text { border-color: var(--brutal-text); }
